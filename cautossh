@@ -1,0 +1,827 @@
+#!/usr/bin/env bash
+
+#Core Auto SSH v1.0
+
+#http://creativecommons.org/publicdomain/zero/1.0/
+#To the extent possible under law, mirage335 has waived all copyright and related or neighboring rights to Core Auto SSH v1.0, excepting any credential files. This work is published from: United States.
+
+#####Utilities
+
+#Run command and output to terminal with colorful formatting. Controlled variant of "bash -v".
+_showCommand() {
+	echo -e '\E[1;32;46m $ '"$1"' \E[0m'
+	"$@"
+}
+
+#Retrieves absolute path of current script, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
+#However, will dereference symlinks IF the script location itself is a symlink. This is to allow symlinking to scripts to function normally.
+#Suitable for allowing scripts to find other scripts they depend on. May look like an ugly hack, but it has proven reliable over the years.
+_getScriptAbsoluteLocation() {
+	local absoluteLocation
+	if [[ (-e $PWD\/$0) && ($0 != "") ]] && [[ "$1" != "/"* ]]
+			then
+	absoluteLocation="$PWD"\/"$0"
+	absoluteLocation=$(realpath -L -s "$absoluteLocation")
+			else
+	absoluteLocation=$(realpath -L "$0")
+	fi
+
+	if [[ -h "$absoluteLocation" ]]
+			then
+	absoluteLocation=$(readlink -f "$absoluteLocation")
+	absoluteLocation=$(realpath -L "$absoluteLocation")
+	fi
+	echo $absoluteLocation
+}
+alias getScriptAbsoluteLocation=_getScriptAbsoluteLocation
+
+#Retrieves absolute path of current script, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
+#Suitable for allowing scripts to find other scripts they depend on.
+_getScriptAbsoluteFolder() {
+	dirname "$(_getScriptAbsoluteLocation)"
+}
+alias getScriptAbsoluteFolder=_getScriptAbsoluteFolder
+
+#Retrieves absolute path of parameter, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
+#Suitable for finding absolute paths, when it is desirable not to interfere with symlink specified folder structure.
+_getAbsoluteLocation() {
+	if [[ "$1" == "" ]]
+	then
+		echo
+		return
+	fi
+	
+	local absoluteLocation
+	if [[ (-e $PWD\/$1) && ($1 != "") ]] && [[ "$1" != "/"* ]]
+			then
+	absoluteLocation="$PWD"\/"$1"
+	absoluteLocation=$(realpath -L -s "$absoluteLocation")
+			else
+	absoluteLocation=$(realpath -L "$1")
+	fi
+	echo $absoluteLocation
+}
+alias getAbsoluteLocation=_getAbsoluteLocation
+
+#Retrieves absolute path of parameter, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
+#Suitable for finding absolute paths, when it is desirable not to interfere with symlink specified folder structure.
+_getAbsoluteFolder() {
+	local absoluteLocation=$(_getAbsoluteLocation "$1")
+	dirname "$absoluteLocation"
+}
+alias getAbsoluteLocation=_getAbsoluteLocation
+
+#Reports either the directory provided, or the directory of the file provided.
+_findDir() {
+	local dirIn=$(_getAbsoluteLocation "$1")
+	dirInLogical=$(realpath -L -s "$dirIn")
+	
+	if [[ -d "$dirInLogical" ]]
+	then
+		echo "$dirInLogical"
+		return
+	fi
+	
+	echo $(_getAbsoluteFolder "$dirInLogical")
+	return
+	
+}
+
+#Checks whether command or function is available.
+# WARNING Needed by safeRMR .
+_checkDep() {
+	if ! type "$1" >/dev/null 2>&1
+	then
+		echo "$1" missing
+		_stop 1
+	fi
+}
+
+_tryExec() {
+	type "$1" >/dev/null 2>&1 && "$1"
+}
+
+#Portable sanity checked "rm -r" command.
+# WARNING Not foolproof. Use to guard against systematic errors, not carelessness.
+#"$1" == directory to remove
+_safeRMR() {
+	
+	#if [[ ! -e "$0" ]]
+	#then
+	#	return 1
+	#fi
+	
+	if [[ "$1" == "" ]]
+	then
+		return 1
+	fi
+	
+	if [[ "$1" == "/" ]]
+	then
+		return 1
+	fi
+	
+	#Blacklist.
+	[[ "$1" == "/home" ]] && return 1
+	[[ "$1" == "/home/" ]] && return 1
+	[[ "$1" == "/home/$USER" ]] && return 1
+	[[ "$1" == "/home/$USER/" ]] && return 1
+	[[ "$1" == "/$USER" ]] && return 1
+	[[ "$1" == "/$USER/" ]] && return 1
+	
+	[[ "$1" == "/tmp" ]] && return 1
+	[[ "$1" == "/tmp/" ]] && return 1
+	
+	[[ "$1" == "$HOME" ]] && return 1
+	[[ "$1" == "$HOME/" ]] && return 1
+	
+	#Whitelist.
+	local safeToRM=false
+	
+	local safeScriptAbsoluteFolder="$_getScriptAbsoluteFolder"
+	
+	[[ "$1" == "./"* ]] && [[ "$PWD" == "$safeScriptAbsoluteFolder"* ]] && safeToRM="true"
+	
+	[[ "$1" == "$safeScriptAbsoluteFolder"* ]] && safeToRM="true"
+	
+	#[[ "$1" == "/home/$USER"* ]] && safeToRM="true"
+	[[ "$1" == "/tmp/"* ]] && safeToRM="true"
+	
+	[[ "$safeToRM" == "false" ]] && return 1
+	
+	#Safeguards/
+	[[ -d "$1" ]] && find "$1" | grep -i '\.git$' >/dev/null 2>&1 && return 1
+	
+	#Validate necessary tools were available for path building and checks.
+	_checkDep realpath
+	_checkDep readlink
+	_checkDep dirname
+	_checkDep basename
+	
+	if [[ -e "$1" ]]
+	then
+		#sleep 0
+		#echo "$1"
+		# WARNING Recommend against adding any non-portable flags.
+		rm -rf "$1"
+	fi
+}
+
+_discoverResource() {
+	local testDir
+	local scriptAbsoluteFolder
+	scriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
+	testDir="$scriptAbsoluteFolder" ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return
+	testDir="$scriptAbsoluteFolder"/.. ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return
+	testDir="$scriptAbsoluteFolder"/../.. ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return
+	testDir="$scriptAbsoluteFolder"/../../.. ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return
+}
+
+#http://stackoverflow.com/questions/687948/timeout-a-command-in-bash-without-unnecessary-delay
+_timeout() { ( set +b; sleep "$1" & "${@:2}" & wait -n; r=$?; kill -9 `jobs -p`; exit $r; ) } 
+
+#Waits for the process PID specified by first parameter to end. Useful in conjunction with $! to provide process control and/or PID files. Unlike wait command, does not require PID to be a child of the current shell.
+_pauseForProcess() {
+	while ps --no-headers -p $1 &> /dev/null
+	do
+		sleep 0.3
+	done
+}
+alias _waitForProcess=_pauseForProcess
+alias waitForProcess=_pauseForProcess
+
+#True if daemon is running.
+_daemonStatus() {
+	if [[ -e "$pidFile" ]]
+	then
+		export daemonPID=$(cat "$pidFile")
+	fi
+	
+	ps -p "$daemonPID" >/dev/null 2>&1 && return 0
+	return 1
+}
+
+_waitForTermination() {
+	_daemonStatus && sleep 0.1
+	_daemonStatus && sleep 0.3
+	_daemonStatus && sleep 1
+	_daemonStatus && sleep 2
+}
+alias _waitForDaemon=_waitForTermination
+
+#Kills background process using PID file.
+_killDaemon() {
+	externalDaemonPID=$(cat "$pidFileExternal")
+	
+	_daemonStatus && kill -TERM "$daemonPID" >/dev/null 2>&1
+	
+	_waitForTermination
+	
+	_daemonStatus && kill -KILL "$daemonPID" >/dev/null 2>&1
+	
+	_waitForTermination
+	
+	kill -TERM "$externalDaemonPID" >/dev/null 2>&1
+	sleep 0.2
+	kill -KILL "$externalDaemonPID" >/dev/null 2>&1
+	
+	rm "$pidFile" >/dev/null 2>&1
+	rm "$pidFileExternal" >/dev/null 2>&1
+}
+
+#Executes self in background (ie. as daemon).
+_execDaemon() {
+	"$scriptAbsoluteLocation" >/dev/null 2>&1 &
+	echo "$!" > "$pidFile"
+}
+
+#http://unix.stackexchange.com/questions/55913/whats-the-easiest-way-to-find-an-unused-local-port
+_findPort() {
+	lower_port="$1"
+	upper_port="$2"
+	
+	#read lower_port upper_port < /proc/sys/net/ipv4/ip_local_port_range
+	[[ "$lower_port" == "" ]] && lower_port=54000
+	[[ "$upper_port" == "" ]] && upper_port=55000
+	
+	local portRangeOffset
+	portRangeOffset=$RANDOM
+	let "portRangeOffset %= 150"
+	
+	let "lower_port += portRangeOffset"
+	
+	while true
+	do
+		for (( port = lower_port ; port <= upper_port ; port++ )); do
+			if ! ss -lpn | grep ":$port " > /dev/null 2>&1
+			then
+				sleep 0.1
+				if ! ss -lpn | grep ":$port " > /dev/null 2>&1
+				then
+					break 2
+				fi
+			fi
+		done
+	done
+	echo $port
+}
+
+#Generates random alphanumeric characters, default length 18.
+_uid() {
+	local uidLength
+	[[ -z "$1" ]] && uidLength=18 || uidLength="$1"
+	
+	cat /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c "$uidLength"
+}
+
+#Copy log files to "$permaLog" or current directory (default) for analysis.
+_preserveLog() {
+	if [[ ! -d "$permaLog" ]]
+	then
+		permaLog="$PWD"
+	fi
+	
+	cp "$logTmp"/* "$permaLog"/
+}
+
+#####Network Specific Variables
+#Statically embedded into monolithic cautossh script by compile script .
+
+export netName=default
+export gatewayName="$netName"-gw
+export LOCALSSHPORT=22
+
+#Set to the desktop user most commonly logged in.
+#[[ "$SSHUSER" == "" ]] && export SSHUSER=
+#[[ "$X11USER" == "" ]] && export X11USER=
+
+
+#Example ONLY. Modify port asignments.
+if [[ "$reversePort" == "" ]]
+then
+	export reversePort=20009
+	case $(hostname -s) in
+		alpha)
+			export reversePort=20000
+			;;
+		beta)
+			export reversePort=20001
+			export EMBEDDED=true
+			;;
+	esac
+fi
+
+export keepKeys=true
+
+#####Basic Variable Management
+
+#####Global variables.
+
+export sessionid=$(_uid)
+export scriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
+export scriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
+
+#Temporary directories.
+export safeTmp="$scriptAbsoluteFolder"/w_"$sessionid"
+export logTmp="$safeTmp"/log
+export shortTmp=/tmp/w_"$sessionid"	#Solely for misbehaved applications called upon.
+export scriptBin="$scriptAbsoluteFolder"/_bin
+
+#export varStore="$scriptAbsoluteFolder"/var
+
+#Process control.
+[[ "$pidFile" == "" ]] && export pidFile="$safeTmp"/.bgpid
+export daemonPID="cwrxuk6wqzbzV6p8kPS8J4APYGX"	#Invalid do-not-match default.
+
+#Monolithic shared files.
+
+#Resource directories.
+#export guidanceDir="$scriptAbsoluteFolder"/guidance
+
+#Current directory for preservation.
+export outerPWD=$(_getAbsoluteLocation "$PWD")
+
+#Object Dir
+export objectDir="$scriptAbsoluteFolder"
+
+#Object Name
+export objectName=$(basename "$objectDir")
+
+#Modify PATH to include own directories.
+export PATH="$PATH":"$scriptAbsoluteFolder"
+[[ -d "$scriptBin" ]] && export PATH="$PATH":"$scriptBin"
+
+
+export sshBase="$HOME"/.ssh
+export sshDir="$sshBase"/"$netName"
+
+export pidFile="$sshDir"/pid
+export pidFileExternal="$sshDir"/pidext
+export externalDaemonPID="u8R4I2"
+
+[[ "$X11USER" == "" ]] && [[ "$SSHUSER" != "" ]] && export X11USER="$SSHUSER"
+
+if [[ "$SSHUSER"  != "" ]]
+then
+	export SSHUSER="$SSHUSER"'@'
+fi
+
+export AUTOSSH_FIRST_POLL=45
+export AUTOSSH_POLL=45
+#export AUTOSSH_GATETIME=0
+export AUTOSSH_GATETIME=15
+
+#export AUTOSSH_PORT=0
+
+#export AUTOSSH_DEBUG=1
+#export AUTOSSH_LOGLEVEL=7
+
+
+
+#####Local Environment Management (Resources)
+
+_extra() {
+	true
+}
+
+_prepareSSHbase() {
+	mkdir -p "$sshDir"
+	
+	cp -d --preserve=all "$scriptAbsoluteFolder"/cautossh "$sshDir"/ > /dev/null 2>&1
+	cp -d --preserve=all "$scriptAbsoluteFolder"/ops "$sshDir"/ > /dev/null 2>&1
+	
+	chmod 600 "$scriptAbsoluteFolder"/id_rsa > /dev/null 2>&1
+	chmod 600 "$scriptAbsoluteFolder"/id_rsa.pub > /dev/null 2>&1
+	
+	cp -n -d --preserve=all "$scriptAbsoluteFolder"/id_rsa "$sshDir"/ > /dev/null 2>&1
+	cp -n -d --preserve=all "$scriptAbsoluteFolder"/id_rsa.pub "$sshDir"/ > /dev/null 2>&1
+	cp -n -d --preserve=all "$scriptAbsoluteFolder"/id_rsa "$sshBase"/ > /dev/null 2>&1
+	cp -n -d --preserve=all "$scriptAbsoluteFolder"/id_rsa.pub "$sshBase"/ > /dev/null 2>&1
+	
+	cp -d --preserve=all "$scriptAbsoluteFolder"/config "$sshDir"/ > /dev/null 2>&1
+	#cp -n -d --preserve=all "$scriptAbsoluteFolder"/config "$sshBase"/ > /dev/null 2>&1
+	
+	cp -n -d --preserve=all "$scriptAbsoluteFolder"/known_hosts "$sshDir"/ > /dev/null 2>&1
+	cp -n -d --preserve=all "$scriptAbsoluteFolder"/known_hosts "$sshBase"/ > /dev/null 2>&1
+}
+
+_prepare() {
+	
+	mkdir -p "$safeTmp"
+	
+	mkdir -p "$shortTmp"
+	
+	mkdir -p "$logTmp"
+	
+	_prepareSSHbase
+	
+	_extra
+}
+
+#####Local Environment Management (Instancing)
+
+_start() {
+	
+	_prepare
+	
+	#touch "$varStore"
+	#. "$varStore"
+	
+	
+}
+
+_saveVar() {
+	true
+	#declare -p varName > "$varStore"
+}
+
+_stop() {
+	
+	_safeRMR "$safeTmp"
+	_safeRMR "$shortTmp"
+	
+	#_tryExec _killDaemon
+	
+	#Broken.
+	if [[ "$1" != "" ]]
+	then
+		exit "$1"
+	else
+		exit 0
+	fi
+}
+
+_preserveLog() {
+	cp "$logTmp"/* ./  >/dev/null 2>&1
+}
+
+#Traps
+trap 'excode=$?; _stop; trap - EXIT; echo $excode' EXIT HUP INT QUIT PIPE TERM		# reset
+trap 'excode=$?; trap "" EXIT; _stop; echo $excode' EXIT HUP INT QUIT PIPE TERM		# ignore
+
+#####Installation
+
+#Verifies the timeout and sleep commands work properly, with subsecond specifications.
+_timetest() {
+	
+	iterations=0
+	while [[ "$iterations" -lt 10 ]]
+	do
+		dateA=$(date +%s)
+		
+		sleep 0.1
+		sleep 0.1
+		sleep 0.1
+		sleep 0.1
+		sleep 0.1
+		sleep 0.1
+		
+		_timeout 0.1 sleep 10
+		_timeout 0.1 sleep 10
+		_timeout 0.1 sleep 10
+		_timeout 0.1 sleep 10
+		_timeout 0.1 sleep 10
+		_timeout 0.1 sleep 10
+		
+		dateB=$(date +%s)
+		
+		dateDelta=$(bc <<< "$dateB - $dateA")
+		
+		if [[ "$dateDelta" -lt "1" ]]
+		then
+			echo "FAIL"
+			_stop 1
+		fi
+		
+		if [[ "$dateDelta" -lt "5" ]]
+		then
+			echo "PASS"
+			return 0
+		fi
+		
+		let iterations="$iterations + 1"
+	done
+	echo "FAIL"
+	_stop 1
+}
+
+_test() {
+	_start
+	
+	echo -e -n '\E[1;32;46m Dependency checking...	\E[0m'
+	
+	# Check dependencies
+	_checkDep wget
+	_checkDep grep
+	_checkDep fgrep
+	_checkDep sed
+	_checkDep awk
+	_checkDep cut
+	_checkDep head
+	_checkDep tail
+	
+	
+	_checkDep realpath
+	_checkDep readlink
+	_checkDep dirname
+	
+	_checkDep sleep
+	_checkDep wait
+	_checkDep kill
+	_checkDep jobs
+	_checkDep ps
+	_checkDep exit
+	
+	_checkDep env
+	_checkDep bash
+	_checkDep echo
+	_checkDep cat
+	_checkDep type
+	_checkDep mkdir
+	_checkDep trap
+	_checkDep return
+	_checkDep set
+	
+	_checkDep rm
+	
+	_checkDep autossh
+	_checkDep nmap
+	_checkDep vncviewer
+	_checkDep x11vnc
+	
+	_checkDep nohup
+	
+	#_tryExec "_idleTest"
+	
+	[[ -e /dev/urandom ]] || echo /dev/urandom missing _stop
+	
+	echo "PASS"
+	
+	echo -n -e '\E[1;32;46m Timing...		\E[0m'
+	_timetest
+	
+	_stop
+	
+}
+
+#Creates symlink in ~/bin, to the executable at "$1", named according to its residing directory and file name.
+_setupCommand() {
+	local clientScriptLocation
+	clientScriptLocation=$(_getAbsoluteLocation "$1")
+	
+	local clientScriptFolder
+	clientScriptFolder=$(_getAbsoluteFolder "$1")
+	
+	local commandName
+	commandName=$(basename "$1")
+	
+	local clientName
+	clientName=$(basename "$clientScriptFolder")
+	
+	#ln -s -r "$clientScriptLocation" ~/bin/"$commandName""-""$clientName"
+	ln -sf -r "$clientScriptLocation" ~/bin/"$commandName""-""$clientName"
+	
+	
+}
+
+_setupCommands() {
+	#find . -name '_command' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -name '_vnc' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -name '_ssh' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -name '_wake' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+}
+
+_setup() {
+	_start
+	
+	"$scriptAbsoluteLocation" _test
+	
+	"$scriptAbsoluteLocation" _build "$@"
+	
+	_setupCommands
+	
+	_stop
+}
+
+##### Core
+
+_autosshExternal() {
+	/usr/bin/autossh -M 0 -F "$sshDir"/config -R $reversePort:localhost:22 "$gatewayName" -N &
+	echo "$!" > "$pidFileExternal"
+	
+	autosshPID=$(cat "$pidFileExternal")
+	#_pauseForProcess "$autosshPID"
+	wait "$autosshPID"
+}
+
+_autossh() {
+	
+	while true
+	do
+		#echo test
+		#echo "$reversePort"
+		
+		_autosshExternal
+		
+		sleep 30
+		
+		if [[ "$EMBEDDED" != "" ]]
+		then
+			sleep 270
+		fi
+		
+	done
+	
+}
+
+#Executes non-default self function in background (ie. as daemon).
+_autosshDaemon() {
+	_prepare
+	
+	if _daemonStatus
+	then
+		exit
+	fi
+	
+	nohup "$scriptAbsoluteLocation" _autossh >/dev/null 2>&1 &
+	echo "$!" > "$pidFile"
+	
+	#ls "$pidFile" > /dev/tty
+	#cat "$pidFile" > /dev/tty
+}
+
+_autosshService() {
+	
+	_autosshDaemon
+	
+}
+
+_ssh_copy_id_gateway() {
+	_start
+	
+	#ssh-copy-id -i "$scriptAbsoluteFolder"/id_rsa.pub user@server "$@"
+	
+	_stop
+}
+
+_reversessh() {
+	_start
+	
+	ssh -F "$sshDir"/config -R $reversePort:localhost:22 "$gatewayName" -N "$@"
+	
+	_stop
+}
+
+#"$1" == hostname
+#"$2" == port
+_testRemotePort() {
+	local localPort
+	localPort=$(_findPort)
+	
+	_timeout 3 ssh -F "$sshDir"/config "$1" -L "$localPort":localhost:"$2" -N > /dev/null 2>&1 &
+	sleep 2
+	nmap localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1
+}
+
+_ssh() {
+	_start
+	
+	ssh -F "$sshDir"/config "$@"
+	
+	_stop
+}
+
+#Builtin version of ssh-copy-id.
+_ssh_copy_id() {
+	_start
+	
+	"$scriptAbsoluteLocation" _ssh "$@" 'mkdir -p "$HOME"/.ssh'
+	cat "$scriptAbsoluteFolder"/id_rsa.pub | "$scriptAbsoluteLocation" _ssh "$@" 'cat - >> "$HOME"/.ssh/authorized_keys'
+	
+	_stop
+}
+alias _ssh-copy-id=_ssh_copy_id
+
+# TODO Add optional code using _findPort .
+_vnc() {
+	_start
+	
+	let vncPort="$reversePort"+10
+	
+	#https://wiki.archlinux.org/index.php/x11vnc#SSH_Tunnel
+	#ssh -t -L "$vncPort":localhost:"$vncPort" "$@" 'sudo x11vnc -display :0 -auth /home/USER/.Xauthority'
+	
+	"$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectTimeout=3 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes -f -L "$vncPort":localhost:"$vncPort" "$@" 'x11vnc -rfbport '"$vncPort"' -timeout 8 -xkb -display :0 -auth /home/'"$X11USER"'/.Xauthority'
+	#-noxrecord -noxfixes -noxdamage
+	
+	sleep 3
+	
+	#vncviewer -encodings "copyrect tight zrle hextile" localhost:"$vncPort"
+	vncviewer localhost:"$vncPort"
+	
+	_stop
+}
+
+#####Program
+
+_buildSSHbase() {
+	
+	if [[ "$keepKeys" == "" ]]
+	then
+		rm "$scriptAbsoluteFolder"/id_rsa >/dev/null 2>&1
+		rm "$scriptAbsoluteFolder"/id_rsa.pub >/dev/null 2>&1
+	fi
+	
+	cp -n -d --preserve=all "$sshBase"/id_rsa "$scriptAbsoluteFolder"/ >/dev/null 2>&1
+	cp -n -d --preserve=all "$sshBase"/id_rsa.pub "$scriptAbsoluteFolder"/ >/dev/null 2>&1
+	
+	cat "$scriptAbsoluteFolder"/known_hosts >> ~/.ssh/known_hosts
+	
+	#cat "$scriptAbsoluteFolder"/config >> ~/.ssh/config
+	echo >> ~/.ssh/config
+	echo "#""$netName" >> ~/.ssh/config
+	echo Include '"'"~/.ssh/""$netName""/config"'"' >> ~/.ssh/config
+	echo >> ~/.ssh/config
+	
+	! [[ -e "$scriptAbsoluteFolder"/id_rsa ]] && ssh-keygen -b 4096 -t rsa -N "" -f "$scriptAbsoluteFolder"/id_rsa
+	
+	_prepare
+	
+	_ssh_copy_id_gateway
+	
+}
+
+_build() {
+	#_tryExec _idleBuild
+	_buildSSHbase
+}
+
+#Typically launches an application - ie. through virtualized container.
+_launch() {
+	_autosshService
+}
+
+#Typically gathers command/variable scripts from other (ie. yaml) file types (ie. AppImage recipes).
+_collect() {
+	false
+}
+
+#Typical program entry point, absent any instancing support.
+_enter() {
+	_launch
+}
+
+#Typical program entry point.
+_main() {
+	_start
+	
+	_collect
+	
+	_enter
+	
+	_stop
+}
+
+#####Overrides
+
+#Override functions with external definitions from a separate file if available.
+#if [[ -e "./ops" ]]
+#then
+#	. ./ops
+#fi
+
+#Override functions with external definitions from a separate file if available.
+if [[ -e "$objectDir"/ops ]]
+then
+	. "$objectDir"/ops
+fi
+
+
+#Launch internal functions as commands.
+#if [[ "$1" != "" ]] && [[ "$1" != "-"* ]] && [[ ! -e "$1" ]]
+if [[ "$1" == '_'* ]]
+then
+	"$@"
+	exit "$?"
+	#_stop "$?"
+fi
+
+#Stop if script is imported into an existing shell.
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$1" != "--bypass" ]]
+then
+	return
+fi
+
+if ! [[ "$1" != "--bypass" ]]
+then
+	shift
+fi
+
+#####Entry
+
+#"$scriptAbsoluteLocation" _setup
+
+
+_main "$@"
+
+

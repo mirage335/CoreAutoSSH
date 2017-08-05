@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+_ssh_copy_id_gateway() {
+	_start
+	
+	#ssh-copy-id -i "$scriptAbsoluteFolder"/id_rsa.pub user@default-gw -p 22 "$@"
+	#ssh-copy-id -i "$scriptAbsoluteFolder"/id_rsa.pub user@example1.com -p 22 "$@"
+	#ssh-copy-id -i "$scriptAbsoluteFolder"/id_rsa.pub user@example2.com -p 22 "$@"
+	
+	_stop
+}
+
+extra() {
+	true
+}
+
+
+
+#####Server Matching
+_match-default-gw_at_primary() {
+	nmap -Pn example1.com -p 22 | grep open > /dev/null 2>&1
+}
+
+_match-default-gw_at_secondary() {
+	nmap -Pn example2.com -p 22 | grep open > /dev/null 2>&1
+}
+
+
+
+
+
+
+
+
