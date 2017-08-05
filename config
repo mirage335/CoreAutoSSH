@@ -27,7 +27,7 @@ Host default-gw
 Match host defaultbeta exec "nmap -Pn beta.lan -p 22 2> /dev/null | grep open > /dev/null 2>&1"
 	HostName beta.lan
 
-Match host defaultbeta exec "nmap -Pn dc_wifi.lan -p 22 2> /dev/null | grep open > /dev/null 2>&1"
+Match host defaultbeta exec "nmap -Pn beta_wifi.lan -p 22 2> /dev/null | grep open > /dev/null 2>&1"
 	HostName beta_wifi.lan
 
 Match host defaultbeta exec "nmap -Pn beta.example.com -p 22 2> /dev/null | grep open > /dev/null 2>&1"
