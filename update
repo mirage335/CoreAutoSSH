@@ -2,6 +2,24 @@
 
 #Maintains updated Core Auto SSH assets as git submodules. Manual merging of some configuration files may still be required.
 
+#Consider creating specialized git repositories as follows.
+
+#export netName=default
+#mkdir -p "$netName"
+#cd "$netName"
+
+#git init
+#git add .
+#git commit -a -m "first commit"
+
+#mkdir _lib
+
+#git submodule add git@github.com:mirage335/CoreAutoSSH.git ./_lib/coreautossh
+
+#git submodule update --init --recursive
+
+
+
 #Suitable for allowing scripts to find other scripts they depend on. May look like an ugly hack, but it has proven reliable over the years.
 _getScriptAbsoluteLocation() {
 	local absoluteLocation
