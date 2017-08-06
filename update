@@ -15,6 +15,7 @@
 #mkdir _lib
 
 #git submodule add git@github.com:mirage335/CoreAutoSSH.git ./_lib/coreautossh
+#git submodule add --force git@github.com:mirage335/Ubiquitous_Bash.git ./_lib/ubiquitous_bash
 
 #git submodule update --init --recursive
 
@@ -85,9 +86,14 @@ cd "$scriptLocation"/_lib/coreautossh
 git pull
 
 cd "$scriptLocation"
-cp -d --preserve=all ./_lib/coreautossh/cautossh ./
-cp -d --preserve=all ./_lib/coreautossh/update ./
 
+cp -a ./_lib/coreautossh/_prog ./
+
+#cp -d --preserve=all ./_lib/coreautossh/cautossh ./
+cp -d --preserve=all ./_lib/coreautossh/update ./
+cp -d --preserve=all ./_lib/coreautossh/compile ./
+
+./compile
 
 
 
