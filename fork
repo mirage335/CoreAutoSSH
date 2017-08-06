@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+#Consider creating specialized git repositories as follows.
+
+export netName=default
+mkdir -p "$netName"
+cd "$netName"
+
+git init
+git add .
+git commit -a -m "first commit"
+
+mkdir _lib
+
+git submodule add git@github.com:mirage335/CoreAutoSSH.git ./_lib/coreautossh
+git submodule add --force git@github.com:mirage335/Ubiquitous_Bash.git ./_lib/ubiquitous_bash
+
+git submodule update --init --recursive
+
+cp -a ./_lib/coreautossh/_prog ./
+
+cp -d --preserve=all ./_lib/coreautossh/cautossh ./
+cp -d --preserve=all ./_lib/coreautossh/compile ./
+cp -d --preserve=all ./_lib/coreautossh/config ./
+cp -d --preserve=all ./_lib/coreautossh/fork ./
+cp -d --preserve=all ./_lib/coreautossh/netvars.sh ./
+cp -d --preserve=all ./_lib/coreautossh/ops ./
+
+cp -d --preserve=all ./_lib/coreautossh/README.html ./
+cp -d --preserve=all ./_lib/coreautossh/README.md ./
+cp -d --preserve=all ./_lib/coreautossh/TiddlySaver.jar ./
+
+cp -d --preserve=all ./_lib/coreautossh/update ./
+
+./compile
+
+
