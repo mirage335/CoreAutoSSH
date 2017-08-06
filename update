@@ -86,6 +86,7 @@ git pull
 
 cd "$scriptLocation"
 cp -d --preserve=all ./_lib/coreautossh/cautossh ./
+cp -d --preserve=all ./_lib/coreautossh/update ./
 
 
 
