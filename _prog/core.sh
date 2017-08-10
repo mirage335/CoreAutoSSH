@@ -73,9 +73,17 @@ _testRemotePort() {
 	local localPort
 	localPort=$(_findPort)
 	
-	_timeout 3 ssh -F "$sshDir"/config "$1" -L "$localPort":localhost:"$2" -N > /dev/null 2>&1 &
+	_timeout 18 ssh -F "$sshDir"/config "$1" -L "$localPort":localhost:"$2" -N > /dev/null 2>&1 &
 	sleep 2
-	nmap localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+	sleep 2
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+	sleep 2
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+	sleep 2
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+	sleep 6
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
 }
 
 _ssh() {
