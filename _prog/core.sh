@@ -67,6 +67,7 @@ _reversessh() {
 	_stop
 }
 
+#Enters remote server at hostname, by SSH, sets up a tunnel, checks tunnel for another SSH server.
 #"$1" == hostname
 #"$2" == port
 _testRemotePort() {
@@ -84,6 +85,13 @@ _testRemotePort() {
 	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
 	sleep 6
 	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+}
+
+#Checks hostname for open port.
+#"$1" == hostname
+#"$2" == port
+_testPort() {
+	nmap -Pn "$1" -p "$2" | grep open > /dev/null 2>&1
 }
 
 _ssh() {
