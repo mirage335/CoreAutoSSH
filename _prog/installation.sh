@@ -128,6 +128,7 @@ _setupCommands() {
 	find . -name '_vnc' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	find . -name '_ssh' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	find . -name '_wake' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -name '_fs' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 }
 
 _setup() {
