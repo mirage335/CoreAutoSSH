@@ -122,7 +122,7 @@ _vnc() {
 	#https://wiki.archlinux.org/index.php/x11vnc#SSH_Tunnel
 	#ssh -t -L "$vncPort":localhost:"$vncPort" "$@" 'sudo x11vnc -display :0 -auth /home/USER/.Xauthority'
 	
-	"$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectTimeout=24 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes -f -L "$vncPort":localhost:"$vncPort" "$@" 'x11vnc -localhost -rfbport '"$vncPort"' -timeout 8 -xkb -display :0 -auth /home/'"$X11USER"'/.Xauthority'
+	"$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectTimeout=24 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes -f -L "$vncPort":localhost:"$vncPort" "$@" 'x11vnc -localhost -rfbport '"$vncPort"' -timeout 8 -xkb -display :0 -auth /home/'"$X11USER"'/.Xauthority -noxrecord'
 	#-noxrecord -noxfixes -noxdamage
 	
 	sleep 3
