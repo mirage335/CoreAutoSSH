@@ -1,3 +1,5 @@
+OBSOLETE PENDING REDESIGN
+
 CoreAutoSSH
 Self-contained, robust, multipath and reverse SSH configuration package. The framework SSH should have.
 
