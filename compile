@@ -1,5 +1,21 @@
 #!/usr/bin/env bash
 
+#Critical prerequsites.
+#Critical prerequsites.
+_getAbsolute_criticalDep() {
+	! type realpath > /dev/null 2>&1 && return 1
+	! type readlink > /dev/null 2>&1 && return 1
+	! type dirname > /dev/null 2>&1 && return 1
+	
+	#Known issue on Mac. See https://github.com/mirage335/ubiquitous_bash/issues/1 .
+	! realpath -L . > /dev/null 2>&1 && return 1
+	
+	return 0
+}
+! _getAbsolute_criticalDep && exit 1
+
+! type basename > /dev/null 2>&1 && exit 1
+
 #Retrieves absolute path of current script, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
 #However, will dereference symlinks IF the script location itself is a symlink. This is to allow symlinking to scripts to function normally.
 #Suitable for allowing scripts to find other scripts they depend on. May look like an ugly hack, but it has proven reliable over the years.
@@ -60,10 +76,11 @@ alias getAbsoluteLocation=_getAbsoluteLocation
 
 cd "$(_getScriptAbsoluteFolder)"
 
-export ubiquitiousLibDir="./_lib/ubiquitous_bash"
-#export ubiquitiousLibDir="."
+export ubiquitiousLibDir="."
+[[ -e "./_lib/ubiquitous_bash" ]] && export ubiquitiousLibDir="./_lib/ubiquitous_bash"
 export progDir="./_prog"
 export progScript="./cautossh"
+export configDir="./_config"
 
 #"$1" == file path
 _includeFile() {
@@ -78,93 +95,364 @@ _includeFile() {
 	return 1
 }
 
-#"$1" == filename
-#"$2" == subdirectory
+#Provide only approximate, realative paths. These will be disassembled and treated as a search query following stricti preferences
+#"generic/filesystem/absolutepaths.sh"
 _includeScript() {
+
+	local includeScriptFilename=$(basename "$1")
+	local includeScriptSubdirectory=$(dirname "$1")
 	
-	_includeFile "$progDir"/"$2"/"$1" && return 0
 	
-	_includeFile "$progDir"/"$1" && return 0
+	_includeFile "$progDir"/"$includeScriptSubdirectory"/"$includeScriptFilename" && return 0
 	
-	_includeFile "$ubiquitiousLibDir"/"$2"/"$1" && return 0
+	_includeFile "$progDir"/"$includeScriptFilename" && return 0
 	
-	_includeFile "$ubiquitiousLibDir"/"$1" && return 0
+	_includeFile "$ubiquitiousLibDir"/"$includeScriptSubdirectory"/"$includeScriptFilename" && return 0
+	
+	_includeFile "$ubiquitiousLibDir"/"$includeScriptFilename" && return 0
+	
+	_includeFile "$configDir"/"$includeScriptFilename" && return 0
 	
 }
 
+# "$1" == script list array
+_includeScripts() {
+	local currentIncludeScript
+	local historyIncludeScript
+	local historyIncludedScript
+	local duplicateIncludeScript
+	
+	for currentIncludeScript in "$@"
+	do	
+		duplicateIncludeScript="false"
+		for historyIncludedScript in "${historyIncludeScript[@]}"
+		do
+			if [[ "$historyIncludedScript" == "$currentIncludeScript" ]]
+			then
+				duplicateIncludeScript="true"
+			fi
+		done
+		historyIncludeScript+=("$currentIncludeScript")
+		
+		[[ "$duplicateIncludeScript" != "true" ]] && _includeScript "$currentIncludeScript"
+	done
+}
+
+
+##### Dependency Tracking
+# WARNING
+#Beware lean configurations have not yet been properly tested, and are considered experimental. Their purpose is to disable irrelevant dependency checking in "_test" procedures. Rigorous test procedures covering all intended functionality should always be included in downstream projects. Pull requests welcome.
+
+# DANGER
+#Especially, be careful to explicitly check all prerequsites for _safeRMR are in place.
+
+_deps_git() {
+	export enUb_git="true"
+}
+
+_deps_notLean() {
+	_deps_git
+	export enUb_notLean="true"
+}
+
+_deps_x11() {
+	_deps_notLean
+	export enUb_x11="true"
+}
+
+_deps_blockchain() {
+	_deps_notLean
+	_deps_x11
+	export enUb_blockchain="true"
+}
+
+_deps_image() {
+	_deps_notLean
+	export enUb_image="true"
+}
+
+_deps_virt() {
+	_deps_notLean
+	_deps_image
+	export enUb_virt="true"
+}
+
+_deps_chroot() {
+	_deps_virt
+	export enUb_ChRoot="true"
+}
+
+_deps_qemu() {
+	_deps_virt
+	export enUb_QEMU="true"
+}
+
+_deps_vbox() {
+	_deps_virt
+	export enUb_vbox="true"
+}
+
+_deps_docker() {
+	_deps_virt
+	export enUb_docker="true"
+}
+
+_deps_wine() {
+	_deps_notLean
+	export enUb_wine="true"
+}
+
+_deps_dosbox() {
+	_deps_notLean
+	export enUb_DosBox="true"
+}
+
+_deps_msw() {
+	_deps_virt
+	_deps_qemu
+	_deps_vbox
+	_deps_wine
+	export enUb_msw="true"
+}
+
+_deps_fakehome() {
+	_deps_notLean
+	export enUb_fakehome="true"
+}
+
+
+# DANGER
+#Especially, be careful to explicitly check all prerequsites for _safeRMR are in place.
+
+#####
+
+_deps_notLean
+_deps_x11
+_deps_image
+_deps_virt
+_deps_chroot
+_deps_qemu
+_deps_vbox
+_deps_docker
+_deps_wine
+_deps_dosbox
+_deps_msw
+_deps_fakehome
+
+_deps_blockchain
+
+#####
+
+
+
 rm "$progScript" >/dev/null 2>&1
 
-_includeScript minimalheader.sh "generic"
+includeScriptList+=( "generic"/minimalheader.sh )
+includeScriptList+=( progheader.sh )
 
-echo '#Core Auto SSH v1.0' >> "$progScript"
-echo >> "$progScript"
+#####Essential Utilities
+includeScriptList+=( "labels"/utilitiesLabel.sh )
 
-echo '#http://creativecommons.org/publicdomain/zero/1.0/' >> "$progScript"
-echo '#To the extent possible under law, mirage335 has waived all copyright and related or neighboring rights to Core Auto SSH v1.0, excepting any credential files. This work is published from: United States.' >> "$progScript"
-echo >> "$progScript"
+includeScriptList+=( "generic"/showCommand.sh )
 
-echo "#####Utilities" >> "$progScript"
-echo >> "$progScript"
+includeScriptList+=( "generic/filesystem"/absolutepaths.sh )
 
-_includeScript showCommand.sh "generic"
+includeScriptList+=( "generic/filesystem"/getext.sh )
 
-_includeScript absolutepaths.sh "generic/filesystem"
+includeScriptList+=( "generic/filesystem"/finddir.sh )
 
-_includeScript finddir.sh "generic/filesystem"
+includeScriptList+=( "generic/filesystem"/safedelete.sh )
 
-_includeScript safedelete.sh "generic/filesystem"
+includeScriptList+=( "generic/filesystem"/discoverresource.sh )
 
-_includeScript discoverresource.sh "generic/filesystem"
+includeScriptList+=( "generic/filesystem"/relink.sh )
 
-_includeScript timeout.sh "generic/process"
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "instrumentation"/bashdb/bashdb.sh )
 
-_includeScript waitforprocess.sh "generic/process"
+#####Utilities
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "generic/filesystem/mounts"/bindmountmanager.sh )
 
-_includeScript daemon.sh "generic/process"
+includeScriptList+=( "generic/filesystem/mounts"/waitumount.sh )
 
-_includeScript findport.sh "generic/net"
+includeScriptList+=( "generic/filesystem/mounts"/mountchecks.sh )
 
-_includeScript uid.sh "generic"
+includeScriptList+=( "generic/process"/timeout.sh )
 
-#_includeScript validaterequest.sh "generic"
+includeScriptList+=( "generic/process"/waitforprocess.sh )
 
-_includeScript preserveLog.sh "generic"
+includeScriptList+=( "generic/process"/daemon.sh )
 
-#_includeScript localPathTranslation.sh "virtualization"
+includeScriptList+=( "generic/process"/remotesig.sh )
 
-#_includeScript mustberoot.sh "special"
+includeScriptList+=( "generic/net"/fetch.sh )
 
-#_includeScript uuid.sh "special"
+includeScriptList+=( "generic/net"/findport.sh )
 
-cat ./netvars.sh >> "$progScript"
-echo >> "$progScript"
+includeScriptList+=( "generic"/uid.sh )
 
-echo "#####Basic Variable Management" >> "$progScript"
-echo >> "$progScript"
+includeScriptList+=( "generic"/messaging.sh )
+includeScriptList+=( "generic"/validaterequest.sh )
 
-_includeScript globalvars.sh "structure"
+includeScriptList+=( "generic"/preserveLog.sh )
 
-_includeScript specglobalvars.sh "structure"
+includeScriptList+=( "os"/getDep.sh )
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "os/distro/debian"/getDep_debian.sh )
 
-_includeScript localfs.sh "structure"
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "os/unix/systemd"/here_systemd.sh )
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "os/unix/systemd"/hook_systemd.sh )
 
-_includeScript localenv.sh "structure"
+[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/virtenv.sh )
 
-#_includeScript idle.sh "generic/process"
+[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/osTranslation.sh )
+[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/localPathTranslation.sh )
 
-_includeScript installation.sh "structure"
+[[ "$enUb_fakehome" == "true" ]] && includeScriptList+=( "virtualization/fakehome"/fakehome.sh )
 
-_includeScript core.sh
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "virtualization/image"/mountimage.sh )
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "virtualization/image"/createImage.sh )
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "virtualization/image"/here_bootdisc.sh )
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "virtualization/image"/bootdisc.sh )
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "virtualization/image"/userpersistenthome.sh )
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "virtualization/image"/transferimage.sh )
 
-_includeScript program.sh "structure"
+[[ "$enUb_ChRoot" == "true" ]] && includeScriptList+=( "virtualization/chroot"/testchroot.sh )
 
-_includeScript overrides.sh "structure"
+[[ "$enUb_ChRoot" == "true" ]] && includeScriptList+=( "virtualization/chroot"/procchroot.sh )
+[[ "$enUb_ChRoot" == "true" ]] && includeScriptList+=( "virtualization/chroot"/mountchroot.sh )
+[[ "$enUb_ChRoot" == "true" ]] && includeScriptList+=( "virtualization/chroot"/enterchroot.sh )
 
-_includeScript entry.sh "structure"
+[[ "$enUb_ChRoot" == "true" ]] && includeScriptList+=( "virtualization/chroot"/mountchrootuser.sh )
+[[ "$enUb_ChRoot" == "true" ]] && includeScriptList+=( "virtualization/chroot"/userchroot.sh )
+[[ "$enUb_ChRoot" == "true" ]] && includeScriptList+=( "virtualization/chroot"/dropchroot.sh )
+
+[[ "$enUb_QEMU" == "true" ]] && includeScriptList+=( "virtualization/qemu"/qemu-raspi-raspi.sh )
+[[ "$enUb_QEMU" == "true" ]] && includeScriptList+=( "virtualization/qemu"/qemu-x64-raspi.sh )
+[[ "$enUb_QEMU" == "true" ]] && includeScriptList+=( "virtualization/qemu"/qemu-x64-x64.sh )
+[[ "$enUb_QEMU" == "true" ]] && includeScriptList+=( "virtualization/qemu"/qemu.sh )
+
+[[ "$enUb_vbox" == "true" ]] && includeScriptList+=( "virtualization/vbox"/vboxtest.sh )
+[[ "$enUb_vbox" == "true" ]] && includeScriptList+=( "virtualization/vbox"/vboxmount.sh )
+[[ "$enUb_vbox" == "true" ]] && includeScriptList+=( "virtualization/vbox"/vboxlab.sh )
+[[ "$enUb_vbox" == "true" ]] && includeScriptList+=( "virtualization/vbox"/vboxuser.sh )
+
+[[ "$enUb_DosBox" == "true" ]] && includeScriptList+=( "virtualization/dosbox"/here_dosbox.sh )
+[[ "$enUb_DosBox" == "true" ]] && includeScriptList+=( "virtualization/dosbox"/dosbox.sh )
+
+[[ "$enUb_wine" == "true" ]] && includeScriptList+=( "virtualization/wine"/wine.sh )
+
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "virtualization/docker"/here_docker.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "virtualization/docker"/dockerdrop.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "virtualization/docker"/dockertest.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "virtualization/docker"/dockerchecks.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "virtualization/docker"/dockeruser.sh )
+
+includeScriptList+=( "special"/mustberoot.sh )
+includeScriptList+=( "special"/mustgetsudo.sh )
+
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "special/gosu"/gosu.sh )
+
+includeScriptList+=( "special"/uuid.sh )
+
+#####Shortcuts
+includeScriptList+=( "labels"/shortcutsLabel.sh )
+
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "shortcuts/dev"/devsearch.sh )
+
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/devemacs.sh )
+
+[[ "$enUb_git" == "true" ]] && includeScriptList+=( "shortcuts/git"/git.sh )
+[[ "$enUb_git" == "true" ]] && includeScriptList+=( "shortcuts/git"/gitBare.sh )
+
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "shortcuts/mkboot"/here_mkboot.sh )
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "shortcuts/mkboot"/mkboot.sh )
+
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "shortcuts/distro"/distro.sh )
+
+[[ "$enUb_QEMU" == "true" ]] && includeScriptList+=( "shortcuts/distro/debian"/createDebian.sh )
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "shortcuts/distro/raspbian"/createRaspbian.sh )
+
+[[ "$enUb_msw" == "true" ]] && includeScriptList+=( "shortcuts/distro/msw"/msw.sh )
+
+
+includeScriptList+=( "shortcuts/prompt"/visualPrompt.sh )
+
+[[ "$enUb_x11" == "true" ]] && includeScriptList+=( "shortcuts/x11"/testx11.sh )
+[[ "$enUb_x11" == "true" ]] && includeScriptList+=( "shortcuts/x11/clipboard"/x11ClipboardImage.sh )
+
+[[ "$enUb_vbox" == "true" ]] && includeScriptList+=( "shortcuts/vbox"/vboxconvert.sh )
+
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockerassets.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockerdelete.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockercreate.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockerconvert.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockerportation.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockercontainer.sh )
+
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockercontainer.sh )
+
+[[ "$enUb_image" == "true" ]] && includeScriptList+=( "shortcuts/image"/gparted.sh )
+
+includeScriptList+=( "shortcuts"/setupUbiquitous.sh )
+
+[[ "$enUb_blockchain" == "true" ]] && includeScriptList+=( "blockchain"/blockchain.sh )
+[[ "$enUb_blockchain" == "true" ]] && includeScriptList+=( "blockchain/ethereum"/ethereum.sh )
+[[ "$enUb_blockchain" == "true" ]] && includeScriptList+=( "shortcuts/blockchain/ethereum"/ethereum.sh )
+
+[[ "$enUb_blockchain" == "true" ]] && includeScriptList+=( "blockchain/ethereum"/ethereum_parity.sh )
+
+#####Hardcoded
+includeScriptList+=( netvars.sh )
+
+#####Basic Variable Management
+includeScriptList+=( "labels"/basicvarLabel.sh )
+
+#####Global variables.
+includeScriptList+=( "structure"/globalvars.sh )
+
+includeScriptList+=( "structure"/specglobalvars.sh )
+
+[[ "$enUb_fakehome" == "true" ]] && includeScriptList+=( "virtualization/fakehome"/fakehomevars.sh )
+[[ "$enUb_vbox" == "true" ]] && includeScriptList+=( "virtualization/vbox"/vboxvars.sh )
+[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "virtualization/docker"/dockervars.sh )
+
+includeScriptList+=( "shortcuts/git"/gitVars.sh )
+
+includeScriptList+=( "structure"/localfs.sh )
+
+includeScriptList+=( "structure"/localenv.sh )
+
+includeScriptList+=( "generic/hello"/hello.sh )
+[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "generic/process"/idle.sh )
+
+includeScriptList+=( "structure"/installation.sh )
+
+includeScriptList+=( core.sh )
+
+includeScriptList+=( "structure"/build.sh )
+includeScriptList+=( "structure"/program.sh )
+
+includeScriptList+=( "structure"/overrides.sh )
+
+includeScriptList+=( "structure"/entry.sh )
+
+
+
+
+
+
+
+
+
+_includeScripts "${includeScriptList[@]}"
 
 chmod u+x "$progScript"
 
-
+#if "$progScript" _test > ./compile.log 2>&1
+#then
+#	rm compile.log
+#else
+#	exit 1
+#fi
 
 
 
