@@ -226,20 +226,20 @@ _deps_fakehome() {
 
 #####
 
-_deps_notLean
-_deps_x11
-_deps_image
-_deps_virt
-_deps_chroot
-_deps_qemu
-_deps_vbox
-_deps_docker
-_deps_wine
-_deps_dosbox
-_deps_msw
-_deps_fakehome
+#_deps_notLean
+#_deps_x11
+#_deps_image
+#_deps_virt
+#_deps_chroot
+#_deps_qemu
+#_deps_vbox
+#_deps_docker
+#_deps_wine
+#_deps_dosbox
+#_deps_msw
+#_deps_fakehome
 
-_deps_blockchain
+#_deps_blockchain
 
 #####
 
