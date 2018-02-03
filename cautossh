@@ -112,6 +112,45 @@ _getAbsoluteFolder() {
 }
 alias getAbsoluteLocation=_getAbsoluteLocation
 
+_permissions_directory_checkForPath() {
+	local parameterAbsoluteLocation
+	parameterAbsoluteLocation=$(_getAbsoluteLocation "$PWD")
+	
+	local checkScriptAbsoluteFolder="$(_getScriptAbsoluteFolder)"
+	
+	[[ "$parameterAbsoluteLocation" == "$PWD" ]] && ! [[ "$parameterAbsoluteLocation" == "$checkScriptAbsoluteFolder" ]] && return 1
+	
+	local permissions_user
+	local permissions_group
+	local permissions_other
+	
+	permissions_user=$(stat -c "%a" "$1" | cut -c 1)
+	permissions_group=$(stat -c "%a" "$1" | cut -c 2)
+	permissions_other=$(stat -c "%a" "$1" | cut -c 3)
+	
+	[[ "$permissions_user" -gt "7" ]] && return 1
+	[[ "$permissions_group" -gt "7" ]] && return 1
+	[[ "$permissions_other" -gt "5" ]] && return 1
+	
+	local permissions_uid
+	local permissions_gid
+	
+	permissions_uid=$(stat -c "%u" "$1")
+	permissions_gid=$(stat -c "%g" "$1")
+	
+	#Normally these variables are available through ubiqutious bash, but this permissions check may be needed earlier in that global variables setting process.
+	local permissions_host_uid
+	local permissions_host_gid
+	
+	permissions_host_uid=$(id -u)
+	permissions_host_gid=$(id -g)
+	
+	[[ "$permissions_uid" != "$permissions_host_uid" ]] && return 1
+	[[ "$permissions_uid" != "$permissions_host_gid" ]] && return 1
+	
+	return 0
+}
+
 #Gets filename extension, specifically any last three characters in given string.
 #"$1" == filename
 _getExt() {
@@ -207,7 +246,7 @@ _safeRMR() {
 	#Whitelist.
 	local safeToRM=false
 	
-	local safeScriptAbsoluteFolder="$_getScriptAbsoluteFolder"
+	local safeScriptAbsoluteFolder="$(_getScriptAbsoluteFolder)"
 	
 	[[ "$1" == "./"* ]] && [[ "$PWD" == "$safeScriptAbsoluteFolder"* ]] && safeToRM="true"
 	
@@ -283,7 +322,7 @@ _safePath() {
 	#Whitelist.
 	local safeToRM=false
 	
-	local safeScriptAbsoluteFolder="$_getScriptAbsoluteFolder"
+	local safeScriptAbsoluteFolder="$(_getScriptAbsoluteFolder)"
 	
 	[[ "$1" == "./"* ]] && [[ "$PWD" == "$safeScriptAbsoluteFolder"* ]] && safeToRM="true"
 	
@@ -330,15 +369,34 @@ _rmlink() {
 }
 
 #Like "ln -sf", but will not proceed if target is not link and exists (ie. will not erase files).
-_relink() {
+_relink_sequence() {
 
 	#Do not update correct symlink.
 	local existingLinkTarget
 	existingLinkTarget=$(readlink "$2")
 	[[ "$existingLinkTarget" == "$1" ]] && return 0
 	
-	_rmlink "$2" && ln -s "$1" "$2" && return 0
+	! [[ "$relinkRelativeUb" == "true" ]] && _rmlink "$2" && ln -s "$1" "$2" && return 0
+	[[ "$relinkRelativeUb" == "true" ]] && _rmlink "$2" && ln -s -r "$1" "$2" && return 0
+	
 	return 1
+}
+
+_relink() {
+	[[ "$relinkRelativeUb" == "true" ]] && export relinkRelativeUb=""
+	_relink_sequence "$@"
+}
+
+_relink_relative() {
+	export relinkRelativeUb="true"
+	_relink_sequence "$@"
+	export relinkRelativeUb=""
+	unset relinkRelativeUb
+}
+
+#Copies files only if source/destination do match. Keeps files in a completely written state as often as possible.
+_cpDiff() {
+	! diff "$1" "$2" > /dev/null 2>&1 && cp "$1" "$2"
 }
 
 _wait_umount() {
@@ -429,17 +487,97 @@ _pauseForProcess() {
 alias _waitForProcess=_pauseForProcess
 alias waitForProcess=_pauseForProcess
 
-#True if daemon is running.
-_daemonStatus() {
-	if [[ -e "$pidFile" ]]
-	then
-		export daemonPID=$(cat "$pidFile")
-	fi
+_test_daemon() {
+	_getDep pkill
+}
+
+#To ensure the lowest descendents are terminated first, the file must be created in reverse order.
+_prependDaemonPID() {
+	[[ ! -e "$daemonPidFile" ]] && echo >> "$daemonPidFile"
+	cat - "$daemonPidFile" >> "$daemonPidFile".tmp
+	mv "$daemonPidFile".tmp "$daemonPidFile"
+}
+
+#By default, process descendents will be terminated first. Doing so is essential to reaching sub-proesses of sub-scripts, without manual user input.
+#https://stackoverflow.com/questions/34438189/bash-sleep-process-not-getting-killed
+_daemonSendTERM() {
+	#Terminate descendents if parent has not been able to quit.
+	pkill -P "$1"
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 0.1
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 0.3
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 2
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 6
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 9
 	
-	ps -p "$daemonPID" >/dev/null 2>&1 && return 0
+	#Kill descendents if parent has not been able to quit.
+	pkill -KILL -P "$1"
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 0.1
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 0.3
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 2
+	
+	#Terminate parent if parent has not been able to quit.
+	kill -TERM "$1"
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 0.1
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 0.3
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 2
+	
+	#Kill parent if parent has not been able to quit.
+	kill KILL "$1"
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 0.1
+	! ps -p "$1" >/dev/null 2>&1 && return 0
+	sleep 0.3
+	
+	#Failure to immediately kill parent is an extremely rare, serious error.
+	ps -p "$1" >/dev/null 2>&1 && return 1
+	return 0
+}
+
+#No production use.
+_daemonSendKILL() {
+	pkill -KILL -P "$1"
+	kill -KILL "$1"
+}
+
+#True if any daemon registered process is running.
+_daemonAction() {
+	[[ ! -e "$daemonPidFile" ]] && return 1
+	
+	local currentLine
+	local processedLine
+	local daemonStatus
+	
+	while IFS='' read -r currentLine || [[ -n "$currentLine" ]]; do
+		processedLine=$(echo "$currentLine" | tr -dc '0-9')
+		if [[ "$processedLine" != "" ]] && ps -p "$processedLine" >/dev/null 2>&1
+		then
+			daemonStatus="up"
+			[[ "$1" == "status" ]] && return 0
+			[[ "$1" == "terminate" ]] && _daemonSendTERM "$processedLine"
+			[[ "$1" == "kill" ]] && _daemonSendKILL "$processedLine"
+		fi
+	done < "$daemonPidFile"
+	
+	[[ "$daemonStatus" == "up" ]] && return 0
 	return 1
 }
 
+_daemonStatus() {
+	_daemonAction "status"
+}
+
+#No production use.
 _waitForTermination() {
 	_daemonStatus && sleep 0.1
 	_daemonStatus && sleep 0.3
@@ -450,28 +588,45 @@ alias _waitForDaemon=_waitForTermination
 
 #Kills background process using PID file.
 _killDaemon() {
-	externalDaemonPID=$(cat "$pidFileExternal")
+	_daemonAction "terminate"
 	
-	_daemonStatus && kill -TERM "$daemonPID" >/dev/null 2>&1
+	#Do NOT detele this file unless daemon can be confirmed down.
+	! _daemonStatus && rm -f "$daemonPidFile" >/dev/null 2>&1
+}
+
+_cmdDaemon() {
+	export isDaemon=true
 	
-	_waitForTermination
+	"$@" &
 	
-	_daemonStatus && kill -KILL "$daemonPID" >/dev/null 2>&1
-	
-	_waitForTermination
-	
-	kill -TERM "$externalDaemonPID" >/dev/null 2>&1
-	sleep 0.2
-	kill -KILL "$externalDaemonPID" >/dev/null 2>&1
-	
-	rm "$pidFile" >/dev/null 2>&1
-	rm "$pidFileExternal" >/dev/null 2>&1
+	#Any PID which may be part of a daemon may be appended to this file.
+	echo "$!" | _prependDaemonPID
 }
 
 #Executes self in background (ie. as daemon).
 _execDaemon() {
-	"$scriptAbsoluteLocation" >/dev/null 2>&1 &
-	echo "$!" > "$pidFile"
+	#_daemonStatus && return 1
+	
+	_cmdDaemon "$scriptAbsoluteLocation"
+}
+
+_launchDaemon() {
+	_start
+	
+	_killDaemon
+	
+	
+	_execDaemon
+	while _daemonStatus
+	do
+		sleep 5
+	done
+	
+	
+	
+	
+	
+	_stop
 }
 
 #Remote TERM signal wrapper. Verifies script is actually running at the specified PID before passing along signal to trigger an emergency stop.
@@ -510,6 +665,8 @@ _validatePort() {
 }
 
 _testFindPort() {
+	_getDep ss
+	
 	local machineLowerPort=$(cat /proc/sys/net/ipv4/ip_local_port_range | cut -f1)
 	local machineUpperPort=$(cat /proc/sys/net/ipv4/ip_local_port_range | cut -f2)
 	
@@ -521,7 +678,9 @@ _testFindPort() {
 	[[ "$machineUpperPort" -gt "60999" ]] && echo "warn: high upper_port"
 	[[ "$machineUpperPort" -lt "60999" ]] && echo "warn: low upper_port"
 	
-	_validatePort && echo "invalid port discovery" && _stop 1
+	local testFoundPort
+	testFoundPort=$(_findPort)
+	! _validatePort "$testFoundPort" && echo "invalid port discovery" && _stop 1
 }
 
 
@@ -533,7 +692,7 @@ _findPort() {
 	lower_port="$1"
 	upper_port="$2"
 	
-	#Non public ports are between 49152-65535 (215 + 214 to 216 − 1).
+	#Non public ports are between 49152-65535 (2^15 + 2^14 to 2^16 − 1).
 	#Convention is to assign ports 55000-65499 and 50025-53999 to specialized servers.
 	#read lower_port upper_port < /proc/sys/net/ipv4/ip_local_port_range
 	[[ "$lower_port" == "" ]] && lower_port=54000
@@ -581,6 +740,579 @@ _findPort() {
 	
 	_validatePort "$currentPort"
 }
+
+_test_waitport() {
+	_getDep nmap
+}
+
+#Checks hostname for open port.
+#"$1" == hostname
+#"$2" == port
+_checkPort() {
+	nmap -Pn "$1" -p "$2" | grep open > /dev/null 2>&1
+}
+
+#Waits a reasonable time interval for port to be open.
+#"$1" == hostname
+#"$2" == port
+_waitPort() {
+	_checkPort "$1" "$2" && return 0
+	sleep 0.1
+	_checkPort "$1" "$2" && return 0
+	sleep 0.1
+	_checkPort "$1" "$2" && return 0
+	sleep 0.1
+	_checkPort "$1" "$2" && return 0
+	sleep 0.1
+	_checkPort "$1" "$2" && return 0
+	sleep 0.1
+	_checkPort "$1" "$2" && return 0
+	sleep 0.1
+	_checkPort "$1" "$2" && return 0
+	sleep 0.1
+	_checkPort "$1" "$2" && return 0
+	sleep 0.1
+	_checkPort "$1" "$2" && return 0
+	sleep 0.3
+	_checkPort "$1" "$2" && return 0
+	sleep 0.3
+	_checkPort "$1" "$2" && return 0
+	sleep 0.6
+	
+	local checksDone
+	checksDone=0
+	while ! _checkPort "$1" "$2" && [[ "$checksDone" -lt 72 ]]
+	do
+		let checksDone+=1
+		sleep 1
+	done
+	
+	return 0
+}
+
+_testTor() {
+	_getDep tor
+	_getDep torsocks
+}
+
+_torServer_SSH_writeCfg() {
+	mkdir -p "$scriptLocal"/tor/sshd/dd
+	
+	rm "$scriptLocal"/tor/sshd/dd/torrc > /dev/null 2>&1
+	
+	echo "RunAsDaemon 0" >> "$scriptLocal"/tor/sshd/dd/torrc
+	echo "DataDirectory "'"'"$scriptLocal"/tor/sshd/dd'"' >> "$scriptLocal"/tor/sshd/dd/torrc
+	echo  >> "$scriptLocal"/tor/sshd/dd/torrc
+	
+	echo "SocksPort 0" >> "$scriptLocal"/tor/sshd/dd/torrc
+	echo  >> "$scriptLocal"/tor/sshd/dd/torrc
+	
+	local currentReversePort
+	for currentReversePort in "${matchingReversePorts[@]}"
+	do
+		
+		mkdir -p "$scriptLocal"/tor/sshd/"$currentReversePort"
+		chmod 700 "$scriptLocal"/tor/sshd/"$currentReversePort"
+		
+		echo "HiddenServiceDir "'"'"$scriptLocal"/tor/sshd/"$currentReversePort"/'"' >> "$scriptLocal"/tor/sshd/dd/torrc
+		
+		echo "HiddenServicePort ""$currentReversePort"" 127.0.0.1:""$LOCALSSHPORT" >> "$scriptLocal"/tor/sshd/dd/torrc
+		
+		echo  >> "$scriptLocal"/tor/sshd/dd/torrc
+		
+	done
+	
+}
+
+_get_torServer_SSH_hostnames() {
+	local currentHostname
+	local currentReversePort
+	
+	[[ ! -e "$scriptLocal"/tor/sshd/"${matchingReversePorts[0]}"/hostname ]] && sleep 3
+	[[ ! -e "$scriptLocal"/tor/sshd/"${matchingReversePorts[0]}"/hostname ]] && sleep 3
+	[[ ! -e "$scriptLocal"/tor/sshd/"${matchingReversePorts[0]}"/hostname ]] && sleep 3
+	[[ ! -e "$scriptLocal"/tor/sshd/"${matchingReversePorts[0]}"/hostname ]] && sleep 3
+	
+	
+	for currentReversePort in "${matchingReversePorts[@]}"
+	do
+		[[ ! -e "$scriptLocal"/tor/sshd/"$currentReversePort"/hostname ]] && sleep 3
+		[[ ! -e "$scriptLocal"/tor/sshd/"$currentReversePort"/hostname ]] && continue
+		
+		currentHostname=$(cat "$scriptLocal"/tor/sshd/"$currentReversePort"/hostname)
+		torServer_hostnames+=( "$currentHostname":"$currentReversePort" )
+	done
+	
+	export torServer_hostnames
+}
+
+_show_torServer_SSH_hostnames() {
+	_get_torServer_SSH_hostnames
+	
+	echo
+	local currentHostname
+	for currentHostname in "${torServer_hostnames[@]}"
+	do
+		echo "$currentHostname"
+	done
+}
+
+#Typically used to create onion addresses for an entire network of machines.
+_torServer_SSH_all_launch() {
+	_get_reversePorts '*'
+	
+	_torServer_SSH_writeCfg
+	
+	tor -f "$scriptLocal"/tor/sshd/dd/torrc
+	
+	_show_torServer_SSH_hostnames
+	
+}
+
+#Especially intended for IPv4 NAT punching.
+_torServer_SSH_launch() {
+	_get_reversePorts
+	
+	_torServer_SSH_writeCfg
+	
+	tor -f "$scriptLocal"/tor/sshd/dd/torrc
+	
+	_show_torServer_SSH_hostnames
+	
+}
+
+_torServer_SSH() {
+	mkdir -p "$scriptLocal"/ssh/log
+	local logID
+	logID=$(_uid)
+	"$scriptAbsoluteLocation" _cmdDaemon _torServer_SSH_launch "$@" >> "$scriptLocal"/ssh/log/_torServer_SSH."$logID".log 2>&1
+}
+
+_checkTorPort_sequence() {
+	_start
+	
+	#Does not work, because torsocks does not handle the DNS resolution method used by nmap.
+	#torsocks nmap -n -Pn -sT "$1" -p "$2" | grep open > /dev/null 2>&1
+	
+	local curlPid
+	! torsocks curl --connect-timeout 72 --max-time 72 -v telnet://"$1":"$2" > "$safeTmp"/curl 2>&1 && echo FAIL > "$safeTmp"/fail &
+	curlPid=$!
+	
+	while true
+	do
+		if grep "Connected" "$safeTmp"/curl > /dev/null 2>&1
+		then
+			kill -TERM "$curlPid"
+			#Unneeded curl process considered lower risk than misdirected signal to user process.
+			#ps --no-headers -p "$curlPid" > /dev/null 2>&1 && sleep 0.1 && ps --no-headers -p "$curlPid" > /dev/null 2>&1 && kill -KILL "$curlPid"
+			_stop 0
+		fi
+		
+		if grep "FAIL" "$safeTmp"/fail > /dev/null 2>&1
+		then
+			_stop 1
+		fi
+		
+		
+		sleep 0.1
+	done
+	
+	
+	_stop
+	
+}
+
+#Checks hostname for open port.
+#"$1" == hostname
+#"$2" == port
+_checkTorPort() {
+	"$scriptAbsoluteLocation" _checkTorPort_sequence "$@"
+}
+
+_proxyTor_direct() {
+ 	local proxyTargetHost
+	local proxyTargetPort
+	
+	proxyTargetHost="$1"
+	proxyTargetPort="$2"
+	
+	#Use of "-q" parameter may not be useful in all cases.
+	##printf "HEAD / HTTP/1.0\r\n\r\n" | torsocks nc sejnfjrq6szgca7v.onion 80
+	#torsocks nc -q 96 "$proxyTargetHost" "$proxyTargetPort"
+	torsocks nc -q -1 "$proxyTargetHost" "$proxyTargetPort"
+}
+
+#Launches proxy if port at hostname is open.
+#"$1" == hostname
+#"$2" == port
+_proxyTor() {
+	if _checkTorPort "$1" "$2"
+	then
+		_proxyTor_direct "$1" "$2"
+		_stop
+	fi
+}
+
+#Checks all reverse port assignments through hostname, launches proxy if open.
+#"$1" == host short name
+#"$1" == hostname (typically onion)
+_proxyTor_reverse() {
+	_get_reversePorts "$1"
+	
+	local currentReversePort
+	for currentReversePort in "${matchingReversePorts[@]}"
+	do
+		_proxyTor "$2" "$currentReversePort"
+	done
+}
+
+
+
+
+_testProxySSH() {
+	_getDep ssh
+}
+
+#Enters remote server at hostname, by SSH, sets up a tunnel, checks tunnel for another SSH server.
+#"$1" == host short name
+#"$2" == port
+_checkRemoteSSH() {
+	local localPort
+	localPort=$(_findPort)
+	
+	_timeout 18 _ssh "$1" -L "$localPort":localhost:"$2" -N > /dev/null 2>&1 &
+	sleep 2
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+	sleep 2
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+	sleep 2
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+	sleep 2
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+	sleep 6
+	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
+}
+
+#Launches proxy if remote port is open at hostname.
+#"$1" == host short name
+#"$2" == port
+_proxySSH() {
+	if _checkRemoteSSH "$1" "$2"
+	then
+		_ssh -q -W localhost:"$2" "$1"
+		_stop
+	fi
+	
+	return 0
+}
+
+#Checks all reverse port assignments through hostname, launches proxy if open.
+#"$1" == host short name
+_proxySSH_reverse() {
+	_get_reversePorts "$1"
+	
+	local currentReversePort
+	for currentReversePort in "${matchingReversePorts[@]}"
+	do
+		_proxySSH "$1" "$currentReversePort"
+	done
+}
+
+_ssh() {
+	ssh -F "$scriptLocal"/ssh/config "$@"
+}
+
+_vnc() {
+	_start
+	
+	local vncMinPort
+	let vncMinPort="${reversePorts[0]}"+20
+	
+	local vncMaxPort
+	let vncMaxPort="${reversePorts[0]}"+50
+	
+	local vncPort
+	vncPort=$(_findPort "$vncMinPort" "$vncMaxPort")
+	
+	#https://wiki.archlinux.org/index.php/x11vnc#SSH_Tunnel
+	#ssh -t -L "$vncPort":localhost:"$vncPort" "$@" 'sudo x11vnc -display :0 -auth /home/USER/.Xauthority'
+	
+	#mkdir -p "$scriptTokens"
+	#if [[ ! -e "$scriptTokens" ]]
+	#then
+	#	echo > "$scriptTokens"/x11vncpasswd
+	#	chmod 600 "$scriptTokens"/x11vncpasswd
+	#	_uid > "$scriptTokens"/x11vncpasswd
+	#fi
+	#cp "$scriptTokens"/x11vncpasswd "$safeTmp"/x11vncpasswd
+	
+	echo > "$safeTmp"/x11vncpasswd
+	chmod 600 "$safeTmp"/x11vncpasswd
+	_uid > "$safeTmp"/x11vncpasswd
+	
+	cat "$safeTmp"/x11vncpasswd | "$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectTimeout=72 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes -L "$vncPort":localhost:"$vncPort" "$@" 'x11vnc -passwdfile cmd:"/bin/cat -" -localhost -rfbport '"$vncPort"' -timeout 8 -xkb -display :0 -auth "$HOME"/.Xauthority -noxrecord -noxdamage' &
+	#-noxrecord -noxfixes -noxdamage
+	
+	_waitPort localhost "$vncPort"
+	sleep 0.8 #VNC service may not always be ready when port is up.
+	#sleep 1
+	
+	#vncviewer -encodings "copyrect tight zrle hextile" localhost:"$vncPort"
+	cat "$safeTmp"/x11vncpasswd | vncviewer -autopass localhost:"$vncPort"
+	
+	_stop
+}
+
+#Builtin version of ssh-copy-id.
+_ssh_copy_id() {
+	_start
+	
+	"$scriptAbsoluteLocation" _ssh "$@" 'mkdir -p "$HOME"/.ssh'
+	cat "$scriptAbsoluteFolder"/id_rsa.pub | "$scriptAbsoluteLocation" _ssh "$@" 'cat - >> "$HOME"/.ssh/authorized_keys'
+	
+	_stop
+}
+alias _ssh-copy-id=_ssh_copy_id
+
+#Overload with "ops".
+_setup_ssh_extra() {
+	true
+}
+
+_setup_ssh_sequence() {
+	_start
+	
+	! [[ -e "$sshBase" ]] && mkdir -p "$sshBase" && chmod 700 "$sshBase"
+	! [[ -e "$sshBase"/"$ubiquitiousBashID" ]] && mkdir -p "$sshBase"/"$ubiquitiousBashID" && chmod 700 "$sshBase"/"$ubiquitiousBashID"
+	! [[ -e "$sshDir" ]] && mkdir -p "$sshDir" && chmod 700 "$sshDir"
+	
+	! grep "$ubiquitiousBashID" "$sshBase"/config > /dev/null 2>&1 && echo 'Include "'"$sshUbiquitous"'/config"' >> "$sshBase"/config
+	
+	! grep "$netName" "$sshUbiquitous"/config > /dev/null 2>&1 && echo 'Include "'"$sshDir"'/config"' >> "$sshBase"/config >> "$sshUbiquitous"/config
+	
+	if [[ "$keepKeys_SSH" == "false" ]]
+	then
+		rm -f "$scriptLocal"/ssh/id_rsa >/dev/null 2>&1
+		rm -f "$scriptLocal"/ssh/id_rsa.pub >/dev/null 2>&1
+		rm -f "$sshDir"/id_rsa >/dev/null 2>&1
+		rm -f "$sshDir"/id_rsa.pub >/dev/null 2>&1
+	fi
+	
+	if ! [[ -e "$scriptLocal"/ssh/id_rsa ]] && ! [[ -e "$sshDir"/id_rsa ]]
+	then
+		ssh-keygen -b 4096 -t rsa -N "" -f "$scriptLocal"/id_rsa
+	fi
+	
+	chmod 600 "$scriptLocal"/ssh/id_rsa
+	chmod 600 "$scriptLocal"/ssh/id_rsa.pub
+	
+	_cpDiff "$scriptLocal"/ssh/config "$sshDir"/config
+	cp -n "$scriptLocal"/ssh/id_rsa "$sshDir"/id_rsa
+	cp -n "$scriptLocal"/ssh/id_rsa.pub "$sshDir"/id_rsa.pub
+	
+	sort "$scriptLocal"/ssh/known_hosts "$sshDir"/known_hosts | uniq > "$safeTmp"/known_hosts_uniq
+	_cpDiff "$safeTmp"/known_hosts_uniq "$scriptLocal"/ssh/known_hosts
+	
+	_cpDiff "$scriptLocal"/ssh/known_hosts "$sshDir"/known_hosts
+	
+	_cpDiff "$scriptAbsoluteLocation" "$sshDir"/cautossh
+	_cpDiff "$scriptLocal"/ssh/ops "$sshDir"/ops
+	
+	_setup_ssh_extra
+	
+	_stop
+}
+
+_setup_ssh() {
+	"$scriptAbsoluteLocation" _setup_ssh_sequence "$@"
+}
+
+#May be overridden by "ops" if multiple gateways are required.
+_ssh_autoreverse() {
+	_torServer_SSH
+	_autossh
+	
+	#_autossh firstGateway
+	#_autossh secondGateway
+}
+
+_testAutoSSH() {
+	_getDep autossh
+}
+
+#"$1" == "$gatewayName"
+#"$2" == "$reversePort"
+_autossh_external() {
+	local autosshPID
+	/usr/bin/autossh -M 0 -F "$scriptLocal"/ssh/config -R "$2":localhost:22 "$1" -N &
+	autosshPID="$!"
+	
+	#echo "$autosshPID" | _prependDaemonPID
+	
+	#_pauseForProcess "$autosshPID"
+	wait "$autosshPID"
+}
+
+#Searches for an unused port in the reversePorts list, binds reverse proxy to it.
+#Until "_proxySSH_reverse" can differentiate "known_hosts" at remote ports, there is little point in performing a check for open ports at the remote end, since these would be used automatically. Thus, "_autossh_direct" is recommended for now.
+#"$1" == "$gatewayName"
+_autossh_find() {
+	local currentReversePort
+	for currentReversePort in "${reversePorts[@]}"
+	do
+		if ! _checkRemoteSSH "$1" "$currentReversePort"
+		then
+			_autossh_external "$1" "$currentReversePort"
+			return 0
+		fi
+	done
+	return 1
+}
+
+#"$1" == "$gatewayName"
+_autossh_direct() {
+	_autossh_external "$1" "${reversePorts[0]}"
+}
+
+#"$1" == "$gatewayName"
+_autossh_ready() {
+	local sshExitStatus
+	
+	_ssh "$1" true
+	sshExitStatus="$?"
+	if [[ "$sshExitStatus" != "255" ]]
+	then
+		_autossh_direct "$1"
+		_stop
+	fi
+}
+
+#May be overridden by "ops" if multiple gateways are required.
+#Not recommended. If multiple gateways are required, it is better to launch autossh daemons for each of them simultaneously. See "_ssh_autoreverse".
+_autossh_list_sequence() {
+	_start
+	
+	_autossh_ready "$1"
+	
+	#_autossh_ready firstGateway
+	#_autossh_ready secondGateway
+	
+	_stop
+}
+
+_autossh_list() {
+	"$scriptAbsoluteLocation" _autossh_list_sequence "$@"
+}
+
+#May be overridden by "ops" to point to direct, find, or list.
+_autossh_entry() {
+	[[ "$1" != "" ]] && export gatewayName="$1"
+	
+	_autossh_direct "$gatewayName"
+	#_autossh_find "$gatewayName"
+	#_autossh_list "$gatewayName"
+}
+
+_autossh_launch() {
+	_setup_ssh
+	
+	while true
+	do
+		_autossh_entry "$@"
+		
+		sleep 30
+		
+		if [[ "$EMBEDDED" == "true" ]]
+		then
+			sleep 270
+		fi
+		
+	done
+}
+
+_autossh() {
+	mkdir -p "$scriptLocal"/ssh/log
+	local logID
+	logID=$(_uid)
+	"$scriptAbsoluteLocation" _cmdDaemon _autossh_launch "$@" >> "$scriptLocal"/ssh/log/_autossh."$logID".log 2>&1
+}
+
+_reversessh() {
+	_ssh -R "${reversePorts[0]}":localhost:22 "$gatewayName" -N "$@"
+}
+
+
+
+
+_testProxyRouter_sequence() {
+	_start
+	
+	local testPort
+	testPort=$(_findPort)
+	
+	_timeout 10 nc -l -p "$testPort" > "$safeTmp"/nctest &
+	
+	sleep 0.1 && ! echo PASS | nc localhost "$testPort" &&
+	sleep 0.3 && ! echo PASS | nc localhost "$testPort" &&
+	sleep 0.9 && ! echo PASS | nc localhost "$testPort" &&
+	sleep 3 && ! echo PASS | nc localhost "$testPort" &&
+	sleep 6 && ! echo PASS | nc localhost "$testPort" &&
+	false
+	! grep 'PASS' "$safeTmp"/nctest > /dev/null 2>&1 && _stop 1
+	
+	_stop 0
+}
+
+_testProxyRouter() {
+	_getDep nc
+	_getDep nmap
+	
+	if "$scriptAbsoluteLocation" _testProxyRouter_sequence "$@"
+	then
+		return 0
+	fi
+	
+	_stop 1
+}
+
+#Routes standard in/out to a target host/port through netcat.
+_proxy_direct() {
+	local proxyTargetHost
+	local proxyTargetPort
+	
+	proxyTargetHost="$1"
+	proxyTargetPort="$2"
+	
+	#nc -q 96 "$proxyTargetHost" "$proxyTargetPort"
+	nc -q -1 "$proxyTargetHost" "$proxyTargetPort"
+}
+
+#Launches proxy if port at hostname is open.
+#"$1" == hostname
+#"$2" == port
+_proxy() {
+	if _checkPort "$1" "$2"
+	then
+		_proxy_direct "$1" "$2"
+		_stop
+	fi
+	
+	return 0
+}
+
+#Checks all reverse port assignments, launches proxy if open.
+#"$1" == host short name
+#"$2" == hostname
+_proxy_reverse() {
+	_get_reversePorts "$1"
+	
+	local currentReversePort
+	for currentReversePort in "${matchingReversePorts[@]}"
+	do
+		_proxy "$2" "$currentReversePort"
+	done
+}
+
 
 #Generates random alphanumeric characters, default length 18.
 _uid() {
@@ -906,35 +1638,6 @@ _upgradeUbiquitous() {
 	_setupUbiquitous
 }
 
-#####Network Specific Variables
-#Statically embedded into monolithic cautossh script by compile script .
-
-export netName=default
-export gatewayName="$netName"-gw
-export LOCALSSHPORT=22
-
-#Set to the desktop user most commonly logged in.
-#[[ "$SSHUSER" == "" ]] && export SSHUSER=
-#[[ "$X11USER" == "" ]] && export X11USER=
-
-
-#Example ONLY. Modify port asignments.
-if [[ "$reversePort" == "" ]]
-then
-	export reversePort=20009
-	case $(hostname -s) in
-		alpha)
-			export reversePort=20000
-			;;
-		beta)
-			export reversePort=20001
-			export EMBEDDED=true
-			;;
-	esac
-fi
-
-export keepKeys=true
-
 #####Basic Variable Management
 
 #####Global variables.
@@ -965,14 +1668,14 @@ export logTmp="$safeTmp"/log
 export shortTmp=/tmp/w_"$sessionid"	#Solely for misbehaved applications called upon.
 export scriptBin="$scriptAbsoluteFolder"/_bin
 export scriptLib="$scriptAbsoluteFolder"/_lib
-#For virtualized guests (exclusively intended to support _setupUbiquitous hook).
+#For virtualized guests (exclusively intended to support _setupUbiquitous and _drop* hooks).
 [[ ! -e "$scriptBin" ]] && export scriptBin="$scriptAbsoluteFolder"
 [[ ! -e "$scriptLib" ]] && export scriptLib="$scriptAbsoluteFolder"
 
 
 export scriptLocal="$scriptAbsoluteFolder"/_local
 
-#For system installations (exclusively intended to support _setupUbiquitous hook).
+#For system installations (exclusively intended to support _setupUbiquitous and _drop* hooks).
 [[ "$scriptAbsoluteLocation" == "/usr/bin"* ]] && export scriptBin="/usr/share/ubcore/bin"
 [[ "$scriptAbsoluteLocation" == "/usr/local/bin"* ]] && export scriptBin="/usr/local/share/ubcore/bin"
 if [[ "$scriptAbsoluteLocation" == "/usr/bin"* ]] || [[ "$scriptAbsoluteLocation" == "/usr/local/bin"* ]]
@@ -982,6 +1685,9 @@ then
 		export scriptLocal="$HOME"/".ubcore"/_sys
 	fi
 fi
+
+#Essentially temporary tokens which may need to be reused. 
+export scriptTokens="$scriptLocal"/.tokens
 
 #Reboot Detection Token Storage
 # WARNING WIP. Not tested on all platforms. Requires a directory to be tmp/ram fs mounted. Worst case result is to preserve tokens across reboots.
@@ -996,6 +1702,17 @@ export uPID="cwrxuk6wqzbzV6p8kPS8J4APYGX"	#Invalid do-not-match default.
 export daemonPidFile="$scriptLocal"/.bgpid
 
 #export varStore="$scriptAbsoluteFolder"/var
+
+#Network Defaults
+export AUTOSSH_FIRST_POLL=45
+export AUTOSSH_POLL=45
+#export AUTOSSH_GATETIME=0
+export AUTOSSH_GATETIME=15
+
+#export AUTOSSH_PORT=0
+
+#export AUTOSSH_DEBUG=1
+#export AUTOSSH_LOGLEVEL=7
 
 #Monolithic shared files.
 export lock_pathlock="$scriptLocal"/l_path
@@ -1043,8 +1760,8 @@ export objectDir="$scriptAbsoluteFolder"
 export objectName=$(basename "$objectDir")
 
 #Modify PATH to include own directories.
-export PATH="$PATH":"$scriptAbsoluteFolder"
-[[ -d "$scriptBin" ]] && export PATH="$PATH":"$scriptBin"
+_permissions_directory_checkForPath "$scriptAbsoluteFolder" && export PATH="$PATH":"$scriptAbsoluteFolder"
+[[ "$scriptBin" != "$scriptAbsoluteFolder" ]] && [[ -d "$scriptBin" ]] && _permissions_directory_checkForPath "$scriptBin" && export PATH="$PATH":"$scriptBin"
 
 export permaLog="$scriptLocal"
 
@@ -1118,75 +1835,39 @@ export vmMemoryAllocationDefault=96
 
 
 
-export sshBase="$HOME"/.ssh
-export sshDir="$sshBase"/"$netName"
-
-export pidFile="$sshDir"/pid
-export pidFileExternal="$sshDir"/pidext
-export externalDaemonPID="u8R4I2"
-
-[[ "$X11USER" == "" ]] && [[ "$SSHUSER" != "" ]] && export X11USER="$SSHUSER"
-
-if [[ "$SSHUSER"  != "" ]]
-then
-	export SSHUSER="$SSHUSER"'@'
-fi
-
-export AUTOSSH_FIRST_POLL=45
-export AUTOSSH_POLL=45
-#export AUTOSSH_GATETIME=0
-export AUTOSSH_GATETIME=15
-
-#export AUTOSSH_PORT=0
-
-#export AUTOSSH_DEBUG=1
-#export AUTOSSH_LOGLEVEL=7
-
-
-
-
 
 #####Local Environment Management (Resources)
+
+_prepare_prog() {
+	true
+}
 
 _extra() {
 	true
 }
 
-_prepareSSHbase() {
-	mkdir -p "$sshDir"
-	
-	cp -d --preserve=all "$scriptAbsoluteFolder"/cautossh "$sshDir"/ > /dev/null 2>&1
-	cp -d --preserve=all "$scriptAbsoluteFolder"/ops "$sshDir"/ > /dev/null 2>&1
-	
-	chmod 600 "$scriptAbsoluteFolder"/id_rsa > /dev/null 2>&1
-	chmod 600 "$scriptAbsoluteFolder"/id_rsa.pub > /dev/null 2>&1
-	
-	cp -n -d --preserve=all "$scriptAbsoluteFolder"/id_rsa "$sshDir"/ > /dev/null 2>&1
-	cp -n -d --preserve=all "$scriptAbsoluteFolder"/id_rsa.pub "$sshDir"/ > /dev/null 2>&1
-	cp -n -d --preserve=all "$scriptAbsoluteFolder"/id_rsa "$sshBase"/ > /dev/null 2>&1
-	cp -n -d --preserve=all "$scriptAbsoluteFolder"/id_rsa.pub "$sshBase"/ > /dev/null 2>&1
-	
-	cp -d --preserve=all "$scriptAbsoluteFolder"/config "$sshDir"/ > /dev/null 2>&1
-	#cp -n -d --preserve=all "$scriptAbsoluteFolder"/config "$sshBase"/ > /dev/null 2>&1
-	
-	cp -n -d --preserve=all "$scriptAbsoluteFolder"/known_hosts "$sshDir"/ > /dev/null 2>&1
-	cp -n -d --preserve=all "$scriptAbsoluteFolder"/known_hosts "$sshBase"/ > /dev/null 2>&1
-}
 
 _prepare() {
 	
-	mkdir -p "$safeTmp"
+	! mkdir -p "$safeTmp" && exit 1
 	
-	mkdir -p "$shortTmp"
+	! mkdir -p "$shortTmp" && exit 1
 	
-	mkdir -p "$logTmp"
+	! mkdir -p "$logTmp" && exit 1
 	
-	_prepareSSHbase
+	! mkdir -p "$scriptLocal" && exit 1
+	
+	! mkdir -p "$bootTmp" && exit 1
 	
 	_extra
+	_prepare_prog
 }
 
 #####Local Environment Management (Instancing)
+
+_start_prog() {
+	true
+}
 
 _start() {
 	
@@ -1195,22 +1876,38 @@ _start() {
 	#touch "$varStore"
 	#. "$varStore"
 	
+	echo $$ > "$safeTmp"/.pid
 	
+	_start_prog
+}
+
+_saveVar_prog() {
+	true
 }
 
 _saveVar() {
 	true
 	#declare -p varName > "$varStore"
+	
+	_saveVar_prog
+}
+
+_stop_prog() {
+	true
 }
 
 _stop() {
+	_preserveLog
 	
+	rm -f "$pidFile" > /dev/null 2>&1	#Redundant, as this usually resides in "$safeTmp".
 	_safeRMR "$safeTmp"
 	_safeRMR "$shortTmp"
 	
-	#_tryExec _killDaemon
+	#Optionally always try to remove any systemd shutdown hook.
+	#_tryExec _unhook_systemd_shutdown
 	
-	#Broken.
+	_stop_prog
+	
 	if [[ "$1" != "" ]]
 	then
 		exit "$1"
@@ -1219,13 +1916,346 @@ _stop() {
 	fi
 }
 
-_preserveLog() {
-	cp "$logTmp"/* ./  >/dev/null 2>&1
+#Do not overload this unless you know why you need it instead of _stop_prog.
+_stop_emergency_prog() {
+	true
 }
 
-#Traps
-trap 'excode=$?; _stop $excode; trap - EXIT; echo $excode' EXIT HUP INT QUIT PIPE TERM		# reset
-trap 'excode=$?; trap "" EXIT; _stop $excode; echo $excode' EXIT HUP INT QUIT PIPE TERM		# ignore
+#Called upon SIGTERM or similar signal.
+_stop_emergency() {
+	[[ "$noEmergency" == true ]] && _stop "$1"
+	
+	export EMERGENCYSHUTDOWN=true
+	
+	#Not yet using _tryExec since this function would typically result from user intervention, or system shutdown, both emergency situations in which an error message would be ignored if not useful. Higher priority is guaranteeing execution if needed and available.
+	_closeChRoot_emergency
+	
+	#Daemon uses a separate instance, and will not be affected by previous actions, possibly even if running in the foreground.
+	#jobs -p >> "$daemonPidFile" #Could derrange the correct order of descendent job termination.
+	_tryExec _killDaemon
+	
+	_tryExec _stop_virtLocal
+	
+	_stop_emergency_prog
+	
+	_stop "$1"
+	
+}
+
+_waitFile() {
+	
+	[[ -e "$1" ]] && sleep 1
+	[[ -e "$1" ]] && sleep 9
+	[[ -e "$1" ]] && sleep 27
+	[[ -e "$1" ]] && sleep 81
+	[[ -e "$1" ]] && _return 1
+	
+	return 0
+}
+
+#Wrapper. If lock file is present, waits for unlocking operation to complete successfully, then reports status.
+#"$1" == checkFile
+#"$@" == wait command and parameters
+_waitFileCommands() {
+	local waitCheckFile
+	waitCheckFile="$1"
+	shift
+	
+	if [[ -e "$waitCheckFile" ]]
+	then
+		local waitFileCommandStatus
+		
+		"$@"
+		
+		waitFileCommandStatus="$?"
+		
+		if [[ "$waitFileCommandStatus" != "0" ]]
+		then
+			return "$waitFileCommandStatus"
+		fi
+		
+		[[ -e "$waitCheckFile" ]] && return 1
+		
+	fi
+	
+	return 0
+}
+
+#$1 == command to execute if scriptLocal path has changed, typically remove another lock file
+_pathLocked() {
+	[[ ! -e "$lock_pathlock" ]] && echo "k3riC28hQRLnjgkwjI" > "$lock_pathlock"
+	[[ ! -e "$lock_pathlock" ]] && return 1
+	
+	local lockedPath
+	lockedPath=$(cat "$lock_pathlock")
+	
+	if [[ "$lockedPath" != "$scriptLocal" ]]
+	then
+		rm -f "$lock_pathlock" > /dev/null 2>&1
+		[[ -e "$lock_pathlock" ]] && return 1
+		
+		echo "$scriptLocal" > "$lock_pathlock"
+		[[ ! -e "$lock_pathlock" ]] && return 1
+		
+		if [[ "$1" != "" ]]
+		then
+			"$@"
+			[[ "$?" != "0" ]] && return 1
+		fi
+		
+	fi
+	
+	return 0
+}
+
+_readLocked() {
+	mkdir -p "$bootTmp"
+	
+	local rebootToken
+	rebootToken=$(cat "$1" 2> /dev/null)
+	
+	#Remove miscellaneous files if appropriate.
+	if [[ -d "$bootTmp" ]] && ! [[ -e "$bootTmp"/"$rebootToken" ]]
+	then
+		rm -f "$scriptLocal"/*.log && rm -f "$scriptLocal"/imagedev && rm -f "$scriptLocal"/WARNING
+		
+		[[ -e "$lock_quicktmp" ]] && sleep 0.1 && [[ -e "$lock_quicktmp" ]] && rm -f "$lock_quicktmp"
+	fi
+	
+	! [[ -e "$1" ]] && return 1
+	##Lock file exists.
+	
+	if [[ -d "$bootTmp" ]]
+	then
+		if ! [[ -e "$bootTmp"/"$rebootToken" ]]
+		then
+			##Lock file obsolete.
+			
+			#Remove old lock.
+			rm -f "$1" > /dev/null 2>&1
+			return 1
+		fi
+		
+		##Lock file and token exists.
+		return 0
+	fi
+	
+	##Lock file exists, token cannot be found.
+	return 0
+	
+	
+	
+}
+
+_createLocked() {
+	[[ "$uDEBUG" == true ]] && caller 0 >> "$scriptLocal"/lock.log
+	[[ "$uDEBUG" == true ]] && echo -e '\t'"$sessionid"'\t'"$1" >> "$scriptLocal"/lock.log
+	
+	mkdir -p "$bootTmp"
+	
+	! [[ -e "$bootTmp"/"$sessionid" ]] && echo > "$bootTmp"/"$sessionid"
+	
+	echo "$sessionid" > "$lock_quicktmp"
+	
+	mv -n "$lock_quicktmp" "$1" > /dev/null 2>&1
+	
+	if [[ -e "$lock_quicktmp" ]]
+	then
+		[[ "$uDEBUG" == true ]] && echo -e '\t'FAIL >> "$scriptLocal"/lock.log
+		return 1
+	fi
+}
+
+_resetLocks() {
+	
+	_readLocked "$lock_open"
+	_readLocked "$lock_opening"
+	_readLocked "$lock_closed"
+	_readLocked "$lock_closing"
+	_readLocked "$lock_instance"
+	_readLocked "$lock_instancing"
+	
+}
+
+_checkSpecialLocks() {
+	local localSpecialLock
+	
+	localSpecialLock="$specialLock"
+	[[ "$1" != "" ]] && localSpecialLock="$1"
+	
+	local currentLock
+	
+	for currentLock in "${specialLocks[@]}"
+	do
+		[[ "$currentLock" == "$localSpecialLock" ]] && continue
+		_readLocked "$currentLock" && return 0
+	done
+	
+	return 1
+}
+
+#Wrapper. Operates lock file for mounting shared resources (eg. persistent virtual machine image). Avoid if possible.
+#"$1" == waitOpen function && shift
+#"$@" == wrapped function and parameters
+#"$specialLock" == additional lockfile to write
+_open_sequence() {
+	if _readLocked "$lock_open"
+	then
+		_checkSpecialLocks && return 1
+		return 0
+	fi
+	
+	_readLocked "$lock_closing" && return 1
+	
+	if _readLocked "$lock_opening"
+	then
+		if _waitFileCommands "$lock_opening" "$1"
+		then
+			_readLocked "$lock_open" || return 1
+			return 0
+		else
+			return 1
+		fi
+	fi
+	
+	_createLocked "$lock_opening" || return 1
+	
+	shift
+	
+	echo "LOCKED" > "$scriptLocal"/WARNING
+	
+	"$@"
+	
+	if [[ "$?" == "0" ]]
+	then
+		_createLocked "$lock_open" || return 1
+		
+		if [[ "$specialLock" != "" ]]
+		then
+			_createLocked "$specialLock" || return 1
+		fi
+		
+		rm -f "$lock_opening"
+		return 0
+	fi
+	
+	return 1
+}
+
+_open() {
+	local returnStatus
+	
+	_open_sequence "$@"
+	returnStatus="$?"
+	
+	export specialLock
+	specialLock=""
+	export specialLock
+	
+	return "$returnStatus"
+}
+
+#Wrapper. Operates lock file for shared resources (eg. persistent virtual machine image). Avoid if possible.
+#"$1" == <"--force"> && shift
+#"$1" == waitClose function && shift
+#"$@" == wrapped function and parameters
+#"$specialLock" == additional lockfile to remove
+_close_sequence() {
+	local closeForceEnable
+	closeForceEnable=false
+	
+	if [[ "$1" == "--force" ]]
+	then
+		closeForceEnable=true
+		shift
+	fi
+	
+	if ! _readLocked "$lock_open" && [[ "$closeForceEnable" != "true" ]]
+	then
+		return 0
+	fi
+	
+	if [[ "$specialLock" != "" ]] && [[ -e "$specialLock" ]] && ! _readLocked "$specialLock" && [[ "$closeForceEnable" != "true" ]]
+	then
+		return 1
+	fi
+	
+	_checkSpecialLocks && return 1
+	
+	if _readLocked "$lock_closing" && [[ "$closeForceEnable" != "true" ]]
+	then
+		if _waitFileCommands "$lock_closing" "$1"
+		then
+			return 0
+		else
+			return 1
+		fi
+	fi
+	
+	if [[ "$closeForceEnable" != "true" ]]
+	then
+		_createLocked "$lock_closing" || return 1
+	fi
+	! _readLocked "$lock_closing" && _createLocked "$lock_closing"
+	
+	shift
+	
+	"$@"
+	
+	if [[ "$?" == "0" ]]
+	then
+		rm -f "$lock_open" || return 1
+		
+		if [[ "$specialLock" != "" ]] && [[ -e "$specialLock" ]]
+		then
+			rm -f "$specialLock" || return 1
+		fi
+		
+		rm -f "$lock_closing"
+		rm -f "$scriptLocal"/WARNING
+		return 0
+	fi
+	
+	return 1
+}
+
+_close() {
+	local returnStatus
+	
+	_close_sequence "$@"
+	returnStatus="$?"
+	
+	export specialLock
+	specialLock=""
+	export specialLock
+	
+	return "$returnStatus"
+}
+
+#"$1" == variable name to preserve
+#shift
+#"$1" == variable data to preserve
+#shift
+#"$@" == function to prepare other variables
+_preserveVar() {
+	local varNameToPreserve
+	varNameToPreserve="$1"
+	shift
+	
+	local varDataToPreserve
+	varDataToPreserve="$1"
+	shift
+	
+	"$@"
+	
+	[[ "$varNameToPreserve" == "" ]] && return
+	[[ "$varDataToPreserve" == "" ]] && return
+	
+	export "$varNameToPreserve"="$varDataToPreserve"
+	
+	return
+}
+
 
 _buildHello() {
 	local helloSourceCode
@@ -1265,79 +2295,187 @@ _timetest() {
 		
 		if [[ "$dateDelta" -lt "1" ]]
 		then
-			echo "FAIL"
+			_messageFAIL
 			_stop 1
 		fi
 		
 		if [[ "$dateDelta" -lt "5" ]]
 		then
-			echo "PASS"
+			_messagePASS
 			return 0
 		fi
 		
 		let iterations="$iterations + 1"
 	done
-	echo "FAIL"
+	_messageFAIL
 	_stop 1
+}
+
+_test_prog() {
+	true
 }
 
 _test() {
 	_start
 	
-	echo -e -n '\E[1;32;46m Dependency checking...	\E[0m'
+	_messageNormal "Dependency checking..."
 	
-	# Check dependencies
-	_checkDep wget
-	_checkDep grep
-	_checkDep fgrep
-	_checkDep sed
-	_checkDep awk
-	_checkDep cut
-	_checkDep head
-	_checkDep tail
+	## Check dependencies
+	
+	#"generic/filesystem"/permissions.sh
+	_checkDep stat
+	
+	_getDep wget
+	_getDep grep
+	_getDep fgrep
+	_getDep sed
+	_getDep awk
+	_getDep cut
+	_getDep head
+	_getDep tail
 	
 	
-	_checkDep realpath
-	_checkDep readlink
-	_checkDep dirname
+	_getDep realpath
+	_getDep readlink
+	_getDep dirname
+	_getDep basename
 	
-	_checkDep sleep
-	_checkDep wait
-	_checkDep kill
-	_checkDep jobs
-	_checkDep ps
-	_checkDep exit
+	_getDep sleep
+	_getDep wait
+	_getDep kill
+	_getDep jobs
+	_getDep ps
+	_getDep exit
 	
-	_checkDep env
-	_checkDep bash
-	_checkDep echo
-	_checkDep cat
-	_checkDep type
-	_checkDep mkdir
-	_checkDep trap
-	_checkDep return
-	_checkDep set
+	_getDep env
+	_getDep bash
+	_getDep echo
+	_getDep cat
+	_getDep type
+	_getDep mkdir
+	_getDep trap
+	_getDep return
+	_getDep set
 	
-	_checkDep rm
+	_getDep dd
 	
-	_checkDep autossh
-	_checkDep nmap
-	_checkDep vncviewer
-	_checkDep x11vnc
+	_getDep rm
 	
-	_checkDep nohup
+	_getDep find
+	_getDep ln
+	_getDep ls
 	
-	#_tryExec "_idleTest"
+	_getDep id
+	
+	_getDep test
+	
+	_getDep true
+	_getDep false
+	
+	_getDep diff
+	
+	_tryExec "_test_daemon"
+	
+	_tryExec "_testFindPort"
+	_tryExec "_test_waitport"
+	
+	_tryExec "_testProxySSH"
+	
+	_tryExec "_testAutoSSH"
+	
+	_tryExec "_testTor"
+	
+	_tryExec "_testProxyRouter"
+	
+	#_tryExec "_test_build"
+	
+	_tryExec "_testGosu"
+	
+	_tryExec "_testMountChecks"
+	_tryExec "_testBindMountManager"
+	_tryExec "_testDistro"
+	_tryExec "_test_fetchDebian"
+	
+	_tryExec "_test_image"
+	_tryExec "_test_transferimage"
+	
+	_tryExec "_testCreatePartition"
+	_tryExec "_testCreateFS"
+	
+	_tryExec "_test_mkboot"
+	
+	_tryExec "_test_fakehome"
+	_tryExec "_testChRoot"
+	_tryExec "_testQEMU"
+	_tryExec "_testQEMU_x64-x64"
+	_tryExec "_testQEMU_x64-raspi"
+	_tryExec "_testQEMU_raspi-raspi"
+	_tryExec "_testVBox"
+	
+	_tryExec "_test_vboxconvert"
+	
+	_tryExec "_test_dosbox"
+	
+	_tryExec "_testWINE"
+	
+	_tryExec "_test_docker"
+	
+	_tryExec "_test_docker_mkimage"
+	
+	_tryExec "_testVirtBootdisc"
+	
+	_tryExec "_testExtra"
+	
+	_tryExec "_testGit"
+	_tryExec "_testX11"
+	
+	_tryExec "_test_virtLocal_X11"
+	
+	_tryExec "_test_gparted"
+	
+	_tryExec "_test_devemacs"
+	
+	_tryExec "_test_ethereum"
+	_tryExec "_test_ethereum_parity"
 	
 	[[ -e /dev/urandom ]] || echo /dev/urandom missing _stop
 	
-	echo "PASS"
+	_messagePASS
 	
 	echo -n -e '\E[1;32;46m Timing...		\E[0m'
 	_timetest
 	
+	_test_prog
+	
 	_stop
 	
+}
+
+_testBuilt_prog() {
+	true
+}
+
+_testBuilt() {
+	_start
+	
+	_messageProcess "Binary checking"
+	
+	_tryExec "_testBuiltIdle"
+	_tryExec "_testBuiltGosu"	#Note, requires sudo, not necessary for docker .
+	
+	_tryExec "_test_ethereum_built"
+	_tryExec "_test_ethereum_parity_built"
+	
+	_tryExec "_testBuiltChRoot"
+	_tryExec "_testBuiltQEMU"
+	
+	_tryExec "_testBuiltExtra"
+	
+	_testBuilt_prog
+	
+	_messagePASS
+	
+	_stop
 }
 
 #Creates symlink in ~/bin, to the executable at "$1", named according to its residing directory and file name.
@@ -1354,163 +2492,36 @@ _setupCommand() {
 	local clientName
 	clientName=$(basename "$clientScriptFolder")
 	
-	#ln -s -r "$clientScriptLocation" ~/bin/"$commandName""-""$clientName"
-	ln -sf -r "$clientScriptLocation" ~/bin/"$commandName""-""$clientName"
+	_relink_relative "$clientScriptLocation" ~/bin/"$commandName""-""$clientName"
 	
 	
 }
 
 _setupCommands() {
 	#find . -name '_command' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
-	find . -name '_vnc' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
-	find . -name '_ssh' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
-	find . -name '_wake' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
-	find . -name '_fs' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	true
+}
+
+_setup_prog() {
+	true
 }
 
 _setup() {
 	_start
 	
-	"$scriptAbsoluteLocation" _test
+	"$scriptAbsoluteLocation" _test || _stop 1
 	
-	"$scriptAbsoluteLocation" _build "$@"
+	"$scriptAbsoluteLocation" _test_build || _stop 1
+	
+	if ! "$scriptAbsoluteLocation" _testBuilt
+	then
+		"$scriptAbsoluteLocation" _build "$@" || _stop 1
+		"$scriptAbsoluteLocation" _testBuilt || _stop 1
+	fi
 	
 	_setupCommands
 	
-	_stop
-}
-
-##### Core
-
-_autosshExternal() {
-	/usr/bin/autossh -M 0 -F "$sshDir"/config -R $reversePort:localhost:22 "$gatewayName" -N &
-	echo "$!" > "$pidFileExternal"
-	
-	autosshPID=$(cat "$pidFileExternal")
-	#_pauseForProcess "$autosshPID"
-	wait "$autosshPID"
-}
-
-_autossh() {
-	
-	while true
-	do
-		#echo test
-		#echo "$reversePort"
-		
-		_autosshExternal
-		
-		sleep 30
-		
-		if [[ "$EMBEDDED" != "" ]]
-		then
-			sleep 270
-		fi
-		
-	done
-	
-}
-
-#Executes non-default self function in background (ie. as daemon).
-_autosshDaemon() {
-	_prepare
-	
-	if _daemonStatus
-	then
-		exit
-	fi
-	
-	nohup "$scriptAbsoluteLocation" _autossh >/dev/null 2>&1 &
-	echo "$!" > "$pidFile"
-	
-	#ls "$pidFile" > /dev/tty
-	#cat "$pidFile" > /dev/tty
-}
-
-_autosshService() {
-	
-	_autosshDaemon
-	
-}
-
-_ssh_copy_id_gateway() {
-	_start
-	
-	#ssh-copy-id -i "$scriptAbsoluteFolder"/id_rsa.pub user@server "$@"
-	
-	_stop
-}
-
-_reversessh() {
-	_start
-	
-	ssh -F "$sshDir"/config -R $reversePort:localhost:22 "$gatewayName" -N "$@"
-	
-	_stop
-}
-
-#Enters remote server at hostname, by SSH, sets up a tunnel, checks tunnel for another SSH server.
-#"$1" == hostname
-#"$2" == port
-_testRemotePort() {
-	local localPort
-	localPort=$(_findPort)
-	
-	_timeout 18 ssh -F "$sshDir"/config "$1" -L "$localPort":localhost:"$2" -N > /dev/null 2>&1 &
-	sleep 2
-	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
-	sleep 2
-	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
-	sleep 2
-	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
-	sleep 2
-	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
-	sleep 6
-	nmap -Pn localhost -p "$localPort" -sV | grep 'ssh' > /dev/null 2>&1 && return 0
-}
-
-#Checks hostname for open port.
-#"$1" == hostname
-#"$2" == port
-_testPort() {
-	nmap -Pn "$1" -p "$2" | grep open > /dev/null 2>&1
-}
-
-_ssh() {
-	_start
-	
-	ssh -F "$sshDir"/config "$@"
-	
-	_stop
-}
-
-#Builtin version of ssh-copy-id.
-_ssh_copy_id() {
-	_start
-	
-	"$scriptAbsoluteLocation" _ssh "$@" 'mkdir -p "$HOME"/.ssh'
-	cat "$scriptAbsoluteFolder"/id_rsa.pub | "$scriptAbsoluteLocation" _ssh "$@" 'cat - >> "$HOME"/.ssh/authorized_keys'
-	
-	_stop
-}
-alias _ssh-copy-id=_ssh_copy_id
-
-# TODO Add optional code using _findPort .
-_vnc() {
-	_start
-	
-	let vncPort="$reversePort"+10
-	
-	#https://wiki.archlinux.org/index.php/x11vnc#SSH_Tunnel
-	#ssh -t -L "$vncPort":localhost:"$vncPort" "$@" 'sudo x11vnc -display :0 -auth /home/USER/.Xauthority'
-	
-	"$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectTimeout=24 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes -f -L "$vncPort":localhost:"$vncPort" "$@" 'x11vnc -localhost -rfbport '"$vncPort"' -timeout 8 -xkb -display :0 -auth /home/'"$X11USER"'/.Xauthority -noxrecord -noxdamage'
-	#-noxrecord -noxfixes -noxdamage
-	
-	sleep 3
-	
-	#vncviewer -encodings "copyrect tight zrle hextile" localhost:"$vncPort"
-	vncviewer localhost:"$vncPort"
+	_setup_prog
 	
 	_stop
 }
@@ -1584,41 +2595,9 @@ _build() {
 
 #####Program
 
-_buildSSHbase() {
-	
-	if [[ "$keepKeys" == "" ]]
-	then
-		rm "$scriptAbsoluteFolder"/id_rsa >/dev/null 2>&1
-		rm "$scriptAbsoluteFolder"/id_rsa.pub >/dev/null 2>&1
-	fi
-	
-	cp -n -d --preserve=all "$sshBase"/id_rsa "$scriptAbsoluteFolder"/ >/dev/null 2>&1
-	cp -n -d --preserve=all "$sshBase"/id_rsa.pub "$scriptAbsoluteFolder"/ >/dev/null 2>&1
-	
-	cat "$scriptAbsoluteFolder"/known_hosts >> ~/.ssh/known_hosts
-	
-	#cat "$scriptAbsoluteFolder"/config >> ~/.ssh/config
-	echo >> ~/.ssh/config
-	echo "#""$netName" >> ~/.ssh/config
-	echo Include '"'"~/.ssh/""$netName""/config"'"' >> ~/.ssh/config
-	echo >> ~/.ssh/config
-	
-	! [[ -e "$scriptAbsoluteFolder"/id_rsa ]] && ssh-keygen -b 4096 -t rsa -N "" -f "$scriptAbsoluteFolder"/id_rsa
-	
-	_prepare
-	
-	_ssh_copy_id_gateway
-	
-}
-
-_build() {
-	#_tryExec _idleBuild
-	_buildSSHbase
-}
-
 #Typically launches an application - ie. through virtualized container.
 _launch() {
-	_autosshService
+	false
 }
 
 #Typically gathers command/variable scripts from other (ie. yaml) file types (ie. AppImage recipes).
@@ -1641,6 +2620,74 @@ _main() {
 	
 	_stop
 }
+
+#####Network Specific Variables
+#Statically embedded into monolithic ubiquitous_bash.sh/cautossh script by compile .
+
+# WARNING Must use unique netName!
+export netName=default
+export gatewayName="$netName"-gw
+export LOCALSSHPORT=22
+
+#Network Defaults
+export AUTOSSH_FIRST_POLL=45
+export AUTOSSH_POLL=45
+#export AUTOSSH_GATETIME=0
+export AUTOSSH_GATETIME=15
+
+#export AUTOSSH_PORT=0
+
+#export AUTOSSH_DEBUG=1
+#export AUTOSSH_LOGLEVEL=7
+
+#Example ONLY. Modify port asignments.
+_get_reversePorts() {
+	export matchingReversePorts
+	matchingReversePorts=()
+	export matchingEMBEDDED=false
+	
+	local matched
+	
+	local testHostname
+	testHostname="$1"
+	[[ "$testHostname" == "" ]] && testHostname=$(hostname -s)
+	
+	if [[ "$testHostname" == "alpha" ]] || [[ "$testHostname" == '*' ]]
+	then
+		matchingReversePorts+=( "20000" )
+		
+		matched=true
+	fi
+	
+	if [[ "$testHostname" == "beta" ]] || [[ "$testHostname" == '*' ]]
+	then
+		matchingReversePorts+=( "20001" )
+		export matchingEMBEDDED=true
+		
+		matched=true
+	fi
+	
+	if ! [[ "$matched" == "true" ]] || [[ "$testHostname" == '*' ]]
+	then
+		matchingReversePorts+=( "20009" )
+		matchingReversePorts+=( "20008" )
+	fi
+	
+	export matchingReversePorts
+}
+
+_get_reversePorts
+export reversePorts=("${matchingReversePorts[@]}")
+export EMBEDDED="$matchingEMBEDDED"
+
+export keepKeys_SSH=true
+
+export sshBase="$HOME"/.ssh
+export sshUbiquitous="$sshBase"/"$ubiquitiousBashID"
+export sshDir="$sshUbiquitous"/"$netName"
+
+
+
 
 #####Overrides
 
@@ -1671,6 +2718,10 @@ if [[ -e "$scriptLocal"/ops ]]
 then
 	. "$scriptLocal"/ops
 fi
+if [[ -e "$scriptLocal"/ssh/ops ]]
+then
+	. "$scriptLocal"/ssh/ops
+fi
 
 #WILL BE OVERWRITTEN FREQUENTLY.
 #Intended for automatically generated shell code identifying usable resources, such as unused network ports. Do NOT use for serialization of internal variables (use $varStore for that).
@@ -1681,6 +2732,10 @@ fi
 if [[ -e "$scriptLocal"/opsauto ]]
 then
 	. "$scriptLocal"/opsauto
+fi
+if [[ -e "$scriptLocal"/ssh/opsauto ]]
+then
+	. "$scriptLocal"/ssh/opsauto
 fi
 
 #Launch internal functions as commands.
