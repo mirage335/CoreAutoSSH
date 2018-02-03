@@ -85,6 +85,9 @@ git pull
 cd "$scriptLocation"/_lib/coreautossh
 git pull
 
+cd "$scriptLocation"/_lib/ubiquitous_bash
+git pull
+
 cd "$scriptLocation"
 
 cp -a ./_lib/coreautossh/_prog ./
