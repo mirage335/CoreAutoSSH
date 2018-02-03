@@ -4,7 +4,7 @@ CoreAutoSSH
 Self-contained, robust, multipath and reverse SSH configuration package. The framework SSH should have.
 
 
-See README.html. 
+See USAGE.html. 
 
 # Version
 v1.0

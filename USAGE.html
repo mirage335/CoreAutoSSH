@@ -507,67 +507,27 @@ Also see [[AdvancedOptions]]</pre>
 </div>
 <!--POST-SHADOWAREA-->
 <div id="storeArea">
-<div title="API" creator="YourName" modifier="mirage335" created="201706082302" modified="201708051938" changecount="8">
-<pre>!Global Variables
-!!Environment
-scriptAbsoluteLocation
-scriptAbsoluteFolder
-
-!!Config
-netName
-
-LOCALSSHPORT
-
-~X11USER
-SSHUSER
-
-keepKeys
-
-!!Automatic
-reversePort
-
-!Local Environment Management Functions
-!!_extra
-Empty default. Override to install scripts, files, variables, etc, as needed, after default preparations.
-
-!!_prepare
-Create/copy files/directories as needed.
-
-!!_start
-Configure temporary environment variables, TTY settings, etc.
-
-!!_stop
-Exit cleanly.
-
-!!_setup
-Installation. Generate resources (eg. virtual machines, local identity keys).
-
-!!_main
-Called by default if script is run without explicit command/parameters.
-
-!Service Functions
-!!_autossh
-Loop maintains reverse tunnel using carefully chosen autossh settings.
-
-!!_reversessh
-Oneshot reverse tunnel command. Debugging.
-
-!!_testRemotePort
-Checks whether remote port has been tunneled. Debugging.
-
-!!ssh_copy_id_gateway
-Empty default. Override to upload keys to servers used as gateways (jump hosts) through which other services are reached.
-
-!Client Functions
+<div title="API" creator="YourName" modifier="mirage335" created="201706082302" modified="201802030556" changecount="11">
+<pre>!SSH
 !!_ssh
-Wrapper for ssh command. Supports local configuration file.
+Launches &quot;ssh&quot; command with &quot;_local/config&quot; file as file parameter.
+//{{{
+_ssh user@machine
+//}}}
 
-!!_vnc
-Wrapper for ssh, x11vnc server, and vncviewer commands. Sets up SSH tunnel for VNC traffic, commands client machine to launch a dedicated VNC server, points vncviewer at the tunnel
+!!VNC
+Establishes VNC server, client, and secure tunnel at both ends, with random password, automatically.
+//{{{
+_vnc user@machine
+//}}}
 
-!!_ssh_copy_id
-Builtin equivalent to ssh-copy-id. Supports local configuration file.
-</pre>
+!Complete
+See ubiquitous_bash USAGE documentation.
+
+For a list of functions currently compiled in ~CoreAutoSSH, use grep.
+//{{{
+grep '^\_.*(.*).*{' ./cautossh
+//}}}</pre>
 </div>
 <div title="DcTableOfContentsPlugin" modifier="YourName" created="200711141727" modified="201202151646" tags="plugins macros systemConfig excludeLists excludeSearch" changecount="4">
 <pre>/***
@@ -882,15 +842,10 @@ Launch the desired script or filesystem shortcut.
 &lt;div id='tiddlerDisplay'&gt;&lt;/div&gt;
 &lt;/div&gt;</pre>
 </div>
-<div title="Setup" creator="YourName" modifier="mirage335" created="201706080122" modified="201708051822" changecount="15">
+<div title="Setup" creator="YourName" modifier="mirage335" created="201706080122" modified="201802030553" changecount="16">
 <pre>! Review &quot;netvars.sh&quot;, &quot;ops&quot;, and &quot;_index&quot; files for correct network name, gateway, local port, user, key sharing, and reverse port information.
 //{{{
 netName
-
-LOCALSSHPORT
-
-X11USER
-SSHUSER
 //}}}
 
 //{{{
@@ -898,19 +853,40 @@ export keepKeys=true
 //}}}
 
 //{{{
-if [[ &quot;$reversePort&quot; == &quot;&quot; ]]
-then
-	export reversePort=20009
-	case $(hostname -s) in
-		alpha)
-			export reversePort=20000
-			;;
-		beta)
-			export reversePort=20001
-			export EMBEDDED=true
-			;;
-	esac
-fi
+_get_reversePorts() {
+	export matchingReversePorts
+	matchingReversePorts=()
+	export matchingEMBEDDED=false
+	
+	local matched
+	
+	local testHostname
+	testHostname=&quot;$1&quot;
+	[[ &quot;$testHostname&quot; == &quot;&quot; ]] &amp;&amp; testHostname=$(hostname -s)
+	
+	if [[ &quot;$testHostname&quot; == &quot;alpha&quot; ]] || [[ &quot;$testHostname&quot; == '*' ]]
+	then
+		matchingReversePorts+=( &quot;20000&quot; )
+		
+		matched=true
+	fi
+	
+	if [[ &quot;$testHostname&quot; == &quot;beta&quot; ]] || [[ &quot;$testHostname&quot; == '*' ]]
+	then
+		matchingReversePorts+=( &quot;20001&quot; )
+		export matchingEMBEDDED=true
+		
+		matched=true
+	fi
+	
+	if ! [[ &quot;$matched&quot; == &quot;true&quot; ]] || [[ &quot;$testHostname&quot; == '*' ]]
+	then
+		matchingReversePorts+=( &quot;20009&quot; )
+		matchingReversePorts+=( &quot;20008&quot; )
+	fi
+	
+	export matchingReversePorts
+}
 //}}}
 
 ! Compile
@@ -922,12 +898,12 @@ fi
 
 ! Review credentials, including 'cred' files.
 
-! Setup local keys.
+! Setup local keys (if needed) and user installation.
 //{{{
 cautossh _setup
 //}}}
 
-! Manually install keys as needed by remote accounts (optional).
+! Manually install keys as needed by remote gateway accounts (optional).
 //{{{
 ssh root@server
 cd /home/user/.ssh
@@ -942,11 +918,7 @@ cd ./_index/server
 cd
 ssh-copy-id
 //}}}
-
-!Check local SSH config file for duplicate entries (optional).
-//{{{
-#editor ~/.ssh/config
-//}}}</pre>
+</pre>
 </div>
 <div title="SiteSubtitle" creator="YourName" modifier="YourName" created="201706072231" modified="201706072232" changecount="6">
 <pre>Robust reverse proxy maintenance.</pre>
