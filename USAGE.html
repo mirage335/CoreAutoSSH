@@ -842,10 +842,10 @@ Launch the desired script or filesystem shortcut.
 &lt;div id='tiddlerDisplay'&gt;&lt;/div&gt;
 &lt;/div&gt;</pre>
 </div>
-<div title="Setup" creator="YourName" modifier="mirage335" created="201706080122" modified="201802030553" changecount="16">
+<div title="Setup" creator="YourName" modifier="mirage335" created="201706080122" modified="201802040309" changecount="18">
 <pre>! Review &quot;netvars.sh&quot;, &quot;ops&quot;, and &quot;_index&quot; files for correct network name, gateway, local port, user, key sharing, and reverse port information.
 //{{{
-netName
+export netName=default
 //}}}
 
 //{{{
@@ -886,6 +886,56 @@ _get_reversePorts() {
 	fi
 	
 	export matchingReversePorts
+}
+//}}}
+
+//{{{
+#Example only.
+_here_ssh_config() {
+	cat &lt;&lt; CZXWXcRMTo8EmM8i4d
+
+Host *-$netName*
+	Compression yes
+	ExitOnForwardFailure yes
+	ConnectTimeout 72
+	ConnectionAttempts 1
+	ServerAliveInterval 5
+	ServerAliveCountMax 5
+	#PubkeyAuthentication yes
+	#PasswordAuthentication no
+	StrictHostKeyChecking no
+	UserKnownHostsFile &quot;$sshDir/known_hosts&quot;
+	IdentityFile &quot;$sshDir/id_rsa&quot;
+	
+	Cipher aes256-gcm@openssh.com
+	Ciphers aes256-gcm@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,arcfour256,arcfour128,aes128-gcm@openssh.com,chacha20-poly1305@openssh.com,aes128-cbc,3des-cbc,blowfish-cbc,cast128-cbc,aes192-cbc,aes256-cbc,arcfour
+
+Host machine-$netName
+	User user
+	ProxyCommand &quot;$sshDir/cautossh&quot; _ssh_proxy_machine-$netName
+
+
+CZXWXcRMTo8EmM8i4d
+}
+//}}}
+
+//{{{
+_ssh_proxy_machine-default() {
+	_start
+	
+	_proxy machine-default 2222
+	
+	_proxy machine-default 22
+	
+	_proxy_reverse machine machine.domain.tld
+	
+	_proxySSH gateway-default 20009
+	
+	_proxySSH_reverse gateway-default
+	
+	_proxyTor_reverse machine address.onion
+	
+	_stop
 }
 //}}}
 
