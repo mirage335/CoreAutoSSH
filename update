@@ -1,26 +1,22 @@
 #!/usr/bin/env bash
 
-#Maintains updated Core Auto SSH assets as git submodules. Manual merging of some configuration files may still be required.
+#Critical prerequsites.
+_getAbsolute_criticalDep() {
+	! type realpath > /dev/null 2>&1 && return 1
+	! type readlink > /dev/null 2>&1 && return 1
+	! type dirname > /dev/null 2>&1 && return 1
+	
+	#Known issue on Mac. See https://github.com/mirage335/ubiquitous_bash/issues/1 .
+	! realpath -L . > /dev/null 2>&1 && return 1
+	
+	return 0
+}
+! _getAbsolute_criticalDep && exit 1
 
-#Consider creating specialized git repositories as follows.
+! type basename > /dev/null 2>&1 && exit 1
 
-#export netName=default
-#mkdir -p "$netName"
-#cd "$netName"
-
-#git init
-#git add .
-#git commit -a -m "first commit"
-
-#mkdir _lib
-
-#git submodule add git@github.com:mirage335/CoreAutoSSH.git ./_lib/coreautossh
-#git submodule add --force git@github.com:mirage335/Ubiquitous_Bash.git ./_lib/ubiquitous_bash
-
-#git submodule update --init --recursive
-
-
-
+#Retrieves absolute path of current script, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
+#However, will dereference symlinks IF the script location itself is a symlink. This is to allow symlinking to scripts to function normally.
 #Suitable for allowing scripts to find other scripts they depend on. May look like an ugly hack, but it has proven reliable over the years.
 _getScriptAbsoluteLocation() {
 	local absoluteLocation

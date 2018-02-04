@@ -2,9 +2,11 @@
 
 #Consider creating specialized git repositories as follows.
 
+workingDir="$PWD"
+
 export netName=default
-mkdir -p "$netName"
-cd "$netName"
+mkdir -p "$workingDir"/"$netName"
+cd "$workingDir"/"$netName"
 
 git init
 git add .
@@ -17,21 +19,22 @@ git submodule add --force git@github.com:mirage335/Ubiquitous_Bash.git ./_lib/ub
 
 git submodule update --init --recursive
 
+#cp -a ./_lib/coreautossh/_local ./
+mkdir -p ./_local/ssh
+cp -d --preserve=all ./_lib/coreautossh/_lib/ssh/ops ./_local/ssh/ops
+
 cp -a ./_lib/coreautossh/_prog ./
+cp -a ./_lib/coreautossh/_config ./
 
 cp -d --preserve=all ./_lib/coreautossh/cautossh ./
 cp -d --preserve=all ./_lib/coreautossh/compile ./
-cp -d --preserve=all ./_lib/coreautossh/config ./
-#cp -d --preserve=all ./_lib/coreautossh/fork ./
-cp -d --preserve=all ./_lib/coreautossh/netvars.sh ./
-cp -d --preserve=all ./_lib/coreautossh/ops ./
 
-cp -d --preserve=all ./_lib/coreautossh/README.html ./
 cp -d --preserve=all ./_lib/coreautossh/README.md ./
+cp -d --preserve=all ./_lib/coreautossh/USAGE.html ./
 cp -d --preserve=all ./_lib/coreautossh/TiddlySaver.jar ./
 
 cp -d --preserve=all ./_lib/coreautossh/update ./
+cp -d --preserve=all ./_lib/coreautossh/fork ./
+
 
 ./compile
-
-

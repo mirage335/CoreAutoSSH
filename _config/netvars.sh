@@ -59,9 +59,3 @@ export EMBEDDED="$matchingEMBEDDED"
 
 export keepKeys_SSH=true
 
-export sshBase="$HOME"/.ssh
-export sshUbiquitous="$sshBase"/"$ubiquitiousBashID"
-export sshDir="$sshUbiquitous"/"$netName"
-
-
-
