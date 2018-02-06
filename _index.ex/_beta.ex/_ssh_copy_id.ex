@@ -48,7 +48,8 @@ export commandName=$(basename "$testScriptAbsoluteLocation")
 cautosshLocation=$(_discoverResource cautossh)
 opsLocation=$(_discoverResource ops)
 
-export SSHUSER="root@"
+export SSHUSER="root"
+[[ "$SSHUSER" != "" ]] && export SSHUSER="$SSHUSER"'@'
 
 #Import settings.
 . "$cautosshLocation"
@@ -56,8 +57,11 @@ export SSHUSER="root@"
 #Launch in directory with needed resources.
 "$cautosshLocation" "$commandName" "$SSHUSER""$machineName" "$@"
 
+export SSHUSER=""
+[[ "$SSHUSER" != "" ]] && export SSHUSER="$SSHUSER"'@'
+
 #Import settings.
 . "$cautosshLocation"
 
 #Launch in directory with needed resources.
-"$cautosshLocation" "$commandName" "$SSHUSER"""$machineName" "$@"
+"$cautosshLocation" "$commandName" "$SSHUSER""$machineName" "$@"

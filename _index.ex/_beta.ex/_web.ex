@@ -48,20 +48,23 @@ export commandName=$(basename "$testScriptAbsoluteLocation")
 cautosshLocation=$(_discoverResource cautossh)
 opsLocation=$(_discoverResource ops)
 
-export SSHUSER="root"
+#export SSHUSER=
 [[ "$SSHUSER" != "" ]] && export SSHUSER="$SSHUSER"'@'
 
 #Import settings.
 . "$cautosshLocation"
 
-#Launch in directory with needed resources.
-"$cautosshLocation" "$commandName" "$SSHUSER""$machineName" "$@"
-
-export SSHUSER=""
-[[ "$SSHUSER" != "" ]] && export SSHUSER="$SSHUSER"'@'
-
-#Import settings.
-. "$cautosshLocation"
+localHTTPStunnelPort=$(_findPort)
+targetHTTPStunnelAddress=localhost
+targetHTTPStunnelPort=443
 
 #Launch in directory with needed resources.
-"$cautosshLocation" "$commandName" "$SSHUSER""$machineName" "$@"
+
+"$cautosshLocation" _ssh -o ConnectionAttempts=2 -C -L "$localHTTPStunnelPort":"$targetHTTPStunnelAddress":"$targetHTTPStunnelPort" "$SSHUSER""$machineName" -N &
+
+sleep 3	# TODO: This could be better, as with current _vnc implementation . Then again, the web browser will be under manual control anyway, and some web services might react badly to port checking.
+
+xdg-open "https://localhost:""$localHTTPStunnelPort"
+
+
+

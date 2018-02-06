@@ -49,6 +49,7 @@ cautosshLocation=$(_discoverResource cautossh)
 opsLocation=$(_discoverResource ops)
 
 export SSHUSER=
+[[ "$SSHUSER" != "" ]] && export SSHUSER="$SSHUSER"'@'
 
 #Import settings.
 . "$cautosshLocation"
