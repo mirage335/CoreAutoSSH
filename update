@@ -75,12 +75,15 @@ alias getAbsoluteLocation=_getAbsoluteLocation
 
 export scriptLocation="$(_getScriptAbsoluteFolder)"
 
+cd "$scriptLocation"
 cd "$scriptLocation"/_lib/coreautossh/_lib/ubiquitous_bash
 git pull
 
+cd "$scriptLocation"
 cd "$scriptLocation"/_lib/coreautossh
 git pull
 
+cd "$scriptLocation"
 cd "$scriptLocation"/_lib/ubiquitous_bash
 git pull
 
