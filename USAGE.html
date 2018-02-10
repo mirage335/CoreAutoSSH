@@ -788,86 +788,13 @@ window.scrollToHeading = function(title, anchorName, evt) {
 <div title="DefaultTiddlers" creator="mirage335" modifier="mirage335" created="201706082331" changecount="1">
 <pre>[[Operation]]</pre>
 </div>
-<div title="MainMenu" creator="YourName" modifier="YourName" created="201202151614" modified="201706080058" tags="excludeLists excludeSearch" changecount="4">
-<pre>[[Setup]]
-[[API]]
-[[Operation]]
-&lt;html&gt;&lt;hr&gt;&lt;/html&gt;</pre>
-</div>
-<div title="Operation" creator="YourName" modifier="mirage335" created="201706082317" modified="201802100359" changecount="7">
-<pre>!Crontab
+<div title="Dev" creator="YourName" modifier="mirage335" created="201706080122" modified="201802100420" changecount="21">
+<pre>!Package
 //{{{
-@reboot &quot;$HOME&quot;/.ssh/&lt;netName&gt;/cautossh
+./cautossh _package
 //}}}
 
-!Service
-//{{{
-./cautossh
-//}}}
-
-!Client
-Navigate to ./_index/machineName .
-Launch the desired script or filesystem shortcut.
-//{{{
-./_ssh
-./_vnc
-//}}}
-
-!GUI
-!!Display
-Control remote machine physical graphical display through SSH (typically by VNC within).
-//{{{
-./cautossh _vnc machine-default
-//}}}
-
-Send control of local physical graphical display to remote machine through SSH (typically by VNC within).
-//{{{
-./cautossh _push_vnc machine-default
-//}}}
-
-!!Desktop
-Obtain nonpersistent dedicated desktop environment at remote machine through SSH (typically by VNC within).
-//{{{
-export desktopEnvironmentLaunch=&quot;startlxde&quot;
-./cautossh _desktop machine-default
-//}}}
-
-Send control of local nonpersistent dedicated desktop environment to remote machine through SSH (typically by VNC within).
-//{{{
-export desktopEnvironmentLaunch=&quot;startlxde&quot;
-./cautossh _push_desktop machine-default
-//}}}
-</pre>
-</div>
-<div title="PageTemplate" modifier="YourName" created="200701130013" modified="201202151614" tags="excludeLists excludeSearch DevFireTheme" changecount="24">
-<pre>&lt;div class='header' macro='gradient vert #390108 #900'&gt;
-&lt;div class='headerShadow'&gt;
-&lt;span class='siteTitle' refresh='content' tiddler='SiteTitle'&gt;&lt;/span&gt;&amp;nbsp;
-&lt;span class='siteSubtitle' refresh='content' tiddler='SiteSubtitle'&gt;&lt;/span&gt;
-&lt;/div&gt;
-&lt;div class='headerForeground'&gt;
-&lt;span class='siteTitle' refresh='content' tiddler='SiteTitle'&gt;&lt;/span&gt;&amp;nbsp;
-&lt;span class='siteSubtitle' refresh='content' tiddler='SiteSubtitle'&gt;&lt;/span&gt;
-&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;div id='sidebar'&gt;
-
-&lt;!--- &lt;div id='mainMenu'&gt; ---&gt;
-&lt;div id='mainMenu' refresh='content' tiddler='MainMenu'&gt;&lt;/div&gt;
-&lt;!--- &lt;/div&gt; ---&gt;
-
-&lt;div id='sidebarOptions' refresh='content' tiddler='SideBarOptions'&gt;&lt;/div&gt;
-&lt;div id='sidebarTabs' refresh='content' force='true' tiddler='SideBarTabs'&gt;&lt;/div&gt;
-&lt;/div&gt;
-
-&lt;div id='displayArea'&gt;
-&lt;div id='messageArea'&gt;&lt;/div&gt;
-&lt;div id='tiddlerDisplay'&gt;&lt;/div&gt;
-&lt;/div&gt;</pre>
-</div>
-<div title="Setup" creator="YourName" modifier="mirage335" created="201706080122" modified="201802040309" changecount="18">
-<pre>! Review &quot;netvars.sh&quot;, &quot;ops&quot;, and &quot;_index&quot; files for correct network name, gateway, local port, user, key sharing, and reverse port information.
+! Review &quot;netvars.sh&quot;, &quot;ops&quot;, and &quot;_index&quot; files for correct network name, gateway, local port, user, key sharing, and reverse port information.
 //{{{
 export netName=default
 //}}}
@@ -972,7 +899,7 @@ _ssh_proxy_machine-default() {
 
 ! Review credentials, including 'cred' files.
 
-! Setup local keys (if needed) and user installation.
+! Setup local keys (if needed) and user installation. Current versions of cautossh should be fully self-contained, not requiring this simply for key configuration.
 //{{{
 cautossh _setup
 //}}}
@@ -993,6 +920,90 @@ cd
 ssh-copy-id
 //}}}
 </pre>
+</div>
+<div title="MainMenu" creator="YourName" modifier="YourName" created="201202151614" modified="201706080058" tags="excludeLists excludeSearch" changecount="4">
+<pre>[[Setup]]
+[[API]]
+[[Operation]]
+&lt;html&gt;&lt;hr&gt;&lt;/html&gt;</pre>
+</div>
+<div title="Operation" creator="YourName" modifier="mirage335" created="201706082317" modified="201802100419" changecount="8">
+<pre>!Shortcuts
+Hooks global &quot;~/.ssh/config&quot; and installs symlinks to &quot;~/bin&quot; for accessibility. Notably useful for integration with git.
+//{{{
+./cautossh _setup
+//}}}
+
+!Crontab
+//{{{
+@reboot &quot;$HOME&quot;/.ssh/&lt;netName&gt;/cautossh
+//}}}
+
+!Service
+//{{{
+./cautossh
+//}}}
+
+!Client
+Navigate to ./_index/machineName .
+Launch the desired script or filesystem shortcut.
+//{{{
+./_ssh
+./_vnc
+//}}}
+
+!GUI
+!!Display
+Control remote machine physical graphical display through SSH (typically by VNC within).
+//{{{
+./cautossh _vnc machine-default
+//}}}
+
+Send control of local physical graphical display to remote machine through SSH (typically by VNC within).
+//{{{
+./cautossh _push_vnc machine-default
+//}}}
+
+!!Desktop
+Obtain nonpersistent dedicated desktop environment at remote machine through SSH (typically by VNC within).
+//{{{
+export desktopEnvironmentLaunch=&quot;startlxde&quot;
+./cautossh _desktop machine-default
+//}}}
+
+Send control of local nonpersistent dedicated desktop environment to remote machine through SSH (typically by VNC within).
+//{{{
+export desktopEnvironmentLaunch=&quot;startlxde&quot;
+./cautossh _push_desktop machine-default
+//}}}
+</pre>
+</div>
+<div title="PageTemplate" modifier="YourName" created="200701130013" modified="201202151614" tags="excludeLists excludeSearch DevFireTheme" changecount="24">
+<pre>&lt;div class='header' macro='gradient vert #390108 #900'&gt;
+&lt;div class='headerShadow'&gt;
+&lt;span class='siteTitle' refresh='content' tiddler='SiteTitle'&gt;&lt;/span&gt;&amp;nbsp;
+&lt;span class='siteSubtitle' refresh='content' tiddler='SiteSubtitle'&gt;&lt;/span&gt;
+&lt;/div&gt;
+&lt;div class='headerForeground'&gt;
+&lt;span class='siteTitle' refresh='content' tiddler='SiteTitle'&gt;&lt;/span&gt;&amp;nbsp;
+&lt;span class='siteSubtitle' refresh='content' tiddler='SiteSubtitle'&gt;&lt;/span&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+
+&lt;div id='sidebar'&gt;
+
+&lt;!--- &lt;div id='mainMenu'&gt; ---&gt;
+&lt;div id='mainMenu' refresh='content' tiddler='MainMenu'&gt;&lt;/div&gt;
+&lt;!--- &lt;/div&gt; ---&gt;
+
+&lt;div id='sidebarOptions' refresh='content' tiddler='SideBarOptions'&gt;&lt;/div&gt;
+&lt;div id='sidebarTabs' refresh='content' force='true' tiddler='SideBarTabs'&gt;&lt;/div&gt;
+&lt;/div&gt;
+
+&lt;div id='displayArea'&gt;
+&lt;div id='messageArea'&gt;&lt;/div&gt;
+&lt;div id='tiddlerDisplay'&gt;&lt;/div&gt;
+&lt;/div&gt;</pre>
 </div>
 <div title="SiteSubtitle" creator="YourName" modifier="YourName" created="201706072231" modified="201706072232" changecount="6">
 <pre>Robust reverse proxy maintenance.</pre>
