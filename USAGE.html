@@ -794,7 +794,7 @@ window.scrollToHeading = function(title, anchorName, evt) {
 [[Operation]]
 &lt;html&gt;&lt;hr&gt;&lt;/html&gt;</pre>
 </div>
-<div title="Operation" creator="YourName" modifier="mirage335" created="201706082317" modified="201708051823" changecount="4">
+<div title="Operation" creator="YourName" modifier="mirage335" created="201706082317" modified="201802100359" changecount="7">
 <pre>!Crontab
 //{{{
 @reboot &quot;$HOME&quot;/.ssh/&lt;netName&gt;/cautossh
@@ -813,6 +813,30 @@ Launch the desired script or filesystem shortcut.
 ./_vnc
 //}}}
 
+!GUI
+!!Display
+Control remote machine physical graphical display through SSH (typically by VNC within).
+//{{{
+./cautossh _vnc machine-default
+//}}}
+
+Send control of local physical graphical display to remote machine through SSH (typically by VNC within).
+//{{{
+./cautossh _push_vnc machine-default
+//}}}
+
+!!Desktop
+Obtain nonpersistent dedicated desktop environment at remote machine through SSH (typically by VNC within).
+//{{{
+export desktopEnvironmentLaunch=&quot;startlxde&quot;
+./cautossh _desktop machine-default
+//}}}
+
+Send control of local nonpersistent dedicated desktop environment to remote machine through SSH (typically by VNC within).
+//{{{
+export desktopEnvironmentLaunch=&quot;startlxde&quot;
+./cautossh _push_desktop machine-default
+//}}}
 </pre>
 </div>
 <div title="PageTemplate" modifier="YourName" created="200701130013" modified="201202151614" tags="excludeLists excludeSearch DevFireTheme" changecount="24">
