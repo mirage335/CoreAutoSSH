@@ -208,6 +208,9 @@ _failExec() {
 #"$1" == directory to remove
 _safeRMR() {
 	
+	#Fail sooner, avoiding irrelevant error messages. Especially important to cases where an upstream process has already removed the "$safeTmp" directory of a downstream process which reaches "_stop" later.
+	! [[ -e "$1" ]] && return 1
+	
 	[[ ! -e "$scriptAbsoluteLocation" ]] && return 1
 	[[ ! -e "$scriptAbsoluteFolder" ]] && return 1
 	_failExec || return 1
@@ -500,35 +503,31 @@ _test_daemon() {
 
 #To ensure the lowest descendents are terminated first, the file must be created in reverse order. Additionally, PID files created before a prior reboot must be discarded and ignored.
 _prependDaemonPID() {
-	while _readLocked "$daemonPidFile"cl || _readLocked "$daemonPidFile"op
+	
+	#Reset locks from before prior reboot.
+	_readLocked "$daemonPidFile"lk
+	_readLocked "$daemonPidFile"op
+	_readLocked "$daemonPidFile"cl
+	
+	while true
 	do
-		while true
-		do
-			! _readLocked "$daemonPidFile"cl && break
-			sleep 1
-		done
-		
-		while true
-		do
-			! _readLocked "$daemonPidFile"op && break
-			sleep 1
-		done
-		sleep 1
+		_createLocked "$daemonPidFile"op && break
+		sleep 0.1
 	done
 	
+	#Removes old PID file if not locked during current UNIX session (ie. since latest reboot).  Prevents termination of non-daemon PIDs.
 	if ! _readLocked "$daemonPidFile"lk
 	then
-		_createLocked "$daemonPidFile"op
-		_createLocked "$daemonPidFile"lk
-		
 		rm -f "$daemonPidFile"
-		
-		rm -f "$daemonPidFile"op
+		rm -f "$daemonPidFile"t
 	fi
+	_createLocked "$daemonPidFile"lk
 	
 	[[ ! -e "$daemonPidFile" ]] && echo >> "$daemonPidFile"
-	cat - "$daemonPidFile" >> "$daemonPidFile".tmp
-	mv "$daemonPidFile".tmp "$daemonPidFile"
+	cat - "$daemonPidFile" >> "$daemonPidFile"t
+	mv "$daemonPidFile"t "$daemonPidFile"
+	
+	rm -f "$daemonPidFile"op
 }
 
 #By default, process descendents will be terminated first. Doing so is essential to reaching sub-proesses of sub-scripts, without manual user input.
@@ -1060,15 +1059,20 @@ CZXWXcRMTo8EmM8i4d
 _testProxySSH() {
 	_getDep ssh
 	
-	! _wantDep vncviewer && echo 'warn: no vncviewer, recommend tightvnc'
-	! _wantDep vncserver && echo 'warn: no vncserver, recommend tightvnc'
-	! _wantDep Xvnc && echo 'warn: no Xvnc, recommend tightvnc'
+	! _wantDep base64 && echo 'warn: no base64'
+	
+	! _wantDep vncviewer && echo 'warn: no vncviewer, recommend tigervnc'
+	! _wantDep vncserver && echo 'warn: no vncserver, recommend tigervnc'
+	! _wantDep Xvnc && echo 'warn: no Xvnc, recommend tigervnc'
 	
 	! _wantDep x11vnc && echo 'warn: x11vnc not found'
+	! _wantDep x0tigervncserver && echo 'warn: x0tigervncserver not found'
 	
-	! _wantDep xpra && echo 'warn: xpra not found'
-	! _wantDep xephyr && echo 'warn: xephyr not found'
-	! _wantDep xnest && echo 'warn: xnest not found'
+	! _wantDep xset && echo 'warn: xset not found'
+	
+	#! _wantDep xpra && echo 'warn: xpra not found'
+	#! _wantDep xephyr && echo 'warn: xephyr not found'
+	#! _wantDep xnest && echo 'warn: xnest not found'
 }
 
 #Enters remote server at hostname, by SSH, sets up a tunnel, checks tunnel for another SSH server.
@@ -1155,6 +1159,32 @@ _ssh() {
 	export sshInContainment=""
 }
 
+_start_safeTmp_ssh() {
+	cat "$scriptAbsoluteLocation" | base64 | _ssh -C -o ConnectionAttempts=2 "$@" '
+mkdir -p '"$safeTmpSSH"'
+chmod 700 '"$safeTmpSSH"'
+cat - | base64 -d > '"$safeTmpSSH"'/cautossh
+chmod 700 '"$safeTmpSSH"'/cautossh
+'
+	
+	#cat "$scriptAbsoluteLocation" | base64 | _ssh -C -o ConnectionAttempts=2 "$@" 'cat - | base64 -d > '"$safeTmpSSH"'/cautossh'
+	#_ssh -C -o ConnectionAttempts=2 "$@" 'chmod 700 '"$safeTmpSSH"'/cautossh'
+}
+
+_stop_safeTmp_ssh() {
+#rm '"$safeTmpSSH"'/w_*/*
+	cat "$scriptAbsoluteLocation" | _ssh -C -o ConnectionAttempts=2 "$@" '
+rm '"$safeTmpSSH"'/cautossh
+rmdir '"$safeTmpSSH"'/_local
+rmdir '"$safeTmpSSH"'
+'
+	
+}
+
+_vnc_ssh() {
+	"$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes "$@" 
+}
+
 _findPort_vnc() {
 	local vncMinPort
 	let vncMinPort="${reversePorts[0]}"+20
@@ -1165,42 +1195,225 @@ _findPort_vnc() {
 	_findPort "$vncMinPort" "$vncMaxPort"
 }
 
-_vnc_sequence() {
+_prepare_vnc() {
+	
+	echo > "$vncPasswdFile".pln
+	chmod 600 "$vncPasswdFile".pln
+	_uid 8 > "$vncPasswdFile".pln
+	
+	export vncPort=$(_findPort_vnc)
+	
+	export vncPIDfile="$safeTmpSSH"/.vncpid
+	export vncPIDfile_local="$safeTmp"/.vncpid
+	
+}
+
+_vncpasswd() {
+	#Supported by both TightVNC and TigerVNC.
+	if echo | vncpasswd -x --help 2>&1 | grep -i 'vncpasswd \[FILE\]' >/dev/null 2>&1
+	then
+		echo | cat "$vncPasswdFile".pln - "$vncPasswdFile".pln | vncpasswd "$vncPasswdFile"
+		return 0
+	fi
+	
+	return 1
+}
+
+_vncviewer_operations() {
+	_detect_x11
+	export DISPLAY="$destination_DISPLAY"
+	
+	#TigerVNC
+	if vncviewer --help 2>&1 | grep 'PasswordFile   \- Password file for VNC authentication (default\=)' >/dev/null 2>&1
+	then
+		vncviewer -DotWhenNoCursor -passwd "$vncPasswdFile" localhost:"$vncPort" "$@"
+		stty echo
+		return 0
+	fi
+	
+	#TightVNC
+	if vncviewer --help 2>&1 | grep '\-passwd' >/dev/null 2>&1
+	then
+		#vncviewer -encodings "copyrect tight zrle hextile" localhost:"$vncPort"
+		vncviewer -passwd "$vncPasswdFile" localhost:"$vncPort" "$@"
+		stty echo
+		return 0
+	fi
+	
+	return 1
+}
+
+_vncviewer_sequence() {
 	_start
 	
-	export permit_x11_override=("$scriptAbsoluteLocation" _ssh -C -o ConnectionAttempts=2 "$@")
+	cat - > "$vncPasswdFile".pln
+	! _vncpasswd && _stop 1
+	
+	! _vncviewer_operations "$@" && _stop 1
+	
+	
+	_stop
+}
+
+#Password must be given on standard input. Environment variable "$vncPort" must be set. Environment variable "$destination_DISPLAY" may be forced.
+_vncviewer() {
+	"$scriptAbsoluteLocation" _vncviewer_sequence "$@"
+}
+
+_x11vnc_operations() {
 	_detect_x11
+	export DISPLAY="$destination_DISPLAY"
 	
-	local vncPort
-	vncPort=$(_findPort_vnc)
+	#x11vnc
+	if type x11vnc >/dev/null 2>&1
+	then
+		#-passwdfile cmd:"/bin/cat -"
+		x11vnc -localhost -rfbauth "$vncPasswdFile" -rfbport "$vncPort" -timeout 8 -xkb -display "$destination_DISPLAY" -auth "$HOME"/.Xauthority -noxrecord -noxdamage
+		#-noxrecord -noxfixes -noxdamage
+		return 0
+	fi
 	
-	#https://wiki.archlinux.org/index.php/x11vnc#SSH_Tunnel
-	#ssh -t -L "$vncPort":localhost:"$vncPort" "$@" 'sudo x11vnc -display :0 -auth /home/USER/.Xauthority'
+	#TigerVNC.
+	if type x0tigervncserver
+	then
+		x0tigervncserver -rfbauth "$vncPasswdFile" -rfbport "$vncPort"
+		return 0
+	fi
 	
-	#mkdir -p "$scriptTokens"
-	#if [[ ! -e "$scriptTokens" ]]
-	#then
-	#	echo > "$scriptTokens"/x11vncpasswd
-	#	chmod 600 "$scriptTokens"/x11vncpasswd
-	#	_uid > "$scriptTokens"/x11vncpasswd
-	#fi
-	#cp "$scriptTokens"/x11vncpasswd "$safeTmp"/x11vncpasswd
+	return 1
+}
+
+_x11vnc_sequence() {
+	_start
 	
-	echo > "$safeTmp"/x11vncpasswd
-	chmod 600 "$safeTmp"/x11vncpasswd
-	_uid > "$safeTmp"/x11vncpasswd
+	cat - > "$vncPasswdFile".pln
+	! _vncpasswd && _stop 1
 	
-	cat "$safeTmp"/x11vncpasswd | "$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectTimeout=72 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes -L "$vncPort":localhost:"$vncPort" "$@" 'x11vnc -passwdfile cmd:"/bin/cat -" -localhost -rfbport '"$vncPort"' -timeout 8 -xkb -display '"$destination_DISPLAY"' -auth "$HOME"/.Xauthority -noxrecord -noxdamage' &
-	#-noxrecord -noxfixes -noxdamage
+	! _x11vnc_operations && _stop 1
+	
+	_stop
+}
+
+#Password must be given on standard input. Environment variable "$vncPort" must be set. Environment variable "$destination_DISPLAY" may be forced.
+_x11vnc() {
+	"$scriptAbsoluteLocation" _x11vnc_sequence "$@"
+}
+
+_vncserver_operations() {
+	[[ "$desktopEnvironmentLaunch" == "" ]] && desktopEnvironmentLaunch="true"
+	[[ "$desktopEnvironmentGeometry" == "" ]] && desktopEnvironmentGeometry='1920x1080'
+	
+	local vncDisplay
+	local vncDisplayValid
+	for (( vncDisplay = 1 ; vncDisplay <= 9 ; vncDisplay++ ))
+	do
+		! [[ -e /tmp/.X'"$vncDisplay"'-lock ]] && ! [[ -e /tmp/.X11-unix/X'"$vncDisplay"' ]] && vncDisplayValid=true && break
+	done
+	[[ "$vncDisplayValid" != "true" ]] && _stop 1
+	
+	#TigerVNC
+	if echo | vncserver -x --help 2>&1 | grep '\-fg' >/dev/null 2>&1
+	then
+		echo
+		echo '*****TigerVNC Server Detected'
+		echo
+		#"-fg" may be unreliable
+		#vncserver :"$vncDisplay" -depth 16 -geometry "$desktopEnvironmentGeometry" -localhost -rfbport "$vncPort" -rfbauth "$vncPasswdFile" &
+		
+		
+		
+		Xvnc :"$vncDisplay" -depth 16 -geometry "$desktopEnvironmentGeometry" -localhost -rfbport "$vncPort" -rfbauth "$vncPasswdFile" &
+		echo $! > "$vncPIDfile"
+		
+		export DISPLAY=:"$vncDisplay"
+		
+		local currentCount
+		for (( currentCount = 0 ; currentCount < 90 ; currentCount++ ))
+		do
+			xset q >/dev/null 2>&1 && break
+			sleep 1
+		done
+		
+		bash -c "$desktopEnvironmentLaunch" &
+		
+		sleep 12
+		
+		return 0
+	fi
+	
+	#TightVNC
+	if type vncserver >/dev/null 2>&1
+	then
+		echo
+		echo '*****TightVNC Server Detected'
+		echo
+		vncserver :"$vncDisplay" -depth 16 -geometry "$desktopEnvironmentGeometry" -nevershared -dontdisconnect -localhost -rfbport "$vncPort" -rfbauth "$vncPasswdFile" -rfbwait 12000
+		
+		export DISPLAY=:"$vncDisplay"
+		
+		bash -c "$desktopEnvironmentLaunch" &
+		
+		sleep 12
+		
+		return 0
+	fi
+	
+	return 1
+}
+
+_vncserver_sequence() {
+	_start
+	
+	cat - > "$vncPasswdFile".pln
+	! _vncpasswd && _stop 1
+	
+	! _vncserver_operations && _stop 1
+	
+	_stop
+}
+
+#Password must be given on standard input. Environment variables "$vncPort", "$vncPIDfile", must be set. Environment variables "$desktopEnvironmentGeometry", "$desktopEnvironmentLaunch", may be forced.
+_vncserver() {
+	"$scriptAbsoluteLocation" _vncserver_sequence "$@"
+}
+
+#Environment variable "$vncPIDfile", must be set.
+_vncserver_terminate() {
+	if [[ -e "$vncPIDfile" ]] && [[ -s "$vncPIDfile" ]]
+	then
+		pkill -P $(cat "$vncPIDfile")
+		kill $(cat "$vncPIDfile")
+		#sleep 1
+		#kill -KILL $(cat "$vncPIDfile")
+		rm "$vncPIDfile"
+		
+		#For now, this does not always work with TigerVNC.
+		#return 0
+	fi
+	
+	pkill Xvnc
+	pkill Xtightvnc
+	pkill Xtigervnc
+	rm "$vncPIDfile"
+	return 1
+}
+
+_vnc_sequence() {
+	_start
+	_start_safeTmp_ssh "$@"
+	_prepare_vnc
+	
+	
+	cat "$vncPasswdFile".pln | _vnc_ssh -L "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' '"$safeTmpSSH"/cautossh' _x11vnc' &
 	
 	_waitPort localhost "$vncPort"
 	sleep 0.8 #VNC service may not always be ready when port is up.
-	#sleep 1
 	
-	#vncviewer -encodings "copyrect tight zrle hextile" localhost:"$vncPort"
-	cat "$safeTmp"/x11vncpasswd | vncviewer -autopass localhost:"$vncPort"
+	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' '"$scriptAbsoluteLocation"' _vncviewer'
+	
 	stty echo
 	
+	_stop_safeTmp_ssh "$@"
 	_stop
 }
 
@@ -1210,26 +1423,18 @@ _vnc() {
 
 _push_vnc_sequence() {
 	_start
+	_start_safeTmp_ssh "$@"
+	_prepare_vnc
 	
-	export permit_x11_override=("$scriptAbsoluteLocation" _ssh -C -o ConnectionAttempts=2 "$@")
-	_detect_x11
-	
-	local vncPort
-	vncPort=$(_findPort_vnc)
-	
-	echo > "$safeTmp"/x11vncpasswd
-	chmod 600 "$safeTmp"/x11vncpasswd
-	_uid > "$safeTmp"/x11vncpasswd
-	
-	cat "$safeTmp"/x11vncpasswd | x11vnc -passwdfile cmd:"/bin/cat -" -localhost -rfbport "$vncPort" -timeout 8 -xkb -display "$DISPLAY" -auth "$HOME"/.Xauthority -noxrecord -noxdamage &
+	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' '"$scriptAbsoluteLocation"' _x11vnc' &
 	#-noxrecord -noxfixes -noxdamage
 	
 	_waitPort localhost "$vncPort"
 	sleep 0.8 #VNC service may not always be ready when port is up.
 	
-	cat "$safeTmp"/x11vncpasswd | "$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectTimeout=72 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes -R "$vncPort":localhost:"$vncPort" "$@" 'env DISPLAY='"$destination_DISPLAY"' vncviewer -autopass localhost:'"$vncPort"
-	stty echo
+	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' '"$safeTmpSSH"/cautossh' _vncviewer'
 	
+	_stop_safeTmp_ssh "$@"
 	_stop
 }
 
@@ -1239,57 +1444,22 @@ _push_vnc() {
 
 _desktop_sequence() {
 	_start
+	_start_safeTmp_ssh "$@"
+	_prepare_vnc
 	
-	local vncPort
-	vncPort=$(_findPort_vnc)
 	
-	local vncID
-	vncID=$(_uid)
-	local vncPasswdFile
-	vncPasswdFile='~/.vnctemp/passwd_'"$vncID"
-	local vncPIDfile
-	vncPIDfile='~/.vnctemp/pid_'"$vncID"
+	cat "$vncPasswdFile".pln | _vnc_ssh -L "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' vncPIDfile='"$vncPIDfile"' desktopEnvironmentGeometry='"$desktopEnvironmentGeometry"' desktopEnvironmentLaunch='"$desktopEnvironmentLaunch"' '"$safeTmpSSH"/cautossh' _vncserver' &
 	
-	local vncDisplay
-	local vncDisplayValid
-	for (( vncDisplay = 1 ; vncDisplay <= 9 ; vncDisplay++ ))
-	do
-		"$scriptAbsoluteLocation" _ssh -C -o ConnectionAttempts=2 "$@" '! [[ -e /tmp/.X'"$vncDisplay"'-lock ]] && ! [[ -e /tmp/.X11-unix/X'"$vncDisplay"' ]]' && vncDisplayValid=true && break
-	done
-	[[ "$vncDisplayValid" != "true" ]] && _stop 1
-	
-	echo > "$safeTmp"/vncserverpasswd
-	chmod 600 "$safeTmp"/vncserverpasswd
-	_uid 8 > "$safeTmp"/vncserverpasswd
-	
-	if ! _ssh -C -o ConnectionAttempts=2 "$@" 'mkdir -p ~/.vnctemp ; chmod 700 ~/.vnctemp'
-	then
-		_stop 1
-	fi
-	
-	#desktopEnvironmentLaunch='xrdb \$HOME/.Xresources ; xsetroot -solid grey ; x-window-manager & export XKL_XMODMAP_DISABLE=1 ; /etc/X11/Xsession'
-	desktopEnvironmentLaunch='true'
-	desktopEnvironmentGeometry='1920x1080'
-	
-	local localClientDisplay="$DISPLAY"
-	
-	#Xvnc works properly with PID files, whereas vncserver does not.
-	cat "$safeTmp"/vncserverpasswd | "$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectTimeout=72 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes -L "$vncPort":localhost:"$vncPort" "$@" 'vncpasswd -f > '"$vncPasswdFile"' && [[ -e '"$vncPasswdFile"' ]] && chmod 600 '"$vncPasswdFile"' ; vncserver :'"$vncDisplay"' -depth 16 -geometry '"$desktopEnvironmentGeometry"' -nevershared -dontdisconnect -localhost -rfbport '"$vncPort"' -rfbauth '"$vncPasswdFile"' -rfbwait 12000 & echo $! > '"$vncPIDfile"' ; export DISPLAY=:'"$vncDisplay"' ; '"$desktopEnvironmentLaunch"' ; sleep 12' &
-	
-	export DISPLAY="$localClientDisplay"
 	
 	_waitPort localhost "$vncPort"
 	sleep 0.8 #VNC service may not always be ready when port is up.
-	#sleep 1
 	
-	#vncviewer -encodings "copyrect tight zrle hextile" localhost:"$vncPort"
-	cat "$safeTmp"/vncserverpasswd | vncviewer -autopass localhost:"$vncPort"
+	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' '"$scriptAbsoluteLocation"' _vncviewer'
 	stty echo
 	
-	#_ssh -C -o ConnectionAttempts=2 "$@" 'kill $(cat '"$vncPIDfile"') ; rm -f '"$vncPasswdFile"' ; rm -f '"$vncPIDfile"''
-	_ssh -C -o ConnectionAttempts=2 "$@" 'pkill Xvnc ; pkill Xtightvnc  ; rm -f '"$vncPasswdFile"' ; rm -f '"$vncPIDfile"''
+	_vnc_ssh "$@" 'env vncPIDfile='"$vncPIDfile"' '"$safeTmpSSH"/cautossh' _vncserver_terminate'
 	
-	
+	_stop_safeTmp_ssh "$@"
 	_stop
 }
 
@@ -1300,57 +1470,22 @@ _desktop() {
 
 _push_desktop_sequence() {
 	_start
+	_start_safeTmp_ssh "$@"
+	_prepare_vnc
 	
-	export permit_x11_override=("$scriptAbsoluteLocation" _ssh -C -o ConnectionAttempts=2 "$@")
-	_detect_x11
 	
-	local vncPort
-	vncPort=$(_findPort_vnc)
+	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' vncPIDfile='"$vncPIDfile_local"' desktopEnvironmentGeometry='"$desktopEnvironmentGeometry"' desktopEnvironmentLaunch='"$desktopEnvironmentLaunch"' '"$scriptAbsoluteLocation"' _vncserver' &
 	
-	local vncID
-	vncID=$(_uid)
-	local vncPasswdFile
-	vncPasswdFile="$HOME"'/.vnctemp/passwd_'"$vncID"
-	local vncPIDfile
-	vncPIDfile="$HOME"'/.vnctemp/pid_'"$vncID"
-	
-	local vncDisplay
-	local vncDisplayValid
-	for (( vncDisplay = 1 ; vncDisplay <= 9 ; vncDisplay++ ))
-	do
-		! [[ -e /tmp/.X"$vncDisplay"-lock ]] && ! [[ -e /tmp/.X11-unix/X"$vncDisplay" ]] && vncDisplayValid=true && break
-	done
-	[[ "$vncDisplayValid" != "true" ]] && _stop 1
-	
-	echo > "$safeTmp"/vncserverpasswd
-	chmod 600 "$safeTmp"/vncserverpasswd
-	_uid 8 > "$safeTmp"/vncserverpasswd
-	
-	mkdir -p ~/.vnctemp
-	chmod 700 ~/.vnctemp
-	
-	#desktopEnvironmentLaunch='xrdb \$HOME/.Xresources ; xsetroot -solid grey ; x-window-manager & export XKL_XMODMAP_DISABLE=1 ; /etc/X11/Xsession'
-	desktopEnvironmentLaunch='true'
-	desktopEnvironmentGeometry='1280x720'
-	
-	local localClientDisplay="$DISPLAY"
-	
-	#Xvnc works properly with PID files, whereas vncserver does not.
-	cat "$safeTmp"/vncserverpasswd | bash -c 'vncpasswd -f > '"$vncPasswdFile"' && [[ -e '"$vncPasswdFile"' ]] && chmod 600 '"$vncPasswdFile"' ; vncserver :'"$vncDisplay"' -depth 16 -geometry '"$desktopEnvironmentGeometry"' -nevershared -dontdisconnect -localhost -rfbport '"$vncPort"' -rfbauth '"$vncPasswdFile"' -rfbwait 12000 & echo $! > '"$vncPIDfile"' ; export DISPLAY=:'"$vncDisplay"' ; '"$desktopEnvironmentLaunch"' ; sleep 12' &
-	
-	export DISPLAY="$localClientDisplay"
 	
 	_waitPort localhost "$vncPort"
 	sleep 0.8 #VNC service may not always be ready when port is up.
-	#sleep 1
 	
-	#vncviewer -encodings "copyrect tight zrle hextile" localhost:"$vncPort"
-	cat "$safeTmp"/vncserverpasswd | "$scriptAbsoluteLocation" _ssh -C -c aes256-gcm@openssh.com -m hmac-sha1 -o ConnectTimeout=72 -o ConnectionAttempts=2 -o ServerAliveInterval=5 -o ServerAliveCountMax=5 -o ExitOnForwardFailure=yes -R "$vncPort":localhost:"$vncPort" "$@" 'env DISPLAY='"$destination_DISPLAY"' vncviewer -autopass localhost:'"$vncPort"
+	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' destination_DISPLAY='""' '"$safeTmpSSH"/cautossh' _vncviewer'
 	stty echo
 	
-	#kill $(cat "$vncPIDfile") ; rm -f "$vncPasswdFile" ; rm -f "$vncPIDfile"
-	pkill Xvnc ; pkill Xtightvnc ; rm -f "$vncPasswdFile" ; rm -f "$vncPIDfile"
+	bash -c 'env vncPIDfile='"$vncPIDfile_local"' '"$scriptAbsoluteLocation"' _vncserver_terminate'
 	
+	_stop_safeTmp_ssh "$@"
 	_stop
 }
 
@@ -1957,7 +2092,7 @@ _gitClone_ubiquitous() {
 }
 
 _cloneUbiquitous() {
-	"$scriptBin"/.ubrgbin.sh _ubrgbin_cpA "$scriptBin" "$ubcoreUBdir"/
+	"$scriptBin"/.ubrgbin.sh _ubrgbin_cpA "$scriptBin" "$ubcoreUBdir"/ > /dev/null 2>&1
 	cp -a "$scriptAbsoluteLocation" "$ubcoreUBdir"/ubiquitous_bash.sh
 }
 
@@ -2092,6 +2227,9 @@ export bootTmp="$scriptLocal"			#Fail-Safe
 [[ -d /tmp ]] && export bootTmp=/tmp		#Typical BSD
 [[ -d /dev/shm ]] && export bootTmp=/dev/shm	#Typical Linux
 
+#Specialized temporary directories.
+export safeTmpSSH='~/.s_'"$sessionid"
+
 #Process control.
 export pidFile="$safeTmp"/.pid
 export uPID="cwrxuk6wqzbzV6p8kPS8J4APYGX"	#Invalid do-not-match default.
@@ -2099,6 +2237,8 @@ export uPID="cwrxuk6wqzbzV6p8kPS8J4APYGX"	#Invalid do-not-match default.
 export daemonPidFile="$scriptLocal"/.bgpid
 
 #export varStore="$scriptAbsoluteFolder"/var
+
+export vncPasswdFile="$safeTmp"/.vncpasswd
 
 #Network Defaults
 export AUTOSSH_FIRST_POLL=45
@@ -2113,7 +2253,7 @@ export AUTOSSH_GATETIME=15
 
 #Monolithic shared files.
 export lock_pathlock="$scriptLocal"/l_path
-export lock_quicktmp="$scriptLocal"/l_qtmp	#Used to make locking operations atomic as possible.
+export lock_quicktmp="$scriptLocal"/l_qt	#Used to make locking operations atomic as possible.
 export lock_emergency="$scriptLocal"/l_em
 export lock_open="$scriptLocal"/l_o
 export lock_opening="$scriptLocal"/l_opening
@@ -2509,7 +2649,7 @@ _readLocked() {
 	
 }
 
-#Using _readLocked before any _createLocked operation is strongly recommended.
+#Using _readLocked before any _createLocked operation is strongly recommended to remove any lock from prior UNIX session (ie. before latest reboot).
 _createLocked() {
 	[[ "$uDEBUG" == true ]] && caller 0 >> "$scriptLocal"/lock.log
 	[[ "$uDEBUG" == true ]] && echo -e '\t'"$sessionid"'\t'"$1" >> "$scriptLocal"/lock.log
@@ -2518,16 +2658,21 @@ _createLocked() {
 	
 	! [[ -e "$bootTmp"/"$sessionid" ]] && echo > "$bootTmp"/"$sessionid"
 	
-	echo "$sessionid" > "$lock_quicktmp"
+	# WARNING Recommend setting this to a permanent value when testing critical subsystems, such as with _userChRoot related operations.
+	local lockUID="$(_uid)"
 	
-	mv -n "$lock_quicktmp" "$1" > /dev/null 2>&1
+	echo "$sessionid" > "$lock_quicktmp"_"$lockUID"
 	
-	if [[ -e "$lock_quicktmp" ]]
+	mv -n "$lock_quicktmp"_"$lockUID" "$1" > /dev/null 2>&1
+	
+	if [[ -e "$lock_quicktmp"_"$lockUID" ]]
 	then
 		[[ "$uDEBUG" == true ]] && echo -e '\t'FAIL >> "$scriptLocal"/lock.log
+		rm -f "$lock_quicktmp"_"$lockUID" > /dev/null 2>&1
 		return 1
 	fi
 	
+	rm -f "$lock_quicktmp"_"$lockUID" > /dev/null 2>&1
 	return 0
 }
 
