@@ -21,7 +21,7 @@ git submodule update --init --recursive
 
 #cp -a ./_lib/coreautossh/_local ./
 mkdir -p ./_local/ssh
-cp -d --preserve=all ./_lib/coreautossh/_lib/ssh/ops ./_local/ssh/ops
+cp -d --preserve=all ./_lib/ubiquitous_bash/_lib/ssh/ops ./_local/ssh/ops
 
 cp -a ./_lib/coreautossh/_prog ./
 cp -a ./_lib/coreautossh/_config ./
