@@ -7,12 +7,6 @@
 
 #####Utilities
 
-#Run command and output to terminal with colorful formatting. Controlled variant of "bash -v".
-_showCommand() {
-	echo -e '\E[1;32;46m $ '"$1"' \E[0m'
-	"$@"
-}
-
 #Critical prerequsites.
 _getAbsolute_criticalDep() {
 	! type realpath > /dev/null 2>&1 && return 1
@@ -111,70 +105,6 @@ _getAbsoluteFolder() {
 	dirname "$absoluteLocation"
 }
 alias getAbsoluteLocation=_getAbsoluteLocation
-
-_permissions_directory_checkForPath() {
-	local parameterAbsoluteLocation
-	parameterAbsoluteLocation=$(_getAbsoluteLocation "$1")
-	
-	local checkScriptAbsoluteFolder="$(_getScriptAbsoluteFolder)"
-	
-	[[ "$parameterAbsoluteLocation" == "$PWD" ]] && ! [[ "$parameterAbsoluteLocation" == "$checkScriptAbsoluteFolder" ]] && return 1
-	
-	local permissions_user
-	local permissions_group
-	local permissions_other
-	
-	permissions_user=$(stat -c "%a" "$1" | cut -c 1)
-	permissions_group=$(stat -c "%a" "$1" | cut -c 2)
-	permissions_other=$(stat -c "%a" "$1" | cut -c 3)
-	
-	[[ "$permissions_user" -gt "7" ]] && return 1
-	[[ "$permissions_group" -gt "7" ]] && return 1
-	[[ "$permissions_other" -gt "5" ]] && return 1
-	
-	#Above checks considered sufficient in typical cases, remainder for sake of example. Return true (safe).
-	return 0
-	
-	local permissions_uid
-	local permissions_gid
-	
-	permissions_uid=$(stat -c "%u" "$1")
-	permissions_gid=$(stat -c "%g" "$1")
-	
-	#Normally these variables are available through ubiqutious bash, but this permissions check may be needed earlier in that global variables setting process.
-	local permissions_host_uid
-	local permissions_host_gid
-	
-	permissions_host_uid=$(id -u)
-	permissions_host_gid=$(id -g)
-	
-	[[ "$permissions_uid" != "$permissions_host_uid" ]] && return 1
-	[[ "$permissions_uid" != "$permissions_host_gid" ]] && return 1
-	
-	return 0
-}
-
-#Gets filename extension, specifically any last three characters in given string.
-#"$1" == filename
-_getExt() {
-	echo "$1" | tr -dc 'a-zA-Z0-9.' | tr '[:upper:]' '[:lower:]' | tail -c 4
-}
-
-#Reports either the directory provided, or the directory of the file provided.
-_findDir() {
-	local dirIn=$(_getAbsoluteLocation "$1")
-	dirInLogical=$(realpath -L -s "$dirIn")
-	
-	if [[ -d "$dirInLogical" ]]
-	then
-		echo "$dirInLogical"
-		return
-	fi
-	
-	echo $(_getAbsoluteFolder "$dirInLogical")
-	return
-	
-}
 
 #Checks whether command or function is available.
 # WARNING Needed by safeRMR .
@@ -362,14 +292,92 @@ _safePath() {
 }
 
 
+#http://stackoverflow.com/questions/687948/timeout-a-command-in-bash-without-unnecessary-delay
+_timeout() { ( set +b; sleep "$1" & "${@:2}" & wait -n; r=$?; kill -9 `jobs -p`; exit $r; ) } 
+
+#Generates random alphanumeric characters, default length 18.
+_uid() {
+	local uidLength
+	[[ -z "$1" ]] && uidLength=18 || uidLength="$1"
+	
+	cat /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c "$uidLength"
+}
+
+_permissions_directory_checkForPath() {
+	local parameterAbsoluteLocation
+	parameterAbsoluteLocation=$(_getAbsoluteLocation "$1")
+	
+	local checkScriptAbsoluteFolder="$(_getScriptAbsoluteFolder)"
+	
+	[[ "$parameterAbsoluteLocation" == "$PWD" ]] && ! [[ "$parameterAbsoluteLocation" == "$checkScriptAbsoluteFolder" ]] && return 1
+	
+	local permissions_user
+	local permissions_group
+	local permissions_other
+	
+	permissions_user=$(stat -c "%a" "$1" | cut -c 1)
+	permissions_group=$(stat -c "%a" "$1" | cut -c 2)
+	permissions_other=$(stat -c "%a" "$1" | cut -c 3)
+	
+	[[ "$permissions_user" -gt "7" ]] && return 1
+	[[ "$permissions_group" -gt "7" ]] && return 1
+	[[ "$permissions_other" -gt "5" ]] && return 1
+	
+	#Above checks considered sufficient in typical cases, remainder for sake of example. Return true (safe).
+	return 0
+	
+	local permissions_uid
+	local permissions_gid
+	
+	permissions_uid=$(stat -c "%u" "$1")
+	permissions_gid=$(stat -c "%g" "$1")
+	
+	#Normally these variables are available through ubiqutious bash, but this permissions check may be needed earlier in that global variables setting process.
+	local permissions_host_uid
+	local permissions_host_gid
+	
+	permissions_host_uid=$(id -u)
+	permissions_host_gid=$(id -g)
+	
+	[[ "$permissions_uid" != "$permissions_host_uid" ]] && return 1
+	[[ "$permissions_uid" != "$permissions_host_gid" ]] && return 1
+	
+	return 0
+}
+
+#Gets filename extension, specifically any last three characters in given string.
+#"$1" == filename
+_getExt() {
+	echo "$1" | tr -dc 'a-zA-Z0-9.' | tr '[:upper:]' '[:lower:]' | tail -c 4
+}
+
+#Reports either the directory provided, or the directory of the file provided.
+_findDir() {
+	local dirIn=$(_getAbsoluteLocation "$1")
+	dirInLogical=$(realpath -L -s "$dirIn")
+	
+	if [[ -d "$dirInLogical" ]]
+	then
+		echo "$dirInLogical"
+		return
+	fi
+	
+	echo $(_getAbsoluteFolder "$dirInLogical")
+	return
+	
+}
+
 _discoverResource() {
+	
+	[[ "$scriptAbsoluteFolder" == "" ]] && return 1
+	
 	local testDir
-	local scriptAbsoluteFolder
-	scriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
-	testDir="$scriptAbsoluteFolder" ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return
-	testDir="$scriptAbsoluteFolder"/.. ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return
-	testDir="$scriptAbsoluteFolder"/../.. ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return
-	testDir="$scriptAbsoluteFolder"/../../.. ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return
+	testDir="$scriptAbsoluteFolder" ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return 0
+	testDir="$scriptAbsoluteFolder"/.. ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return 0
+	testDir="$scriptAbsoluteFolder"/../.. ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return 0
+	testDir="$scriptAbsoluteFolder"/../../.. ; [[ -e "$testDir"/"$1" ]] && echo "$testDir"/"$1" && return 0
+	
+	return 1
 }
 
 _rmlink() {
@@ -483,9 +491,6 @@ _checkForMounts() {
 	
 	_stop 0
 }
-
-#http://stackoverflow.com/questions/687948/timeout-a-command-in-bash-without-unnecessary-delay
-_timeout() { ( set +b; sleep "$1" & "${@:2}" & wait -n; r=$?; kill -9 `jobs -p`; exit $r; ) } 
 
 #Waits for the process PID specified by first parameter to end. Useful in conjunction with $! to provide process control and/or PID files. Unlike wait command, does not require PID to be a child of the current shell.
 _pauseForProcess() {
@@ -1793,12 +1798,10 @@ _proxy_reverse() {
 }
 
 
-#Generates random alphanumeric characters, default length 18.
-_uid() {
-	local uidLength
-	[[ -z "$1" ]] && uidLength=18 || uidLength="$1"
-	
-	cat /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c "$uidLength"
+#Run command and output to terminal with colorful formatting. Controlled variant of "bash -v".
+_showCommand() {
+	echo -e '\E[1;32;46m $ '"$1"' \E[0m'
+	"$@"
 }
 
 _messageNormal() {
@@ -2191,7 +2194,7 @@ export lowsessionid=$(echo -n "$sessionid" | tr A-Z a-z )
 export scriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
 export scriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
 
-if ( [[ "$scriptAbsoluteLocation" == "/bin/bash" ]] || [[ "$scriptAbsoluteLocation" == "/usr/bin/bash" ]] )  && [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$profileScriptLocation" != "" ]] && [[ "$profileScriptFolder" != "" ]]
+if ( [[ "$scriptAbsoluteLocation" == "/bin/bash" ]] || [[ "$scriptAbsoluteLocation" == "/usr/bin/bash" ]] || [[ "$0" == "-bash" ]] )  && [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$profileScriptLocation" != "" ]] && [[ "$profileScriptFolder" != "" ]]
 then
 	export scriptAbsoluteLocation="$profileScriptLocation"
 	export scriptAbsoluteFolder="$profileScriptFolder"
@@ -2446,6 +2449,81 @@ _prepare_ssh() {
 }
 
 
+
+_buildHello() {
+	local helloSourceCode
+	helloSourceCode=$(find "$scriptAbsoluteFolder" -type f -name "hello.c" | head -n 1)
+	
+	mkdir -p "$scriptBin"
+	gcc -o "$scriptBin"/hello -static -nostartfiles "$helloSourceCode"
+}
+
+_test_build_prog() {
+	true
+}
+
+_test_build() {
+	_getDep gcc
+	_getDep g++
+	_getDep make
+	
+	_getDep cmake
+	
+	_getDep autoreconf
+	_getDep autoconf
+	_getDep automake
+	
+	_getDep libtool
+	
+	_getDep makeinfo
+	
+	_getDep pkg-config
+	
+	_tryExec _test_buildGoSu
+	
+	_tryExec _test_buildIdle
+	
+	_tryExec _test_bashdb
+	
+	_tryExec _test_ethereum_build
+	_tryExec _test_ethereum_parity_build
+	
+	_tryExec _test_build_prog
+}
+alias _testBuild=_test_build
+
+_buildSequence() {
+	_start
+	
+	echo -e '\E[1;32;46m Binary compiling...	\E[0m'
+	
+	_tryExec _buildHello
+	
+	_tryExec _buildIdle
+	_tryExec _buildGosu
+	
+	_tryExec _build_geth
+	_tryExec _build_ethereum_parity
+	
+	_tryExec _buildChRoot
+	_tryExec _buildQEMU
+	
+	_tryExec _buildExtra
+	
+	echo "     ...DONE"
+	
+	_stop
+}
+
+_build_prog() {
+	true
+}
+
+_build() {
+	"$scriptAbsoluteLocation" _buildSequence
+	
+	_build_prog
+}
 
 #####Local Environment Management (Resources)
 
@@ -2876,14 +2954,6 @@ _preserveVar() {
 }
 
 
-_buildHello() {
-	local helloSourceCode
-	helloSourceCode=$(find "$scriptAbsoluteFolder" -type f -name "hello.c" | head -n 1)
-	
-	mkdir -p "$scriptBin"
-	gcc -o "$scriptBin"/hello -static -nostartfiles "$helloSourceCode"
-}
-
 #####Installation
 
 #Verifies the timeout and sleep commands work properly, with subsecond specifications.
@@ -3100,8 +3170,11 @@ _testBuilt() {
 	_stop
 }
 
-#Creates symlink in ~/bin, to the executable at "$1", named according to its residing directory and file name.
+#Creates symlink in "$HOME"/bin, to the executable at "$1", named according to its residing directory and file name.
 _setupCommand() {
+	mkdir -p "$HOME"/bin
+	! [[ -e "$HOME"/bin ]] && return 1
+	
 	local clientScriptLocation
 	clientScriptLocation=$(_getAbsoluteLocation "$1")
 	
@@ -3114,7 +3187,7 @@ _setupCommand() {
 	local clientName
 	clientName=$(basename "$clientScriptFolder")
 	
-	_relink_relative "$clientScriptLocation" ~/bin/"$commandName""-""$clientName"
+	_relink_relative "$clientScriptLocation" "$HOME"/bin/"$commandName""-""$clientName"
 	
 	
 }
@@ -3139,11 +3212,16 @@ _setup() {
 	
 	"$scriptAbsoluteLocation" _test || _stop 1
 	
-	"$scriptAbsoluteLocation" _test_build || _stop 1
+	#Only attempt build procedures if their functions have been defined from "build.sh" . Pure shell script projects (eg. CoreAutoSSH), and projects using only statically compiled binaries, need NOT include such procedures.
+	local buildSupported
+	type _build > /dev/null 2>&1 && type _test_build > /dev/null 2>&1 && buildSupported="true"
+	
+	[[ "$buildSupported" == "true" ]] && "$scriptAbsoluteLocation" _test_build || _stop 1
 	
 	if ! "$scriptAbsoluteLocation" _testBuilt
 	then
-		"$scriptAbsoluteLocation" _build "$@" || _stop 1
+		! [[ "$buildSupported" == "true" ]] && _stop 1
+		[[ "$buildSupported" == "true" ]] && "$scriptAbsoluteLocation" _build "$@" || _stop 1
 		"$scriptAbsoluteLocation" _testBuilt || _stop 1
 	fi
 	
@@ -3197,73 +3275,6 @@ _package() {
 	
 	cd "$outerPWD"
 	_stop
-}
-
-_test_build_prog() {
-	true
-}
-
-_test_build() {
-	_getDep gcc
-	_getDep g++
-	_getDep make
-	
-	_getDep cmake
-	
-	_getDep autoreconf
-	_getDep autoconf
-	_getDep automake
-	
-	_getDep libtool
-	
-	_getDep makeinfo
-	
-	_getDep pkg-config
-	
-	_tryExec _test_buildGoSu
-	
-	_tryExec _test_buildIdle
-	
-	_tryExec _test_bashdb
-	
-	_tryExec _test_ethereum_build
-	_tryExec _test_ethereum_parity_build
-	
-	_tryExec _test_build_prog
-}
-alias _testBuild=_test_build
-
-_buildSequence() {
-	_start
-	
-	echo -e '\E[1;32;46m Binary compiling...	\E[0m'
-	
-	_tryExec _buildHello
-	
-	_tryExec _buildIdle
-	_tryExec _buildGosu
-	
-	_tryExec _build_geth
-	_tryExec _build_ethereum_parity
-	
-	_tryExec _buildChRoot
-	_tryExec _buildQEMU
-	
-	_tryExec _buildExtra
-	
-	echo "     ...DONE"
-	
-	_stop
-}
-
-_build_prog() {
-	true
-}
-
-_build() {
-	"$scriptAbsoluteLocation" _buildSequence
-	
-	_build_prog
 }
 
 #####Program
@@ -3359,6 +3370,25 @@ export keepKeys_SSH=true
 #####Overrides
 
 [[ "$isDaemon" == "true" ]] && echo "$$" | _prependDaemonPID
+
+#May allow traps to work properly in simple scripts which do not include more comprehensive "_stop" or "_stop_emergency" implementations.
+if ! type _stop > /dev/null 2>&1
+then
+	_stop() {
+		if [[ "$1" != "" ]]
+		then
+			exit "$1"
+		else
+			exit 0
+		fi
+	}
+fi
+if ! type _stop_emergency > /dev/null 2>&1
+then
+	_stop_emergency() {
+		_stop "$1"
+	}
+fi
 
 #Traps, if script is not imported into existing shell, or bypass requested.
 if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
