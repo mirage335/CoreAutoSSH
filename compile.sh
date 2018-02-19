@@ -19,8 +19,6 @@ _getAbsolute_criticalDep() {
 #However, will dereference symlinks IF the script location itself is a symlink. This is to allow symlinking to scripts to function normally.
 #Suitable for allowing scripts to find other scripts they depend on. May look like an ugly hack, but it has proven reliable over the years.
 _getScriptAbsoluteLocation() {
-	! _getAbsolute_criticalDep && return 1
-	
 	if [[ "$0" == "-"* ]]
 	then
 		return 1
@@ -47,8 +45,6 @@ alias getScriptAbsoluteLocation=_getScriptAbsoluteLocation
 #Retrieves absolute path of current script, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
 #Suitable for allowing scripts to find other scripts they depend on.
 _getScriptAbsoluteFolder() {
-	! _getAbsolute_criticalDep && return 1
-	
 	if [[ "$0" == "-"* ]]
 	then
 		return 1
@@ -61,8 +57,6 @@ alias getScriptAbsoluteFolder=_getScriptAbsoluteFolder
 #Retrieves absolute path of parameter, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
 #Suitable for finding absolute paths, when it is desirable not to interfere with symlink specified folder structure.
 _getAbsoluteLocation() {
-	! _getAbsolute_criticalDep && return 1
-	
 	if [[ "$1" == "-"* ]]
 	then
 		return 1
@@ -89,8 +83,6 @@ alias getAbsoluteLocation=_getAbsoluteLocation
 #Retrieves absolute path of parameter, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
 #Suitable for finding absolute paths, when it is desirable not to interfere with symlink specified folder structure.
 _getAbsoluteFolder() {
-	! _getAbsolute_criticalDep && return 1
-	
 	if [[ "$1" == "-"* ]]
 	then
 		return 1
@@ -132,6 +124,8 @@ _failExec() {
 # WARNING Consider using this function even if program control flow can be proven safe. Redundant checks just might catch catastrophic memory errors.
 #"$1" == directory to remove
 _safeRMR() {
+	! type _getAbsolute_criticalDep > /dev/null 2>&1 && return 1
+	! _getAbsolute_criticalDep && return 1
 	
 	#Fail sooner, avoiding irrelevant error messages. Especially important to cases where an upstream process has already removed the "$safeTmp" directory of a downstream process which reaches "_stop" later.
 	! [[ -e "$1" ]] && return 1
@@ -213,6 +207,8 @@ _safeRMR() {
 # WARNING Do NOT rely upon outside of internal programmatic usage inside script!
 #"$1" == file/directory path to sanity check
 _safePath() {
+	! type _getAbsolute_criticalDep > /dev/null 2>&1 && return 1
+	! _getAbsolute_criticalDep && return 1
 	
 	[[ ! -e "$scriptAbsoluteLocation" ]] && return 1
 	[[ ! -e "$scriptAbsoluteFolder" ]] && return 1
@@ -306,13 +302,15 @@ _permissions_directory_checkForPath() {
 	
 	[[ "$parameterAbsoluteLocation" == "$PWD" ]] && ! [[ "$parameterAbsoluteLocation" == "$checkScriptAbsoluteFolder" ]] && return 1
 	
+	local permissions_readout=$(stat -c "%a" "$1")
+	
 	local permissions_user
 	local permissions_group
 	local permissions_other
 	
-	permissions_user=$(stat -c "%a" "$1" | cut -c 1)
-	permissions_group=$(stat -c "%a" "$1" | cut -c 2)
-	permissions_other=$(stat -c "%a" "$1" | cut -c 3)
+	permissions_user=$(echo "$permissions_readout" | cut -c 1)
+	permissions_group=$(echo "$permissions_readout" | cut -c 2)
+	permissions_other=$(echo "$permissions_readout" | cut -c 3)
 	
 	[[ "$permissions_user" -gt "7" ]] && return 1
 	[[ "$permissions_group" -gt "7" ]] && return 1
@@ -336,6 +334,34 @@ _permissions_directory_checkForPath() {
 	
 	[[ "$permissions_uid" != "$permissions_host_uid" ]] && return 1
 	[[ "$permissions_uid" != "$permissions_host_gid" ]] && return 1
+	
+	return 0
+}
+
+#Checks whether the repository has unsafe permissions for adding binary files to path. Used as an extra safety check by "_setupUbiquitous" before adding a hook to the user's default shell environment.
+_permissions_ubiquitous_repo() {
+	local parameterAbsoluteLocation
+	parameterAbsoluteLocation=$(_getAbsoluteLocation "$1")
+	
+	[[ ! -e "$parameterAbsoluteLocation" ]] && return 0
+	
+	! _permissions_directory_checkForPath "$parameterAbsoluteLocation" && return 1
+	
+	[[ -e "$parameterAbsoluteLocation"/_bin ]] && ! _permissions_directory_checkForPath "$parameterAbsoluteLocation"/_bin && return 1
+	[[ -e "$parameterAbsoluteLocation"/_bundle ]] && ! _permissions_directory_checkForPath "$parameterAbsoluteLocation"/_bundle && return 1
+	
+	return 0
+}
+
+#Checks whether currently set "$scriptBin" and similar locations are actually safe.
+# WARNING Keep in mind this is necessarily run only after PATH would already have been modified, and does not guard against threats already present on the local machine.
+_test_permissions_ubiquitous() {
+	[[ ! -e "$scriptAbsoluteFolder" ]] && _stop 1
+	
+	! _permissions_directory_checkForPath "$scriptAbsoluteFolder" && _stop 1
+	
+	[[ -e "$scriptBin" ]] && ! _permissions_directory_checkForPath "$scriptBin" && _stop 1
+	[[ -e "$scriptBundle" ]] && ! _permissions_directory_checkForPath "$scriptBundle" && _stop 1
 	
 	return 0
 }
@@ -409,13 +435,15 @@ export ubiquitiousBashID="uk4uPhB663kVcygT0q"
 
 export sessionid=$(_uid)
 export lowsessionid=$(echo -n "$sessionid" | tr A-Z a-z )
-export scriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
-export scriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
 
-if ( [[ "$scriptAbsoluteLocation" == "/bin/bash" ]] || [[ "$scriptAbsoluteLocation" == "/usr/bin/bash" ]] || [[ "$0" == "-bash" ]] )  && [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$profileScriptLocation" != "" ]] && [[ "$profileScriptFolder" != "" ]]
+#Importing ubiquitous bash into a login shell with "~/.bashrc" is the only known cause for "_getScriptAbsoluteLocation" to return a result such as "/bin/bash".
+if ( [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] )  && [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$profileScriptLocation" != "" ]] && [[ "$profileScriptFolder" != "" ]]
 then
 	export scriptAbsoluteLocation="$profileScriptLocation"
 	export scriptAbsoluteFolder="$profileScriptFolder"
+else
+	export scriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
+	export scriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
 fi
 
 #Current directory for preservation.
@@ -431,19 +459,20 @@ export shortTmp=/tmp/w_"$sessionid"	#Solely for misbehaved applications called u
 export scriptBin="$scriptAbsoluteFolder"/_bin
 export scriptBundle="$scriptAbsoluteFolder"/_bundle
 export scriptLib="$scriptAbsoluteFolder"/_lib
-#For virtualized guests (exclusively intended to support _setupUbiquitous and _drop* hooks).
+#For trivial installations and virtualized guests. Exclusively intended to support _setupUbiquitous and _drop* hooks.
 [[ ! -e "$scriptBin" ]] && export scriptBin="$scriptAbsoluteFolder"
-[[ ! -e "$scriptBundle" ]] && export scriptBin="$scriptAbsoluteFolder"
+[[ ! -e "$scriptBundle" ]] && export scriptBundle="$scriptAbsoluteFolder"
 [[ ! -e "$scriptLib" ]] && export scriptLib="$scriptAbsoluteFolder"
 
 
 export scriptLocal="$scriptAbsoluteFolder"/_local
 
 #For system installations (exclusively intended to support _setupUbiquitous and _drop* hooks).
-[[ "$scriptAbsoluteLocation" == "/usr/bin"* ]] && export scriptBin="/usr/share/ubcore/bin"
-[[ "$scriptAbsoluteLocation" == "/usr/local/bin"* ]] && export scriptBin="/usr/local/share/ubcore/bin"
-if [[ "$scriptAbsoluteLocation" == "/usr/bin"* ]] || [[ "$scriptAbsoluteLocation" == "/usr/local/bin"* ]]
+if [[ "$scriptAbsoluteLocation" == "/usr/local/bin"* ]] || [[ "$scriptAbsoluteLocation" == "/usr/bin"* ]]
 then
+	[[ "$scriptAbsoluteLocation" == "/usr/bin"* ]] && export scriptBin="/usr/share/ubcore/bin"
+	[[ "$scriptAbsoluteLocation" == "/usr/local/bin"* ]] && export scriptBin="/usr/local/share/ubcore/bin"
+	
 	if [[ -d "$HOME" ]]
 	then
 		export scriptLocal="$HOME"/".ubcore"/_sys
@@ -460,7 +489,9 @@ export bootTmp="$scriptLocal"			#Fail-Safe
 [[ -d /dev/shm ]] && export bootTmp=/dev/shm	#Typical Linux
 
 #Specialized temporary directories.
-export safeTmpSSH='~/.s_'"$sessionid"
+# Unusually, safeTmpSSH must not be interpreted by client, and therefore is single quoted.
+# TODO Test safeTmpSSH variants including spaces in path.
+export safeTmpSSH='~/.sshtmp/.s_'"$sessionid"
 
 #Process control.
 export pidFile="$safeTmp"/.pid
@@ -529,17 +560,15 @@ export objectDir="$scriptAbsoluteFolder"
 export objectName=$(basename "$objectDir")
 
 #Modify PATH to include own directories.
-_permissions_directory_checkForPath "$scriptAbsoluteFolder" && export PATH="$PATH":"$scriptAbsoluteFolder"
-[[ "$scriptBin" != "$scriptAbsoluteFolder" ]] && [[ -d "$scriptBin" ]] && _permissions_directory_checkForPath "$scriptBin" && export PATH="$PATH":"$scriptBin"
-[[ "$scriptBundle" != "$scriptAbsoluteFolder" ]] && [[ -d "$scriptBundle" ]] && _permissions_directory_checkForPath "$scriptBundle" && export PATH="$PATH":"$scriptBundle"
+if ! [[ "$PATH" == *":""$scriptAbsoluteFolder"* ]] && ! [[ "$PATH" == "$scriptAbsoluteFolder"* ]]
+then
+	export PATH="$PATH":"$scriptAbsoluteFolder":"$scriptBin":"$scriptBundle"
+fi
 
 export permaLog="$scriptLocal"
 
 export HOST_USER_ID=$(id -u)
 export HOST_GROUP_ID=$(id -g)
-export virtGuestUserDrop="ubvrtusr"
-export virtGuestUser="$virtGuestUserDrop"
-[[ $(id -u) == 0 ]] && export virtGuestUser="root"
 
 export globalArcDir="$scriptLocal"/a
 export globalArcFS="$globalArcDir"/fs
@@ -548,60 +577,6 @@ export globalArcTmp="$globalArcDir"/tmp
 export globalBuildDir="$scriptLocal"/b
 export globalBuildFS="$globalBuildDir"/fs
 export globalBuildTmp="$globalBuildDir"/tmp
-
-export globalVirtDir="$scriptLocal"/v
-export globalVirtFS="$globalVirtDir"/fs
-export globalVirtTmp="$globalVirtDir"/tmp
-
-export instancedVirtDir="$scriptAbsoluteFolder"/v_"$sessionid"
-export instancedVirtFS="$instancedVirtDir"/fs
-export instancedVirtTmp="$instancedVirtDir"/tmp
-
-export virtGuestHomeDrop=/home/"$virtGuestUserDrop"
-export virtGuestHome="$virtGuestHomeDrop"
-[[ $(id -u) == 0 ]] && export virtGuestHome=/root
-###export virtGuestHomeRef="$virtGuestHome".ref
-
-export instancedVirtHome="$instancedVirtFS""$virtGuestHome"
-###export instancedVirtHomeRef="$instancedVirtHome".ref
-
-export sharedHostProjectDirDefault=""
-export sharedGuestProjectDirDefault="$virtGuestHome"/project
-
-export sharedHostProjectDir="$sharedHostProjectDirDefault"
-export sharedGuestProjectDir="$sharedGuestProjectDirDefault"
-
-export instancedProjectDir="$instancedVirtHome"/project
-export instancedDownloadsDir="$instancedVirtHome"/Downloads
-
-export hostToGuestDir="$instancedVirtDir"/htg
-export hostToGuestFiles="$hostToGuestDir"/files
-export hostToGuestISO="$instancedVirtDir"/htg/htg.iso
-
-export chrootDir="$globalVirtFS"
-export vboxRaw="$scriptLocal"/vmvdiraw.vmdk
-
-export globalFakeHome="$scriptLocal"/h
-export instancedFakeHome="$scriptAbsoluteFolder"/h_"$sessionid"
-
-#Machine information.
-export hostMemoryTotal=$(cat /proc/meminfo | grep MemTotal | tr -cd '[[:digit:]]')
-export hostMemoryAvailable=$(cat /proc/meminfo | grep MemAvailable | tr -cd '[[:digit:]]')
-export hostMemoryQuantity="$hostMemoryTotal"
-
-
-#Machine allocation defaults.
-export vmMemoryAllocationDefault=96
-[[ "$hostMemoryQuantity" -gt "500000" ]] && export vmMemoryAllocationDefault=256
-[[ "$hostMemoryQuantity" -gt "800000" ]] && export vmMemoryAllocationDefault=512
-[[ "$hostMemoryQuantity" -gt "1500000" ]] && export vmMemoryAllocationDefault=896
-
-[[ "$hostMemoryQuantity" -gt "3000000" ]] && export vmMemoryAllocationDefault=896
-[[ "$hostMemoryQuantity" -gt "6000000" ]] && export vmMemoryAllocationDefault=1024
-
-[[ "$hostMemoryQuantity" -gt "8000000" ]] && export vmMemoryAllocationDefault=1256
-[[ "$hostMemoryQuantity" -gt "12000000" ]] && export vmMemoryAllocationDefault=1512
-[[ "$hostMemoryQuantity" -gt "16000000" ]] && export vmMemoryAllocationDefault=1512
 
 
 _findUbiquitous() {
@@ -629,6 +604,36 @@ _findUbiquitous() {
 	return 1
 }
 
+
+_init_deps() {
+	export enUb_set="true"
+	
+	export enUb_machineinfo=""
+	export enUb_git=""
+	export enUb_notLean=""
+	export enUb_os_x11=""
+	export enUb_proxy=""
+	export enUb_proxy_special=""
+	export enUb_x11=""
+	export enUb_blockchain=""
+	export enUb_image=""
+	export enUb_virt=""
+	export enUb_ChRoot=""
+	export enUb_QEMU=""
+	export enUb_vbox=""
+	export enUb_docker=""
+	export enUb_wine=""
+	export enUb_DosBox=""
+	export enUb_msw=""
+	export enUb_fakehome=""
+	export enUb_buildBash=""
+	export enUb_buildBashUbiquitous=""
+}
+
+
+_deps_machineinfo() {
+	export enUb_machineinfo="true"
+}
 
 _deps_git() {
 	export enUb_git="true"
@@ -665,11 +670,13 @@ _deps_blockchain() {
 
 _deps_image() {
 	_deps_notLean
+	_deps_machineinfo
 	export enUb_image="true"
 }
 
 _deps_virt() {
 	_deps_notLean
+	_deps_machineinfo
 	_deps_image
 	export enUb_virt="true"
 }
@@ -754,12 +761,13 @@ _generate_bash() {
 	
 	#Default command.
 	echo >> "$progScript"
-	echo _generate_compile_bash >> "$progScript"
+	echo '_generate_compile_bash "$@"' >> "$progScript"
+	echo 'exit 0' >> "$progScript"
 	
 	chmod u+x "$progScript"
 	
 	# DANGER Do NOT remove.
-	exit
+	exit 0
 }
 
 _vars_generate_bash() {
@@ -775,9 +783,11 @@ _generate_compile_bash() {
 	"$scriptAbsoluteLocation" _generate_bash
 	"$scriptAbsoluteFolder"/compile.sh _generate_bash
 	"$scriptAbsoluteFolder"/compile.sh _compile_bash
+	"$scriptAbsoluteFolder"/compile.sh _compile_bash lean lean.sh
+	[[ "$1" != "" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash "$@"
 	
 	# DANGER Do NOT remove.
-	exit
+	exit 0
 }
 
 # #No production use. Unmaintained, obsolete. Never used literally. Preserved as an example command set to build the otherwise self-hosted generate/compile script manually (ie. bootstrapping).
@@ -788,30 +798,35 @@ _generate_compile_bash() {
 # 	chmod u+x ./compile.sh
 # }
 
-#Default is to include all. For this reason, it will be more typical to override this entire function, rather than append any additional code.
+#Default is to include all, or run a specified configuration. For this reason, it will be more typical to override this entire function, rather than append any additional code.
 _compile_bash_deps() {
-	_deps_notLean
-	_deps_os_x11
+	[[ "$1" == "lean" ]] && return 0
 	
-	_deps_x11
-	_deps_image
-	_deps_virt
-	_deps_chroot
-	_deps_qemu
-	_deps_vbox
-	_deps_docker
-	_deps_wine
-	_deps_dosbox
-	_deps_msw
-	_deps_fakehome
-	
-	_deps_blockchain
-	
-	_deps_proxy
-	_deps_proxy_special
-	
-	_deps_build_bash
-	_deps_build_bash_ubiquitous
+	if [[ "$1" == "" ]]
+	then
+		_deps_notLean
+		_deps_os_x11
+		
+		_deps_x11
+		_deps_image
+		_deps_virt
+		_deps_chroot
+		_deps_qemu
+		_deps_vbox
+		_deps_docker
+		_deps_wine
+		_deps_dosbox
+		_deps_msw
+		_deps_fakehome
+		
+		_deps_blockchain
+		
+		_deps_proxy
+		_deps_proxy_special
+		
+		_deps_build_bash
+		_deps_build_bash_ubiquitous
+	fi
 }
 
 _vars_compile_bash() {
@@ -819,8 +834,9 @@ _vars_compile_bash() {
 	
 	export progDir="$scriptAbsoluteFolder"/_prog
 	export progScript="$scriptAbsoluteFolder"/ubiquitous_bash.sh
+	[[ "$1" != "" ]] && export progScript="$scriptAbsoluteFolder"/"$1"
 	
-	_vars_compile_bash_prog
+	_vars_compile_bash_prog "$@"
 }
 
 _compile_bash_header() {
@@ -910,6 +926,7 @@ _compile_bash_utilities() {
 	includeScriptList+=( "special"/uuid.sh )
 	
 	[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "instrumentation"/bashdb/bashdb.sh )
+	[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "instrumentation"/profiling/stopwatch.sh )
 }
 
 _compile_bash_utilities_virtualization() {
@@ -1039,8 +1056,15 @@ _compile_bash_vars_spec() {
 	export includeScriptList
 	
 	
-	includeScriptList+=( "structure"/specglobalvars.sh )
+	[[ "$enUb_machineinfo" == "true" ]] && includeScriptList+=( "special/machineinfo"/machinevars.sh )
+	
+	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/virtvars.sh )
+	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/image/imagevars.sh )
+	
 	[[ "$enUb_proxy" == "true" ]] && includeScriptList+=( "generic/net/proxy/ssh"/sshvars.sh )
+	
+	
+	includeScriptList+=( "structure"/specglobalvars.sh )
 }
 
 _compile_bash_vars_shortcuts() {
@@ -1136,6 +1160,8 @@ _compile_bash_entry() {
 }
 
 #Ubiquitous Bash compile script. Override with "ops", "_config", or "_prog" directives through "compile_bash_prog.sh" to compile other work products through similar scripting.
+# "$1" == configuration
+# "$2" == output filename
 # DANGER
 #Especially, be careful to explicitly check all prerequsites for _safeRMR are in place.
 # DANGER
@@ -1145,12 +1171,12 @@ _compile_bash_entry() {
 #Beware lean configurations may not have been properly tested, and are of course intended for developer use. Their purpose is to disable irrelevant dependency checking in "_test" procedures. Rigorous test procedures covering all intended functionality should always be included in downstream projects. Pull requests welcome.
 _compile_bash() {
 	_findUbiquitous
-	_vars_compile_bash
+	_vars_compile_bash "$2"
 	
 	#####
 	
-	_compile_bash_deps
-	_compile_bash_deps_prog
+	_compile_bash_deps "$1"
+	_compile_bash_deps_prog "$1"
 	
 	#####
 	
@@ -1236,7 +1262,7 @@ _compile_bash() {
 	#"$progScript" _package
 	
 	# DANGER Do NOT remove.
-	exit
+	exit 0
 }
 
 _compile_bash_deps_prog() {
@@ -1501,4 +1527,5 @@ fi
 _failExec || exit 1
 
 
-_generate_compile_bash
+_generate_compile_bash "$@"
+exit 0
