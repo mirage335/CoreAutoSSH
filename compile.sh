@@ -783,7 +783,11 @@ _generate_compile_bash() {
 	"$scriptAbsoluteLocation" _generate_bash
 	"$scriptAbsoluteFolder"/compile.sh _generate_bash
 	"$scriptAbsoluteFolder"/compile.sh _compile_bash
-	"$scriptAbsoluteFolder"/compile.sh _compile_bash lean lean.sh
+	
+	_generate_compile_bash_prog
+	
+	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash lean lean.sh
+	
 	[[ "$1" != "" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash "$@"
 	
 	# DANGER Do NOT remove.
@@ -798,9 +802,24 @@ _generate_compile_bash() {
 # 	chmod u+x ./compile.sh
 # }
 
+_generate_compile_bash_prog() {
+	rm "$scriptAbsoluteFolder"/ubiquitous_bash.sh
+	
+	_compile_bash cautossh cautossh
+} 
+
 #Default is to include all, or run a specified configuration. For this reason, it will be more typical to override this entire function, rather than append any additional code.
 _compile_bash_deps() {
 	[[ "$1" == "lean" ]] && return 0
+	
+	if [[ "$1" == "cautossh" ]]
+	then
+		_deps_os_x11
+		_deps_proxy
+		_deps_proxy_special
+		
+		return 0
+	fi
 	
 	if [[ "$1" == "" ]]
 	then
@@ -826,6 +845,8 @@ _compile_bash_deps() {
 		
 		_deps_build_bash
 		_deps_build_bash_ubiquitous
+		
+		return 0
 	fi
 }
 
@@ -1140,6 +1161,7 @@ _compile_bash_selfHost() {
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash/ubiquitous"/depsubiquitous.sh )
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( deps.sh )
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash"/generate_bash.sh )
+	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash"/generate_bash_prog.sh )
 	
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash"/compile_bash.sh )
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash"/compile_bash_prog.sh )
@@ -1269,37 +1291,56 @@ _compile_bash_deps_prog() {
 	true
 }
 
-#Default is to include all. For this reason, it will be more typical to override this entire function, rather than append any additional code.
-_compile_bash_deps() {
-	#_deps_notLean
-	_deps_os_x11
-	
-	#_deps_x11
-	#_deps_image
-	#_deps_virt
-	#_deps_chroot
-	#_deps_qemu
-	#_deps_vbox
-	#_deps_docker
-	#_deps_wine
-	#_deps_dosbox
-	#_deps_msw
-	#_deps_fakehome
-	
-	#_deps_blockchain
-	
-	_deps_proxy
-	_deps_proxy_special
-	
-	#_deps_build_bash
-	#_deps_build_bash_ubiquitous
-}
+# #Default is to include all, or run a specified configuration. For this reason, it will be more typical to override this entire function, rather than append any additional code.
+# _compile_bash_deps() {
+# 	[[ "$1" == "lean" ]] && return 0
+# 	
+# 	if [[ "$1" == "cautossh" ]]
+# 	then
+# 		_deps_os_x11
+# 		_deps_proxy
+# 		_deps_proxy_special
+# 		
+# 		return 0
+# 	fi
+# 	
+# 	if [[ "$1" == "" ]]
+# 	then
+# 		_deps_notLean
+# 		_deps_os_x11
+# 		
+# 		_deps_x11
+# 		_deps_image
+# 		_deps_virt
+# 		_deps_chroot
+# 		_deps_qemu
+# 		_deps_vbox
+# 		_deps_docker
+# 		_deps_wine
+# 		_deps_dosbox
+# 		_deps_msw
+# 		_deps_fakehome
+# 		
+# 		_deps_blockchain
+# 		
+# 		_deps_proxy
+# 		_deps_proxy_special
+# 		
+# 		_deps_build_bash
+# 		_deps_build_bash_ubiquitous
+# 		
+# 		return 0
+# 	fi
+# }
 
 _vars_compile_bash_prog() {
-	export configDir="$scriptAbsoluteFolder"/_config
+	#export configDir="$scriptAbsoluteFolder"/_config
 	
-	export progDir="$scriptAbsoluteFolder"/_prog
-	export progScript="$scriptAbsoluteFolder"/cautossh
+	#export progDir="$scriptAbsoluteFolder"/_prog
+	#export progScript="$scriptAbsoluteFolder"/ubiquitous_bash.sh
+	#[[ "$1" != "" ]] && export progScript="$scriptAbsoluteFolder"/"$1"
+	
+	true
 }
 
 _compile_bash_header_prog() {	
