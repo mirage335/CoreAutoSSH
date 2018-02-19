@@ -84,11 +84,13 @@ cd "$scriptLocation"/_lib/coreautossh
 git pull
 
 cd "$scriptLocation"
-cd "$scriptLocation"/_lib/ubiquitous_bash
-git pull
+if [[ -e "$scriptLocation"/_lib/ubiquitous_bash ]]
+then
+	cd "$scriptLocation"/_lib/ubiquitous_bash
+	git pull
+fi
 
 cd "$scriptLocation"
-
 cp -a ./_lib/coreautossh/_prog ./
 
 #cp -d --preserve=all ./_lib/coreautossh/cautossh ./

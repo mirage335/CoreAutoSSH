@@ -8,33 +8,46 @@ export netName=default
 mkdir -p "$workingDir"/"$netName"
 cd "$workingDir"/"$netName"
 
+mkdir ./_lib
+mkdir ./_prog
+
 git init
-git add .
-git commit -a -m "first commit"
 
-mkdir _lib
+git submodule add --depth 1 git@github.com:mirage335/CoreAutoSSH.git ./_lib/coreautossh
 
-git submodule add git@github.com:mirage335/CoreAutoSSH.git ./_lib/coreautossh
-git submodule add --force git@github.com:mirage335/Ubiquitous_Bash.git ./_lib/ubiquitous_bash
+#Parent derivative of ubiquitous_bash.
+git submodule update --depth 1 --init ./_lib/coreautossh/_lib/ubiquitous_bash
 
-git submodule update --init --recursive
+#git submodule update --depth 1 --init --recursive
+
+cp ./_lib/coreautossh/cautossh ./
+cp ./_lib/coreautossh/compile.sh ./
+cp ./_lib/coreautossh/README.md ./
+cp ./_lib/coreautossh/USAGE.html ./
+cp ./_lib/coreautossh/TiddlySaver.jar ./
+
+##### Hardcoded Configuration
+mkdir -p ./_config
+cp -a ./_lib/coreautossh/_lib/ubiquitous_bash/_config/. ./_config
+
+##### Parent Derivative Scripts
+mkdir -p ./_prog
+cp -a ./_lib/coreautossh/_prog/. ./_prog
+
+##### Runtime Configuration
+mkdir -p ./_local/ssh
+
+#Parent derivative of ubiquitous_bash.
+cp ./_lib/coreautossh/_lib/ubiquitous_bash/_lib/ssh/ops ./_local/ssh/ops
 
 #cp -a ./_lib/coreautossh/_local ./
-mkdir -p ./_local/ssh
-cp -d --preserve=all ./_lib/ubiquitous_bash/_lib/ssh/ops ./_local/ssh/ops
 
-cp -a ./_lib/coreautossh/_prog ./
-cp -a ./_lib/coreautossh/_config ./
-
-cp -d --preserve=all ./_lib/coreautossh/cautossh ./
-cp -d --preserve=all ./_lib/coreautossh/compile.sh ./
-
-cp -d --preserve=all ./_lib/coreautossh/README.md ./
-cp -d --preserve=all ./_lib/coreautossh/USAGE.html ./
-cp -d --preserve=all ./_lib/coreautossh/TiddlySaver.jar ./
-
-cp -d --preserve=all ./_lib/coreautossh/update ./
-cp -d --preserve=all ./_lib/coreautossh/fork ./
+##### Specialized project scripts.
+cp ./_lib/coreautossh/update ./
+cp ./_lib/coreautossh/fork ./
 
 
-./compile
+./compile.sh
+
+git add .
+git commit -a -m "first commit"
