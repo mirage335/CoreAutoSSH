@@ -784,11 +784,11 @@ _generate_compile_bash() {
 	"$scriptAbsoluteFolder"/compile.sh _generate_bash
 	"$scriptAbsoluteFolder"/compile.sh _compile_bash
 	
-	_generate_compile_bash_prog
-	
 	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash lean lean.sh
 	
 	[[ "$1" != "" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash "$@"
+	
+	_generate_compile_bash_prog
 	
 	# DANGER Do NOT remove.
 	exit 0
@@ -805,7 +805,9 @@ _generate_compile_bash() {
 _generate_compile_bash_prog() {
 	rm "$scriptAbsoluteFolder"/ubiquitous_bash.sh
 	
-	_compile_bash cautossh cautossh
+	"$scriptAbsoluteLocation" _compile_bash cautossh cautossh
+	
+	#"$scriptAbsoluteLocation" _package
 } 
 
 #Default is to include all, or run a specified configuration. For this reason, it will be more typical to override this entire function, rather than append any additional code.
