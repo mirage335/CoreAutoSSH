@@ -2390,6 +2390,182 @@ _visualPrompt() {
 export PS1='\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])-\[\033[01;36m\]----------\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\ %b\ %d,\ %y)\[\033[01;34m\])-\[\033[01;36m\]--- - - - |\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]+\[\033[01;34m\]-|\#) \[\033[36m\]>\[\033[00m\] '
 } 
 
+_testGit() {
+	_getDep git
+}
+
+#Ignores file modes, suitable for use with possibly broken filesystems like NTFS.
+_gitCompatible() {
+	git -c core.fileMode=false "$@"
+}
+
+_gitInfo() {
+	#Git Repository Information
+	export repoDir="$PWD"
+
+	export repoName=$(basename "$repoDir")
+	export bareRepoDir=../."$repoName".git
+	export bareRepoAbsoluteDir=$(_getAbsoluteLocation "$bareRepoDir")
+
+	#Set $repoHostName in user ".bashrc" or similar. May also set $repoPort including colon prefix.
+	[[ "$repoHostname" == "" ]] && export repoHostname=$(hostname -f)
+	
+	true
+}
+
+_gitRemote() {
+	if git config --get remote.origin.url > /dev/null 2>&1
+	then
+		echo -n "git clone --recursive "
+		git config --get remote.origin.url
+		return 0
+	fi
+	_gitBare
+}
+
+_gitNew() {
+	git init
+	git add .
+	git commit -a -m "first commit"
+}
+
+_gitCheck() {
+	find . -name .git -type d -exec bash -c 'echo ----- $(basename $(dirname $(realpath {}))) ; cd $(dirname $(realpath {})) ; git status' \;
+}
+
+_gitImport() {
+	cd "$scriptFolder"
+	
+	mkdir -p "$1"
+	cd "$1"
+	shift
+	git clone "$@"
+	
+	cd "$scriptFolder"
+}
+
+# DANGER
+#Removes all but the .git folder from the working directory.
+#_gitFresh() {
+#	find . -not -path '\.\/\.git*' -delete
+#}
+
+
+#####Program
+
+_createBareGitRepo() {
+	mkdir -p "$bareRepoDir"
+	cd $bareRepoDir
+	
+	git --bare init
+	
+	echo "-----"
+}
+
+
+_setBareGitRepo() {
+	cd "$repoDir"
+	
+	git remote rm origin
+	git remote add origin "$bareRepoDir"
+	git push --set-upstream origin master
+	
+	echo "-----"
+}
+
+_showGitRepoURI() {
+	echo git clone --recursive ssh://"$USER"@"$repoHostname""$repoPort""$bareRepoAbsoluteDir" "$repoName"
+	
+	
+	#if [[ "$repoHostname" != "" ]]
+	#then
+	#	clear
+	#	echo ssh://"$USER"@"$repoHostname""$repoPort""$bareRepoAbsoluteDir"
+	#	sleep 15
+	#fi
+}
+
+_gitBareSequence() {
+	_gitInfo
+	
+	if [[ -e "$bareRepoDir" ]]
+	then
+		_showGitRepoURI
+		return 2
+	fi
+	
+	if ! [[ -e "$repoDir"/.git ]]
+	then
+		return 1
+	fi
+	
+	_createBareGitRepo
+	
+	_setBareGitRepo
+	
+	_showGitRepoURI
+	
+}
+
+_gitBare() {
+	
+	"$scriptAbsoluteLocation" _gitBareSequence
+	
+}
+
+
+
+_test_bup() {
+	! _wantDep bup && echo 'warn: no bup'
+}
+
+_bupNew() {
+	export BUP_DIR="./.bup"
+	
+	[[ -e "$BUP_DIR" ]] && return 1
+	bup init
+}
+
+_bupLog() {
+	export BUP_DIR="./.bup"
+	
+	[[ ! -e "$BUP_DIR" ]] && return 1
+	git --git-dir=./.bup log
+}
+
+_bupList() {
+	export BUP_DIR="./.bup"
+	
+	if [[ "$1" == "" ]]
+	then
+		bup ls "HEAD"
+		return
+	fi
+	[[ "$1" != "" ]] && bup ls "$@"
+}
+
+_bupStore() {
+	export BUP_DIR="./.bup"
+	
+	if [[ "$1" == "" ]]
+	then
+		tar --exclude "$BUP_DIR" -cvf - . | bup split -n "HEAD" -vv
+		return
+	fi
+	[[ "$1" != "" ]] && tar --exclude "$BUP_DIR" -cvf - . | bup split -n "$@" -vv
+}
+
+_bupRetrieve() {
+	export BUP_DIR="./.bup"
+	
+	if [[ "$1" == "" ]]
+	then
+		bup join "HEAD" | tar -xf -
+		return
+	fi
+	[[ "$1" != "" ]] && bup join "$@" | tar -xf -
+}
+
 _configureLocal() {
 	_configureFile "$1" "_local"
 }
@@ -3321,6 +3497,9 @@ _test() {
 	_tryExec "_testExtra"
 	
 	_tryExec "_testGit"
+	
+	_tryExec "_test_bup"
+	
 	_tryExec "_testX11"
 	
 	_tryExec "_test_virtLocal_X11"
