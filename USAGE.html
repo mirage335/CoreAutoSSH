@@ -927,7 +927,7 @@ ssh-copy-id
 [[Operation]]
 &lt;html&gt;&lt;hr&gt;&lt;/html&gt;</pre>
 </div>
-<div title="Operation" creator="YourName" modifier="mirage335" created="201706082317" modified="201802100419" changecount="8">
+<div title="Operation" creator="YourName" modifier="mirage335" created="201706082317" modified="201803200549" changecount="11">
 <pre>!Shortcuts
 Hooks global &quot;~/.ssh/config&quot; and installs symlinks to &quot;~/bin&quot; for accessibility. Notably useful for integration with git.
 //{{{
@@ -936,12 +936,12 @@ Hooks global &quot;~/.ssh/config&quot; and installs symlinks to &quot;~/bin&quot
 
 !Crontab
 //{{{
-@reboot &quot;$HOME&quot;/.ssh/&lt;netName&gt;/cautossh
+@reboot &quot;$HOME&quot;/.ssh/&lt;netName&gt;/cautossh _ssh_autoreverse
 //}}}
 
 !Service
 //{{{
-./cautossh
+./cautossh _ssh_autoreverse
 //}}}
 
 !Client
@@ -976,6 +976,18 @@ Send control of local nonpersistent dedicated desktop environment to remote mach
 export desktopEnvironmentLaunch=&quot;startlxde&quot;
 ./cautossh _push_desktop machine-default
 //}}}
+
+!!Backup
+Generally, any machine with a copy of a network's CoreAutoSSH repository and keys will be able to synchronize (rsync) and version control (bup), full (root) backups.
+
+!!!Pull
+Pulling updates is recommended with &quot;_backup&quot; type index scripts. Servers may use these as part of cron jobs, automating backup of client machines, which may themselves be backup servers.
+
+Local copies to embedded devices may be made through copies of &quot;_backup&quot; type index  scripts. If the source parameter is not forced, the backup will route through the local SSH server, allowing exceptional versatility at the cost of processor overhead. Such techniques are especially relevant to backups directed at removable disks.
+
+!!!Push
+Updates may be pushed through specialized &quot;_rsync&quot; type index scripts, given manually prescribed source or destination information. Such techniques are especially relevant to backups directed at removable disks.
+
 </pre>
 </div>
 <div title="PageTemplate" modifier="YourName" created="200701130013" modified="201202151614" tags="excludeLists excludeSearch DevFireTheme" changecount="24">
@@ -1004,6 +1016,14 @@ export desktopEnvironmentLaunch=&quot;startlxde&quot;
 &lt;div id='messageArea'&gt;&lt;/div&gt;
 &lt;div id='tiddlerDisplay'&gt;&lt;/div&gt;
 &lt;/div&gt;</pre>
+</div>
+<div title="Setup" creator="mirage335" modifier="mirage335" created="201803200548" modified="201803200549" changecount="2">
+<pre>!Fork
+Modify fork script to generate network-specific git repository derived from ~CoreAutoSSH.
+
+All configuration may be done through the &quot;ops&quot; file. Statically hardcoding configuration into the &quot;cautossh&quot; script is supported through the &quot;netvars.sh&quot; file.
+
+See &quot;_lib/ubiquitous_bash/_config&quot;, &quot;_lib/ubiquitous_bash/_lib/ssh&quot;, for examples.</pre>
 </div>
 <div title="SiteSubtitle" creator="YourName" modifier="YourName" created="201706072231" modified="201706072232" changecount="6">
 <pre>Robust reverse proxy maintenance.</pre>
