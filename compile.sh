@@ -737,6 +737,14 @@ _init_deps() {
 	export enUb_fakehome=""
 	export enUb_buildBash=""
 	export enUb_buildBashUbiquitous=""
+	
+	export enUb_command=""
+	export enUb_synergy=""
+	
+	export enUb_hardware=""
+	export enUb_enUb_x220t=""
+	
+	export enUb_user=""
 }
 
 
@@ -754,6 +762,7 @@ _deps_bup() {
 
 _deps_notLean() {
 	_deps_git
+	_deps_bup
 	export enUb_notLean="true"
 }
 
@@ -853,6 +862,31 @@ _deps_fakehome() {
 	export enUb_fakehome="true"
 }
 
+_deps_command() {
+	export enUb_command="true"
+}
+
+_deps_synergy() {
+	_deps_command
+	export enUb_synergy="true"
+}
+
+_deps_hardware() {
+	_deps_notLean
+	export enUb_hardware="true"
+}
+
+_deps_x220t() {
+	_deps_notLean
+	_deps_hardware
+	export enUb_x220t="true"
+}
+
+_deps_user() {
+	_deps_notLean
+	export enUb_user="true"
+}
+
 
 _generate_bash() {
 	
@@ -944,6 +978,9 @@ _compile_bash_deps() {
 		_deps_git
 		_deps_bup
 		
+		_deps_command
+		_deps_synergy
+		
 		return 0
 	fi
 	
@@ -967,6 +1004,14 @@ _compile_bash_deps() {
 		_deps_bup
 		
 		_deps_blockchain
+		
+		_deps_command
+		_deps_synergy
+		
+		_deps_hardware
+		_deps_x220t
+		
+		_deps_user
 		
 		_deps_proxy
 		_deps_proxy_special
@@ -1176,6 +1221,8 @@ _compile_bash_shortcuts() {
 }
 
 _compile_bash_shortcuts_setup() {
+	export includeScriptList
+	
 	includeScriptList+=( "shortcuts"/setupUbiquitous.sh )
 }
 
@@ -1188,6 +1235,19 @@ _compile_bash_bundled() {
 	[[ "$enUb_blockchain" == "true" ]] && includeScriptList+=( "shortcuts/blockchain/ethereum"/ethereum.sh )
 	
 	[[ "$enUb_blockchain" == "true" ]] && includeScriptList+=( "blockchain/ethereum"/ethereum_parity.sh )
+}
+
+_compile_bash_command() {
+	[[ "$enUb_command" == "true" ]] && [[ "$enUb_synergy" == "true" ]] && includeScriptList+=( "generic/net/command/synergy"/here_synergy.sh )
+	[[ "$enUb_command" == "true" ]] && [[ "$enUb_synergy" == "true" ]] && includeScriptList+=( "generic/net/command/synergy"/synergy.sh )
+}
+
+_compile_bash_user() {
+	true
+}
+
+_compile_bash_hardware() {
+	[[ "$enUb_hardware" == "true" ]] && [[ "$enUb_x220t" == "true" ]] && includeScriptList+=( "hardware/x220t"/x220_display.sh )
 }
 
 _compile_bash_vars_basic() {
@@ -1358,6 +1418,12 @@ _compile_bash() {
 	
 	_compile_bash_bundled
 	_compile_bash_bundled_prog
+	
+	_compile_bash_command
+	
+	_compile_bash_user
+	
+	_compile_bash_hardware
 	
 	_compile_bash_vars_basic
 	_compile_bash_vars_basic_prog
