@@ -2387,6 +2387,8 @@ _setup_ssh_commands() {
 	find . -name '_push_desktop' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	
 	find . -name '_wake' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	
+	find . -name '_meta' -exec "$scriptAbsoluteLocation" _setupCommand_meta {} \;
 }
 
 _package_cautossh() {
@@ -2781,6 +2783,16 @@ _validateRequest() {
 #http://www.commandlinefu.com/commands/view/3584/remove-color-codes-special-characters-with-sed
 _nocolor() {
 	sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"
+}
+
+_noFireJail() {
+	if ( [[ -L /usr/local/bin/"$1" ]] && ls -l /usr/local/bin/"$1" | grep firejail > /dev/null 2>&1 ) || ( [[ -L /usr/bin/"$1" ]] && ls -l /usr/bin/"$1" | grep firejail > /dev/null 2>&1 )
+	then
+		 _messagePlain_bad 'conflict: firejail: '"$1"
+		 return 1
+	fi
+	
+	return 0
 }
 
 #Copy log files to "$permaLog" or current directory (default) for analysis.
@@ -4577,6 +4589,27 @@ _setupCommand() {
 	
 	local clientName
 	clientName=$(basename "$clientScriptFolder")
+	
+	_relink_relative "$clientScriptLocation" "$HOME"/bin/"$commandName""-""$clientName"
+	
+	
+}
+
+_setupCommand_meta() {
+	mkdir -p "$HOME"/bin
+	! [[ -e "$HOME"/bin ]] && return 1
+	
+	local clientScriptLocation
+	clientScriptLocation=$(_getAbsoluteLocation "$1")
+	
+	local clientScriptFolder
+	clientScriptFolder=$(_getAbsoluteFolder "$1")
+	
+	local commandName
+	commandName=$(basename "$1")
+	
+	local clientName
+	clientName=$(basename "$clientScriptFolder"/..)
 	
 	_relink_relative "$clientScriptLocation" "$HOME"/bin/"$commandName""-""$clientName"
 	
