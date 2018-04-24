@@ -115,6 +115,36 @@ _getScriptLinkName() {
 	echo "$scriptLinkName"
 }
 
+#https://unix.stackexchange.com/questions/27021/how-to-name-a-file-in-the-deepest-level-of-a-directory-tree?answertab=active#tab-top
+_filter_lowestPath() {
+	awk -F'/' 'NF > depth {
+depth = NF;
+deepest = $0;
+}
+END {
+print deepest;
+}'
+}
+
+#https://stackoverflow.com/questions/1086907/can-find-or-any-other-tool-search-for-files-breadth-first
+_filter_highestPath() {
+	awk -F'/' '{print "", NF, $F}' | sort -n | awk '{print $2}' | head -n 1
+}
+
+_recursion_guard() {
+	! [[ -e "$1" ]] && return 1
+	
+	! type "$1" >/dev/null 2>&1 && return 1
+	
+	local launchGuardScriptAbsoluteLocation
+	launchGuardScriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
+	local launchGuardTestAbsoluteLocation
+	launchGuardTestAbsoluteLocation=$(_getAbsoluteLocation "$1")
+	[[ "$launchGuardScriptAbsoluteLocation" == "$launchGuardTestAbsoluteLocation" ]] && return 1
+	
+	return 0
+}
+
 #Checks whether command or function is available.
 # DANGER Needed by safeRMR .
 _checkDep() {
@@ -493,6 +523,8 @@ _test_permissions_ubiquitous() {
 	
 	return 0
 }
+
+
 
 #Gets filename extension, specifically any last three characters in given string.
 #"$1" == filename
@@ -2370,25 +2402,25 @@ _setup_ssh() {
 }
 
 _setup_ssh_commands() {
-	find . -name '_ssh' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
-	find . -name '_rsync' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_ssh' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_rsync' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	
-	find . -name '_sshfs' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_sshfs' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	
-	find . -name '_web' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_web' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	
-	find . -name '_backup' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_backup' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	
-	find . -name '_fs' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_fs' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	
-	find . -name '_vnc' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
-	find . -name '_push_vnc' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
-	find . -name '_desktop' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
-	find . -name '_push_desktop' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_vnc' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_push_vnc' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_desktop' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_push_desktop' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	
-	find . -name '_wake' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_wake' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	
-	find . -name '_meta' -exec "$scriptAbsoluteLocation" _setupCommand_meta {} \;
+	find . -type f,s -name '_meta' -exec "$scriptAbsoluteLocation" _setupCommand_meta {} \;
 }
 
 _package_cautossh() {
@@ -2615,6 +2647,57 @@ _proxy_reverse() {
 _showCommand() {
 	echo -e '\E[1;32;46m $ '"$1"' \E[0m'
 	"$@"
+}
+
+#Universal debugging filesystem.
+#End user function.
+_user_log() {
+	# DANGER Do NOT create automatically, or reference any existing directory!
+	! [[ -d "$HOME"/.ubcore/userlog ]] && cat - > /dev/null 2>&1 && return 1
+	
+	cat - >> "$HOME"/.ubcore/userlog/user.log
+}
+
+#Universal debugging filesystem.
+_user_log-ub() {
+	# DANGER Do NOT create automatically, or reference any existing directory!
+	! [[ -d "$HOME"/.ubcore/userlog ]] && cat - > /dev/null 2>&1 && return 1
+	
+	#Terminal session may be used - the sessionid may be set through .bashrc/.ubcorerc .
+	if [[ "$sessionid" != "" ]]
+	then
+		cat - >> "$HOME"/.ubcore/userlog/u-"$sessionid".log
+		return
+	fi
+	cat - >> "$HOME"/.ubcore/userlog/u-undef.log
+}
+
+#Universal debugging filesystem.
+_user_log_anchor() {
+	# DANGER Do NOT create automatically, or reference any existing directory!
+	! [[ -d "$HOME"/.ubcore/userlog ]] && cat - > /dev/null 2>&1 && return 1
+	
+	#Terminal session may be used - the sessionid may be set through .bashrc/.ubcorerc .
+	if [[ "$sessionid" != "" ]]
+	then
+		cat - >> "$HOME"/.ubcore/userlog/a-"$sessionid".log
+		return
+	fi
+	cat - >> "$HOME"/.ubcore/userlog/a-undef.log
+}
+
+#Universal debugging filesystem.
+_user_log_template() {
+	# DANGER Do NOT create automatically, or reference any existing directory!
+	! [[ -d "$HOME"/.ubcore/userlog ]] && cat - > /dev/null 2>&1 && return 1
+	
+	#Terminal session may be used - the sessionid may be set through .bashrc/.ubcorerc .
+	if [[ "$sessionid" != "" ]]
+	then
+		cat - >> "$HOME"/.ubcore/userlog/t-"$sessionid".log
+		return
+	fi
+	cat - >> "$HOME"/.ubcore/userlog/t-undef.log
 }
 
 _messageColors() {
@@ -3252,6 +3335,7 @@ _gitBare() {
 _test_bup() {
 	! _wantDep bup && echo 'warn: no bup'
 	
+	! man tar | grep '\-\-one-file-system' > /dev/null 2>&1 && echo 'warn: tar does not support one-file-system' && return 1
 	! man tar | grep '\-\-xattrs' > /dev/null 2>&1 && echo 'warn: tar does not support xattrs'
 	! man tar | grep '\-\-acls' > /dev/null 2>&1 && echo 'warn: tar does not support acls'
 }
@@ -3290,15 +3374,16 @@ _bupStore() {
 	
 	[[ ! -e "$BUP_DIR" ]] && return 1
 	
+	! man tar | grep '\-\-one-file-system' > /dev/null 2>&1 && return 1
 	! man tar | grep '\-\-xattrs' > /dev/null 2>&1 && return 1
 	! man tar | grep '\-\-acls' > /dev/null 2>&1 && return 1
 	
 	if [[ "$1" == "" ]]
 	then
-		tar --xattrs --acls --exclude "$BUP_DIR" -cvf - . | bup split -n "HEAD" -vv
+		tar --one-file-system --xattrs --acls --exclude "$BUP_DIR" -cvf - . | bup split -n "HEAD" -vv
 		return
 	fi
-	[[ "$1" != "" ]] && tar --xattrs --acls --exclude "$BUP_DIR" -cvf - . | bup split -n "$@" -vv
+	[[ "$1" != "" ]] && tar --one-file-system --xattrs --acls --exclude "$BUP_DIR" -cvf - . | bup split -n "$@" -vv
 }
 
 _bupRetrieve() {
@@ -3306,15 +3391,16 @@ _bupRetrieve() {
 	
 	[[ ! -e "$BUP_DIR" ]] && return 1
 	
+	! man tar | grep '\-\-one-file-system' > /dev/null 2>&1 && return 1
 	! man tar | grep '\-\-xattrs' > /dev/null 2>&1 && return 1
 	! man tar | grep '\-\-acls' > /dev/null 2>&1 && return 1
 	
 	if [[ "$1" == "" ]]
 	then
-		bup join "HEAD" | tar --xattrs --acls -xf -
+		bup join "HEAD" | tar --one-file-system --xattrs --acls -xf -
 		return
 	fi
-	[[ "$1" != "" ]] && bup join "$@" | tar --xattrs --acls -xf -
+	[[ "$1" != "" ]] && bup join "$@" | tar --one-file-system --xattrs --acls -xf -
 }
 
 _configureLocal() {
@@ -3430,7 +3516,7 @@ _upgradeUbiquitous() {
 }
 
 _setup_command_commands() {
-	find . -name '_synergy' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	find . -type f,s -name '_synergy' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 }
 
 _here_synergy_config() {
@@ -3819,6 +3905,8 @@ specialLocks+=("$lock_open_qemu")
 
 export specialLock=""
 export specialLocks
+
+export ubVirtImageLocal="true"
 
 #Monolithic shared log files.
 export importLog="$scriptLocal"/import.log
@@ -4603,13 +4691,13 @@ _setupCommand_meta() {
 	clientScriptLocation=$(_getAbsoluteLocation "$1")
 	
 	local clientScriptFolder
-	clientScriptFolder=$(_getAbsoluteFolder "$1")
+	clientScriptFolder=$(_getAbsoluteFolder "$1"/..)
 	
 	local commandName
 	commandName=$(basename "$1")
 	
 	local clientName
-	clientName=$(basename "$clientScriptFolder"/..)
+	clientName=$(basename "$clientScriptFolder")
 	
 	_relink_relative "$clientScriptLocation" "$HOME"/bin/"$commandName""-""$clientName"
 	
@@ -4618,7 +4706,7 @@ _setupCommand_meta() {
 
 #Consider placing files like ' _vnc-machine-"$netName" ' in an "_index" folder for automatic installation.
 _setupCommands() {
-	#find . -name '_command' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
+	#find . -type f,s -name '_command' -exec "$scriptAbsoluteLocation" _setupCommand {} \;
 	
 	_tryExec "_setup_ssh_commands"
 	_tryExec "_setup_command_commands"
@@ -4707,6 +4795,7 @@ _package() {
 #Typically launches an application - ie. through virtualized container.
 _launch() {
 	false
+	#"$@"
 }
 
 #Typically gathers command/variable scripts from other (ie. yaml) file types (ie. AppImage recipes).
@@ -4716,7 +4805,7 @@ _collect() {
 
 #Typical program entry point, absent any instancing support.
 _enter() {
-	_launch
+	_launch "$@"
 }
 
 #Typical program entry point.
@@ -4725,7 +4814,7 @@ _main() {
 	
 	_collect
 	
-	_enter
+	_enter "$@"
 	
 	_stop
 }
@@ -4860,7 +4949,6 @@ then
 	. "$scriptLocal"/ssh/opsauto
 fi
 
-#Launch internal functions as commands.
 #Wrapper function to launch arbitrary commands within the ubiquitous_bash environment, including its PATH with scriptBin.
 _bin() {
 	"$@"
@@ -4880,20 +4968,48 @@ _false() {
 _echo() {
 	echo "$@"
 }
-#if [[ "$1" != "" ]] && [[ "$1" != "-"* ]] && [[ ! -e "$1" ]]
-#if [[ "$1" == '_'* ]] || [[ "$1" == "true" ]] || [[ "$1" == "false" ]]
-if [[ "$1" == '_'* ]]
+
+#Set "ubOnlyMain" in "ops" overrides as necessary.
+if [[ "$ubOnlyMain" != "true" ]]
 then
-	"$@"
-	internalFunctionExitStatus="$?"
-	#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
-	if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
+	
+	#Launch command named by link name.
+	if scriptLinkCommand=$(_getScriptLinkName)
 	then
-		#export noEmergency=true
-		exit "$internalFunctionExitStatus"
+		if [[ "$scriptLinkCommand" == '_'* ]]
+		then
+			"$scriptLinkCommand" "$@"
+			internalFunctionExitStatus="$?"
+			
+			#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
+			if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
+			then
+				#export noEmergency=true
+				exit "$internalFunctionExitStatus"
+			fi
+			
+		fi
 	fi
-	#_stop "$?"
+	
+	# NOTICE Launch internal functions as commands.
+	#if [[ "$1" != "" ]] && [[ "$1" != "-"* ]] && [[ ! -e "$1" ]]
+	#if [[ "$1" == '_'* ]] || [[ "$1" == "true" ]] || [[ "$1" == "false" ]]
+	if [[ "$1" == '_'* ]]
+	then
+		"$@"
+		internalFunctionExitStatus="$?"
+		
+		#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
+		if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
+		then
+			#export noEmergency=true
+			exit "$internalFunctionExitStatus"
+		fi
+		
+		#_stop "$?"
+	fi
 fi
+[[ "$ubOnlyMain" == "true" ]] && export  ubOnlyMain="false"
 
 #Stop if script is imported into an existing shell and bypass not requested.
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$1" != "--bypass" ]]

@@ -110,6 +110,36 @@ _getScriptLinkName() {
 	echo "$scriptLinkName"
 }
 
+#https://unix.stackexchange.com/questions/27021/how-to-name-a-file-in-the-deepest-level-of-a-directory-tree?answertab=active#tab-top
+_filter_lowestPath() {
+	awk -F'/' 'NF > depth {
+depth = NF;
+deepest = $0;
+}
+END {
+print deepest;
+}'
+}
+
+#https://stackoverflow.com/questions/1086907/can-find-or-any-other-tool-search-for-files-breadth-first
+_filter_highestPath() {
+	awk -F'/' '{print "", NF, $F}' | sort -n | awk '{print $2}' | head -n 1
+}
+
+_recursion_guard() {
+	! [[ -e "$1" ]] && return 1
+	
+	! type "$1" >/dev/null 2>&1 && return 1
+	
+	local launchGuardScriptAbsoluteLocation
+	launchGuardScriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
+	local launchGuardTestAbsoluteLocation
+	launchGuardTestAbsoluteLocation=$(_getAbsoluteLocation "$1")
+	[[ "$launchGuardScriptAbsoluteLocation" == "$launchGuardTestAbsoluteLocation" ]] && return 1
+	
+	return 0
+}
+
 #Checks whether command or function is available.
 # DANGER Needed by safeRMR .
 _checkDep() {
@@ -489,6 +519,8 @@ _test_permissions_ubiquitous() {
 	return 0
 }
 
+
+
 #"$1" == file path
 _includeFile() {
 	
@@ -670,6 +702,8 @@ specialLocks+=("$lock_open_qemu")
 
 export specialLock=""
 export specialLocks
+
+export ubVirtImageLocal="true"
 
 #Monolithic shared log files.
 export importLog="$scriptLocal"/import.log
@@ -1082,6 +1116,7 @@ _compile_bash_essential_utilities() {
 	includeScriptList+=( "generic/process"/terminate.sh )
 	includeScriptList+=( "generic"/uid.sh )
 	includeScriptList+=( "generic/filesystem/permissions"/checkpermissions.sh )
+	includeScriptList+=( "generic"/findInfrastructure.sh )
 	
 	[[ "$enUb_buildBash" == "true" ]] && includeScriptList+=( "build/bash"/include_bash.sh )
 }
@@ -1154,6 +1189,8 @@ _compile_bash_utilities_virtualization() {
 	export includeScriptList
 	
 	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/virtenv.sh )
+	
+	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/findInfrastructure_virt.sh )
 	
 	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/osTranslation.sh )
 	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/localPathTranslation.sh )
@@ -1353,7 +1390,7 @@ _compile_bash_environment() {
 _compile_bash_installation() {
 	export includeScriptList
 	
-	
+	includeScriptList+=( "structure"/installation_prog.sh )
 	includeScriptList+=( "structure"/installation.sh )
 }
 
@@ -1749,7 +1786,6 @@ then
 	. "$scriptLocal"/ssh/opsauto
 fi
 
-#Launch internal functions as commands.
 #Wrapper function to launch arbitrary commands within the ubiquitous_bash environment, including its PATH with scriptBin.
 _bin() {
 	"$@"
@@ -1769,20 +1805,48 @@ _false() {
 _echo() {
 	echo "$@"
 }
-#if [[ "$1" != "" ]] && [[ "$1" != "-"* ]] && [[ ! -e "$1" ]]
-#if [[ "$1" == '_'* ]] || [[ "$1" == "true" ]] || [[ "$1" == "false" ]]
-if [[ "$1" == '_'* ]]
+
+#Set "ubOnlyMain" in "ops" overrides as necessary.
+if [[ "$ubOnlyMain" != "true" ]]
 then
-	"$@"
-	internalFunctionExitStatus="$?"
-	#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
-	if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
+	
+	#Launch command named by link name.
+	if scriptLinkCommand=$(_getScriptLinkName)
 	then
-		#export noEmergency=true
-		exit "$internalFunctionExitStatus"
+		if [[ "$scriptLinkCommand" == '_'* ]]
+		then
+			"$scriptLinkCommand" "$@"
+			internalFunctionExitStatus="$?"
+			
+			#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
+			if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
+			then
+				#export noEmergency=true
+				exit "$internalFunctionExitStatus"
+			fi
+			
+		fi
 	fi
-	#_stop "$?"
+	
+	# NOTICE Launch internal functions as commands.
+	#if [[ "$1" != "" ]] && [[ "$1" != "-"* ]] && [[ ! -e "$1" ]]
+	#if [[ "$1" == '_'* ]] || [[ "$1" == "true" ]] || [[ "$1" == "false" ]]
+	if [[ "$1" == '_'* ]]
+	then
+		"$@"
+		internalFunctionExitStatus="$?"
+		
+		#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
+		if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
+		then
+			#export noEmergency=true
+			exit "$internalFunctionExitStatus"
+		fi
+		
+		#_stop "$?"
+	fi
 fi
+[[ "$ubOnlyMain" == "true" ]] && export  ubOnlyMain="false"
 
 #Stop if script is imported into an existing shell and bypass not requested.
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$1" != "--bypass" ]]
