@@ -1248,6 +1248,7 @@ _compile_bash_shortcuts() {
 	[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "shortcuts/dev"/devsearch.sh )
 	
 	[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/devemacs.sh )
+	[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/devatom.sh )
 	
 	[[ "$enUb_git" == "true" ]] && includeScriptList+=( "shortcuts/git"/git.sh )
 	[[ "$enUb_git" == "true" ]] && includeScriptList+=( "shortcuts/git"/gitBare.sh )
@@ -1806,6 +1807,12 @@ _echo() {
 	echo "$@"
 }
 
+#Stop if script is imported into an existing shell and bypass not requested.
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$1" != "--bypass" ]]
+then
+	return
+fi
+
 #Set "ubOnlyMain" in "ops" overrides as necessary.
 if [[ "$ubOnlyMain" != "true" ]]
 then
@@ -1847,12 +1854,6 @@ then
 	fi
 fi
 [[ "$ubOnlyMain" == "true" ]] && export  ubOnlyMain="false"
-
-#Stop if script is imported into an existing shell and bypass not requested.
-if [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$1" != "--bypass" ]]
-then
-	return
-fi
 
 if ! [[ "$1" != "--bypass" ]]
 then
