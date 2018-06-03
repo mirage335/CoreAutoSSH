@@ -595,19 +595,26 @@ _includeScripts() {
 #Fixed unique identifier for ubiquitious bash created global resources, such as bootdisc images to be automaticaly mounted by guests. Should NOT be changed.
 export ubiquitiousBashID="uk4uPhB663kVcygT0q"
 
-export sessionid=$(_uid)
+#Importing ubiquitous bash into a login shell with "~/.bashrc" is the only known cause for "_getScriptAbsoluteLocation" to return a result such as "/bin/bash". Also, "--bypass" or "--return" implies a requirement to keep current session.
+if ( [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] )  && [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$profileScriptLocation" != "" ]] && [[ "$profileScriptFolder" != "" ]]
+then
+	if [[ "$scriptAbsoluteLocation" == "" ]] && [[ "$scriptAbsoluteFolder" == "" ]] && [[ "$sessionid" == "" ]]
+	then
+		export scriptAbsoluteLocation="$profileScriptLocation"
+		export scriptAbsoluteFolder="$profileScriptFolder"
+		export sessionid=$(_uid)
+	fi
+else
+	if [[ "$1" != "--bypass" ]] && [[ "$1" != "--return" ]]
+	then
+		export scriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
+		export scriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
+		export sessionid=$(_uid)
+	fi
+fi
+
 [[ "$sessionid" == "" ]] && exit 1
 export lowsessionid=$(echo -n "$sessionid" | tr A-Z a-z )
-
-#Importing ubiquitous bash into a login shell with "~/.bashrc" is the only known cause for "_getScriptAbsoluteLocation" to return a result such as "/bin/bash".
-if ( [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] )  && [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$profileScriptLocation" != "" ]] && [[ "$profileScriptFolder" != "" ]]
-then
-	export scriptAbsoluteLocation="$profileScriptLocation"
-	export scriptAbsoluteFolder="$profileScriptFolder"
-else
-	export scriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
-	export scriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
-fi
 
 #Current directory for preservation.
 export outerPWD=$(_getAbsoluteLocation "$PWD")
@@ -1864,8 +1871,10 @@ if [[ "${BASH_SOURCE[0]}" != "${0}" ]] && [[ "$1" != "--bypass" ]]  && [[ "$1" !
 then
 	return
 fi
-[[ "$1" == "--bypass" ]] && shift
-[[ "$1" == "--return" ]] && shift
+ub_bypass=
+ub_return=
+[[ "$1" == "--bypass" ]] && ub_bypass=true && shift
+[[ "$1" == "--return" ]] && ub_return=true && shift
 
 #Set "ubOnlyMain" in "ops" overrides as necessary.
 if [[ "$ubOnlyMain" != "true" ]]
@@ -1880,10 +1889,10 @@ then
 			internalFunctionExitStatus="$?"
 			
 			#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
-			if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
+			if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$ub_bypass" != "true" ]]
 			then
 				#export noEmergency=true
-				exit "$internalFunctionExitStatus"
+				[[ "$ub_return" != "true" ]] && exit "$internalFunctionExitStatus"
 			fi
 			return "$internalFunctionExitStatus"
 		fi
@@ -1898,15 +1907,18 @@ then
 		internalFunctionExitStatus="$?"
 		
 		#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
-		if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
+		if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$ub_bypass" != "true" ]]
 		then
 			#export noEmergency=true
-			exit "$internalFunctionExitStatus"
+			[[ "$ub_return" != "true" ]] && exit "$internalFunctionExitStatus"
 		fi
 		return "$internalFunctionExitStatus"
 		#_stop "$?"
 	fi
 fi
+unset ub_bypass
+unset ub_return
+
 [[ "$ubOnlyMain" == "true" ]] && export  ubOnlyMain="false"
 
 #Do not continue script execution through program code if critical global variables are not sane.
