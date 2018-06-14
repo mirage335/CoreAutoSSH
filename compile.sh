@@ -73,7 +73,7 @@ _messagePlain_bad() {
 ##Parameters
 #"--shell", ""
 #"--profile"
-#"--parent", "--return", "--devenv"
+#"--parent", "--embed", "--return", "--devenv"
 #"--call", "--script" "--bypass"
 
 ub_import=
@@ -82,25 +82,27 @@ ub_import_script=
 ub_loginshell=
 
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && ub_import="true"
-([[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]]) && ub_import_param="$1" && shift
+([[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]]) && ub_import_param="$1" && shift
 ([[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]]) && ub_loginshell="true"	#Importing ubiquitous bash into a login shell with "~/.bashrc" is the only known cause for "_getScriptAbsoluteLocation" to return a result such as "/bin/bash".
 [[ "$ub_import" == "true" ]] && ! [[ "$ub_loginshell" == "true" ]] && ub_import_script="true"
 
 _messagePlain_probe_expr '$0= '"$0"'\n ''$1= '"$1"'\n ''ub_import= '"$ub_import"'\n ''ub_import_param= '"$ub_import_param"'\n ''ub_import_script= '"$ub_import_script"'\n ''ub_loginshell= '"$ub_loginshell" | _user_log-ub
 
 # DANGER Prohibited import from login shell. Use _setupUbiquitous, call from another script, or manually set importScriptLocation.
+# WARNING Import from shell can be detected. Import from script cannot. Asserting that script has been imported is possible. Asserting that script has not been imported is not possible. Users may be protected from interactive mistakes. Script developers are NOT protected.
 if [[ "$ub_import_param" == "--profile" ]]
 then
 	([[ "$profileScriptLocation" == "" ]] ||  [[ "$profileScriptFolder" == "" ]]) && _messagePlain_bad 'import: profile: missing: profileScriptLocation, missing: profileScriptFolder' | _user_log-ub && return 1
-elif [[ "$ub_import" != "true" ]]	#"--shell", ""
+elif ([[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--embed" ]] || [[ "$ub_import_param" == "--return" ]] || [[ "$ub_import_param" == "--devenv" ]])
 then
-	true #no problem
-elif ([[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--return" ]] || [[ "$ub_import_param" == "--devenv" ]])
-then
-	([[ "$scriptAbsoluteLocation" != "" ]] || [[ "$scriptAbsoluteFolder" != "" ]] || [[ "$sessionid" != "" ]]) && _messagePlain_bad 'import: parent: missing: scriptAbsoluteLocation, missing: scriptAbsoluteFolder, missing: sessionid' | _user_log-ub && return 1
-elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || [[ "$ub_import_param" == "" ]]
+	([[ "$scriptAbsoluteLocation" == "" ]] || [[ "$scriptAbsoluteFolder" == "" ]] || [[ "$sessionid" == "" ]]) && _messagePlain_bad 'import: parent: missing: scriptAbsoluteLocation, missing: scriptAbsoluteFolder, missing: sessionid' | _user_log-ub && return 1
+elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || ([[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]])
 then
 	([[ "$importScriptLocation" == "" ]] ||  [[ "$importScriptFolder" == "" ]]) && _messagePlain_bad 'import: call: missing: importScriptLocation, missing: importScriptFolder' | _user_log-ub && return 1
+elif [[ "$ub_import" != "true" ]]	#"--shell", ""
+then
+	_messagePlain_warn 'import: undetected: cannot determine if imported' | _user_log-ub
+	true #no problem
 else	#FAIL, implies [[ "$ub_import" == "true" ]]
 	_messagePlain_bad 'import: fall: fail' | _user_log-ub && return 1
 	exit 1
@@ -528,6 +530,23 @@ _command_safeBackup() {
 #http://stackoverflow.com/questions/687948/timeout-a-command-in-bash-without-unnecessary-delay
 _timeout() { ( set +b; sleep "$1" & "${@:2}" & wait -n; r=$?; kill -9 `jobs -p`; exit $r; ) } 
 
+_terminate() {
+	local processListFile
+	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
+	
+	local currentPID
+	
+	cat "$safeTmp"/.pid > "$processListFile"
+	
+	while read -r currentPID
+	do
+		pkill -P "$currentPID"
+		kill "$currentPID"
+	done < "$processListFile"
+	
+	rm "$processListFile"
+}
+
 _terminateAll() {
 	local processListFile
 	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
@@ -539,7 +558,7 @@ _terminateAll() {
 	while read -r currentPID
 	do
 		pkill -P "$currentPID"
-		pkill "$currentPID"
+		kill "$currentPID"
 	done < "$processListFile"
 	
 	rm "$processListFile"
@@ -1296,6 +1315,23 @@ _remoteSigTERM() {
 	_pauseForProcess "$pidToTERM"
 }
 
+_embed_here() {
+	cat << CZXWXcRMTo8EmM8i4d
+#!/usr/bin/env bash
+
+export scriptAbsoluteLocation="$scriptAbsoluteLocation"
+export scriptAbsoluteFolder="$scriptAbsoluteFolder"
+export sessionid="$sessionid"
+. "$scriptAbsoluteLocation" --embed "\$@"
+CZXWXcRMTo8EmM8i4d
+}
+ 
+
+_embed() {
+	export sessionid="$1"
+	"$scriptAbsoluteLocation" --embed "$@"
+}
+
 #"$@" == URL
 _fetch() {
 	if type axel > /dev/null 2>&1
@@ -1602,26 +1638,29 @@ export ubiquitiousBashID="uk4uPhB663kVcygT0q"
 #"--call", "--script" "--bypass"
 if [[ "$ub_import_param" == "--profile" ]]
 then
+	ub_import=true
 	export scriptAbsoluteLocation="$profileScriptLocation"
 	export scriptAbsoluteFolder="$profileScriptFolder"
 	export sessionid=$(_uid)
 	_messagePlain_probe_expr 'profile: scriptAbsoluteLocation= '"$scriptAbsoluteLocation"'\n ''profile: scriptAbsoluteFolder= '"$scriptAbsoluteFolder"'\n ''profile: sessionid= '"$sessionid" | _user_log-ub
+elif ([[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--embed" ]] || [[ "$ub_import_param" == "--return" ]] || [[ "$ub_import_param" == "--devenv" ]])  && [[ "$scriptAbsoluteLocation" != "" ]] && [[ "$scriptAbsoluteFolder" != "" ]] && [[ "$sessionid" != "" ]]
+then
+	ub_import=true
+	true #Do not override.
+	_messagePlain_probe_expr 'parent: scriptAbsoluteLocation= '"$scriptAbsoluteLocation"'\n ''parent: scriptAbsoluteFolder= '"$scriptAbsoluteFolder"'\n ''parent: sessionid= '"$sessionid" | _user_log-ub
+elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || ([[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]])
+then
+	ub_import=true
+	export scriptAbsoluteLocation="$importScriptLocation"
+	export scriptAbsoluteFolder="$importScriptFolder"
+	export sessionid=$(_uid)
+	_messagePlain_probe_expr 'call: scriptAbsoluteLocation= '"$scriptAbsoluteLocation"'\n ''call: scriptAbsoluteFolder= '"$scriptAbsoluteFolder"'\n ''call: sessionid= '"$sessionid" | _user_log-ub
 elif [[ "$ub_import" != "true" ]]	#"--shell", ""
 then
 	export scriptAbsoluteLocation=$(_getScriptAbsoluteLocation)
 	export scriptAbsoluteFolder=$(_getScriptAbsoluteFolder)
 	export sessionid=$(_uid)
 	_messagePlain_probe_expr 'default: scriptAbsoluteLocation= '"$scriptAbsoluteLocation"'\n ''default: scriptAbsoluteFolder= '"$scriptAbsoluteFolder"'\n ''default: sessionid= '"$sessionid" | _user_log-ub
-elif ([[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--return" ]] || [[ "$ub_import_param" == "--devenv" ]])  && [[ "$scriptAbsoluteLocation" != "" ]] && [[ "$scriptAbsoluteFolder" != "" ]] && [[ "$sessionid" != "" ]]
-then
-	true #Do not override.
-	_messagePlain_probe_expr 'parent: scriptAbsoluteLocation= '"$scriptAbsoluteLocation"'\n ''parent: scriptAbsoluteFolder= '"$scriptAbsoluteFolder"'\n ''parent: sessionid= '"$sessionid" | _user_log-ub
-elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || [[ "$ub_import_param" == "" ]]
-then
-	export scriptAbsoluteLocation="$importScriptLocation"
-	export scriptAbsoluteFolder="$importScriptFolder"
-	export sessionid=$(_uid)
-	_messagePlain_probe_expr 'call: scriptAbsoluteLocation= '"$scriptAbsoluteLocation"'\n ''call: scriptAbsoluteFolder= '"$scriptAbsoluteFolder"'\n ''call: sessionid= '"$sessionid" | _user_log-ub
 else	#FAIL, implies [[ "$ub_import" == "true" ]]
 	_messagePlain_bad 'import: fall: fail' | _user_log-ub && return 1
 	exit 1
@@ -2226,6 +2265,9 @@ _compile_bash_utilities() {
 	
 	includeScriptList+=( "generic/process"/remotesig.sh )
 	
+	includeScriptList+=( "generic/process"/embed_here.sh )
+	includeScriptList+=( "generic/process"/embed.sh )
+	
 	includeScriptList+=( "generic/net"/fetch.sh )
 	
 	includeScriptList+=( "generic/net"/findport.sh )
@@ -2824,7 +2866,8 @@ then
 fi
 
 #Traps, if script is not imported into existing shell, or bypass requested.
-if ! [[ "${BASH_SOURCE[0]}" != "${0}" ]] || ! [[ "$1" != "--bypass" ]]
+# WARNING Exact behavior of this system is critical to some use cases.
+if [[ "$ub_import" != "true" ]] || [[ "$ub_import_param" == "--bypass" ]]
 then
 	trap 'excode=$?; _stop $excode; trap - EXIT; echo $excode' EXIT HUP QUIT PIPE 	# reset
 	trap 'excode=$?; trap "" EXIT; _stop $excode; echo $excode' EXIT HUP QUIT PIPE 	# ignore
@@ -2889,7 +2932,13 @@ _echo() {
 }
 
 #Stop if script is imported, parameter not specified, and command not given.
-[[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]] && [[ "$1" != '_'* ]] && _messagePlain_warn 'import: missing: parameter, missing: command' | _user_log-ub && return 1
+if [[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]] && [[ "$1" != '_'* ]]
+then
+	_messagePlain_warn 'import: missing: parameter, missing: command' | _user_log-ub
+	ub_import=""
+	return 1 > /dev/null 2>&1
+	exit 1
+fi
 
 #Set "ubOnlyMain" in "ops" overrides as necessary.
 if [[ "$ubOnlyMain" != "true" ]]
@@ -2909,7 +2958,9 @@ then
 				#export noEmergency=true
 				exit "$internalFunctionExitStatus"
 			fi
-			return "$internalFunctionExitStatus"
+			ub_import=""
+			return "$internalFunctionExitStatus" > /dev/null 2>&1
+			exit "$internalFunctionExitStatus"
 		fi
 	fi
 	
@@ -2927,7 +2978,9 @@ then
 			#export noEmergency=true
 			exit "$internalFunctionExitStatus"
 		fi
-		return "$internalFunctionExitStatus"
+		ub_import=""
+		return "$internalFunctionExitStatus" > /dev/null 2>&1
+		exit "$internalFunctionExitStatus"
 		#_stop "$?"
 	fi
 fi
@@ -2938,6 +2991,13 @@ fi
 [[ ! -e "$scriptAbsoluteLocation" ]] && exit 1
 [[ ! -e "$scriptAbsoluteFolder" ]] && exit 1
 _failExec || exit 1
+
+#Return if script is under import mode, and bypass is not requested.
+if [[ "$ub_import" == "true" ]] && [[ "$ub_import_param" != "--bypass" ]]
+then
+	return 0 > /dev/null 2>&1
+	exit 0
+fi
 
 
 _generate_compile_bash "$@"
