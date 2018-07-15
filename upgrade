@@ -101,8 +101,6 @@ _upgrade_derive() {
 	#cp -d --preserve=all ./_lib/coreautossh/cautossh ./
 	cp -d --preserve=all ./_lib/coreautossh/compile.sh ./
 
-	./compile.sh
-
 	cp -d --preserve=all ./_lib/coreautossh/upgrade ./
 }
 
@@ -119,5 +117,7 @@ _upgrade_ub "$@"
 _upgrade_coreautossh "$@"
 
 _upgrade_derive "$@"
+
+./compile.sh
 
 
