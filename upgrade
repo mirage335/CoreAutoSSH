@@ -106,6 +106,9 @@ _upgrade_derive() {
 	cp -d --preserve=all ./_lib/coreautossh/update ./
 }
 
+cd "$scriptLocation"
+git pull
+
 _upgrade_ub "$@"
 
 _upgrade_coreautossh "$@"
