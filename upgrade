@@ -103,7 +103,7 @@ _upgrade_derive() {
 
 	./compile.sh
 
-	cp -d --preserve=all ./_lib/coreautossh/update ./
+	cp -d --preserve=all ./_lib/coreautossh/upgrade ./
 }
 
 cd "$scriptLocation"
