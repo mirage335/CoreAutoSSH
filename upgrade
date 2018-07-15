@@ -76,12 +76,11 @@ alias getAbsoluteLocation=_getAbsoluteLocation
 export scriptLocation="$(_getScriptAbsoluteFolder)"
 
 _upgrade_ub() {
-	cd "$scriptLocation"
-	if [[ -e "$scriptLocation"/_lib/ubiquitous_bash ]]
-	then
-		cd "$scriptLocation"/_lib/ubiquitous_bash
-		git pull
-	fi
+	! [[ -e "$scriptLocation"/_lib/ubiquitous_bash ]] && return 1
+	
+	cd "$scriptLocation"/_lib/ubiquitous_bash
+	git pull
+	git submodule update
 }
 
 _upgrade_coreautossh() {
@@ -89,6 +88,11 @@ _upgrade_coreautossh() {
 	
 	cd "$scriptLocation"/_lib/coreautossh
 	git pull
+	git submodule update
+	
+	! [[ -e "$scriptLocation"/_lib/coreautossh/_lib/ubiquitous_bash ]] && return 1
+	
+	cd "$scriptLocation"/_lib/coreautossh/_lib/ubiquitous_bash
 	git submodule update
 }
 
