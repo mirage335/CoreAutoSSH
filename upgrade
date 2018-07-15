@@ -122,6 +122,6 @@ _upgrade_cautossh() {
 	./compile.sh
 }
 
-_upgrade "$@"
+_upgrade_cautossh "$@"
 
 
