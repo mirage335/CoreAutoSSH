@@ -75,33 +75,41 @@ alias getAbsoluteLocation=_getAbsoluteLocation
 
 export scriptLocation="$(_getScriptAbsoluteFolder)"
 
-cd "$scriptLocation"
-cd "$scriptLocation"/_lib/coreautossh/_lib/ubiquitous_bash
-git pull
+_upgrade_ub() {
+	cd "$scriptLocation"
+	if [[ -e "$scriptLocation"/_lib/ubiquitous_bash ]]
+	then
+		cd "$scriptLocation"/_lib/ubiquitous_bash
+		git pull
+	fi
+}
 
-cd "$scriptLocation"
-cd "$scriptLocation"/_lib/coreautossh
-git pull
-
-cd "$scriptLocation"
-if [[ -e "$scriptLocation"/_lib/ubiquitous_bash ]]
-then
-	cd "$scriptLocation"/_lib/ubiquitous_bash
+_upgrade_coreautossh() {
+	! [[ -e "$scriptLocation"/_lib/coreautossh ]] && return 1
+	
+	cd "$scriptLocation"/_lib/coreautossh
 	git pull
-fi
+	git submodule update
+}
 
-cd "$scriptLocation"
-cp -a ./_lib/coreautossh/_prog ./
+_upgrade_derive() {
+	! [[ -e "$scriptLocation"/_lib/coreautossh ]] && return 1
+	
+	cd "$scriptLocation"
+	cp -a ./_lib/coreautossh/_prog ./
 
-#cp -d --preserve=all ./_lib/coreautossh/cautossh ./
-cp -d --preserve=all ./_lib/coreautossh/compile.sh ./
+	#cp -d --preserve=all ./_lib/coreautossh/cautossh ./
+	cp -d --preserve=all ./_lib/coreautossh/compile.sh ./
 
-./compile.sh
+	./compile.sh
 
-cp -d --preserve=all ./_lib/coreautossh/update ./
+	cp -d --preserve=all ./_lib/coreautossh/update ./
+}
 
+_upgrade_ub "$@"
 
+_upgrade_coreautossh "$@"
 
-
+_upgrade_derive "$@"
 
 
