@@ -107,7 +107,7 @@ _upgrade_derive() {
 }
 
 cd "$scriptLocation"
-if ! [[ git diff-index --quiet HEAD -- ]]
+if ! git diff-index --quiet HEAD --
 then
 	echo 'CONFLICT'
 	exit 1
