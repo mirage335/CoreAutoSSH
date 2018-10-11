@@ -43,6 +43,22 @@ _messagePlain_probe_expr() {
 	return 0
 }
 
+#Blue. Diagnostic instrumentation.
+_messagePlain_probe_var() {
+	echo -e -n '\E[0;34m '
+	
+	echo -n "$1"'= '
+	
+	eval echo -e -n \$"$1"
+	
+	echo -e -n ' \E[0m'
+	echo
+	return 0
+}
+_messageVar() {
+	_messagePlain_probe_var "$@"
+}
+
 #Green. Working as expected.
 _messagePlain_good() {
 	echo -e -n '\E[0;32m '
@@ -123,6 +139,23 @@ fi
 
 #Override.
 
+# WARNING: Only partially compatible.
+if ! type md5sum > /dev/null 2>&1 && type md5 > /dev/null 2>&1
+then
+	md5sum() {
+		md5
+	}
+fi
+
+# DANGER: No production use. Testing only.
+# WARNING: Only partially compatible.
+#if ! type md5 > /dev/null 2>&1 && type md5sum > /dev/null 2>&1
+#then
+#	md5() {
+#		md5sum
+#	}
+#fi
+
 #Override (Program).
 
 #Core Auto SSH v1.0
@@ -132,14 +165,266 @@ fi
 
 #####Utilities
 
+_test_getAbsoluteLocation_sequence() {
+	_start
+	
+	local testScriptLocation_actual
+	local testScriptLocation
+	local testScriptFolder
+	
+	local testLocation_actual
+	local testLocation
+	local testFolder
+	
+	#script location/folder work directories
+	mkdir -p "$safeTmp"/sAL_dir
+	cp "$scriptAbsoluteLocation" "$safeTmp"/sAL_dir/script
+	ln -s "$safeTmp"/sAL_dir/script "$safeTmp"/sAL_dir/lnk
+	[[ ! -e "$safeTmp"/sAL_dir/script ]] && _stop 1
+	[[ ! -e "$safeTmp"/sAL_dir/lnk ]] && _stop 1
+	
+	ln -s "$safeTmp"/sAL_dir "$safeTmp"/sAL_lnk
+	[[ ! -e "$safeTmp"/sAL_lnk/script ]] && _stop 1
+	[[ ! -e "$safeTmp"/sAL_lnk/lnk ]] && _stop 1
+	
+	#_getScriptAbsoluteLocation
+	testScriptLocation_actual=$("$safeTmp"/sAL_dir/script _getScriptAbsoluteLocation)
+	[[ "$safeTmp"/sAL_dir/script != "$testScriptLocation_actual" ]] && echo 'crit: "$safeTmp"/sAL_dir/script != "$testScriptLocation_actual"' && _stop 1
+	
+	testScriptLocation=$("$safeTmp"/sAL_dir/script _getScriptAbsoluteLocation)
+	[[ "$testScriptLocation" != "$testScriptLocation_actual" ]] && echo 'crit: ! location "$safeTmp"/sAL_dir/script' && _stop 1
+	testScriptLocation=$("$safeTmp"/sAL_dir/lnk _getScriptAbsoluteLocation)
+	[[ "$testScriptLocation" != "$testScriptLocation_actual" ]] && echo 'crit: ! location "$safeTmp"/sAL_dir/lnk' && _stop 1
+	
+	testScriptLocation=$("$safeTmp"/sAL_lnk/script _getScriptAbsoluteLocation)
+	[[ "$testScriptLocation" != "$testScriptLocation_actual" ]] && echo 'crit: ! location "$safeTmp"/sAL_lnk/script' && _stop 1
+	testScriptLocation=$("$safeTmp"/sAL_lnk/lnk _getScriptAbsoluteLocation)
+	[[ "$testScriptLocation" != "$testScriptLocation_actual" ]] && echo 'crit: ! location "$safeTmp"/sAL_lnk/lnk' && _stop 1
+	
+	#_getScriptAbsoluteFolder
+	testScriptFolder_actual=$("$safeTmp"/sAL_dir/script _getScriptAbsoluteFolder)
+	[[ "$safeTmp"/sAL_dir != "$testScriptFolder_actual" ]] && echo 'crit: "$safeTmp"/sAL_dir != "$testScriptFolder_actual"' && _stop 1
+	
+	testScriptFolder=$("$safeTmp"/sAL_dir/script _getScriptAbsoluteFolder)
+	[[ "$testScriptFolder" != "$testScriptFolder_actual" ]] && echo 'crit: ! folder "$safeTmp"/sAL_dir/script' && _stop 1
+	testScriptFolder=$("$safeTmp"/sAL_dir/lnk _getScriptAbsoluteFolder)
+	[[ "$testScriptFolder" != "$testScriptFolder_actual" ]] && echo 'crit: ! folder "$safeTmp"/sAL_dir/lnk' && _stop 1
+	
+	testScriptFolder=$("$safeTmp"/sAL_lnk/script _getScriptAbsoluteFolder)
+	[[ "$testScriptFolder" != "$testScriptFolder_actual" ]] && echo 'crit: ! folder "$safeTmp"/sAL_lnk/script' && _stop 1
+	testScriptFolder=$("$safeTmp"/sAL_lnk/lnk _getScriptAbsoluteFolder)
+	[[ "$testScriptFolder" != "$testScriptFolder_actual" ]] && echo 'crit: ! folder "$safeTmp"/sAL_lnk/lnk' && _stop 1
+	
+	
+	#_getAbsoluteLocation
+	testLocation_actual=$("$safeTmp"/sAL_dir/script _getAbsoluteLocation "$safeTmp"/sAL_dir/script)
+	[[ "$safeTmp"/sAL_dir/script != "$testLocation_actual" ]] && echo 'crit: "$safeTmp"/sAL_dir/script != "$testLocation_actual"' && _stop 1
+	
+	testLocation=$("$safeTmp"/sAL_dir/script _getAbsoluteLocation "$safeTmp"/sAL_dir/script)
+	[[ "$testLocation" != "$testLocation_actual" ]] && echo 'crit: ! location "$safeTmp"/sAL_dir/script' && _stop 1
+	testLocation=$("$safeTmp"/sAL_dir/lnk _getAbsoluteLocation "$safeTmp"/sAL_dir/lnk)
+	[[ "$testLocation" != "$testLocation_actual" ]] && echo 'crit: ! location "$safeTmp"/sAL_dir/lnk' && _stop 1
+	
+	testLocation=$("$safeTmp"/sAL_lnk/script _getAbsoluteLocation "$safeTmp"/sAL_lnk/script)
+	[[ "$testLocation" != "$testLocation_actual" ]] && echo 'crit: ! location "$safeTmp"/sAL_lnk/script' && _stop 1
+	testLocation=$("$safeTmp"/sAL_lnk/lnk _getAbsoluteLocation "$safeTmp"/sAL_lnk/lnk)
+	[[ "$testLocation" != "$testLocation_actual" ]] && echo 'crit: ! location "$safeTmp"/sAL_lnk/lnk' && _stop 1
+	
+	#_getAbsoluteFolder
+	testFolder_actual=$("$safeTmp"/sAL_dir/script _getAbsoluteFolder "$safeTmp"/sAL_dir/script)
+	[[ "$safeTmp"/sAL_dir != "$testFolder_actual" ]] && echo 'crit: "$safeTmp"/sAL_dir != "$testFolder_actual"' && _stop 1
+	
+	testFolder=$("$safeTmp"/sAL_dir/script _getAbsoluteFolder "$safeTmp"/sAL_dir/script)
+	[[ "$testFolder" != "$testFolder_actual" ]] && echo 'crit: ! folder "$safeTmp"/sAL_dir/script' && _stop 1
+	testFolder=$("$safeTmp"/sAL_dir/lnk _getAbsoluteFolder "$safeTmp"/sAL_dir/script)
+	[[ "$testFolder" != "$testFolder_actual" ]] && echo 'crit: ! folder "$safeTmp"/sAL_dir/lnk' && _stop 1
+	
+	testFolder=$("$safeTmp"/sAL_lnk/script _getAbsoluteFolder "$safeTmp"/sAL_lnk/script)
+	[[ "$testFolder" != "$testFolder_actual" ]] && echo 'crit: ! folder "$safeTmp"/sAL_lnk/script' && _stop 1
+	testFolder=$("$safeTmp"/sAL_lnk/lnk _getAbsoluteFolder "$safeTmp"/sAL_lnk/script)
+	[[ "$testFolder" != "$testFolder_actual" ]] && echo 'crit: ! folder "$safeTmp"/sAL_lnk/lnk' && _stop 1
+	
+	_stop
+}
+
+_test_getAbsoluteLocation() {
+	"$scriptAbsoluteLocation" _test_getAbsoluteLocation_sequence "$@"
+	[[ "$?" != "0" ]] && _stop 1
+	return 0
+}
+
+#https://unix.stackexchange.com/questions/293892/realpath-l-vs-p
+_test_realpath_L_s_sequence() {
+	_start
+	local functionEntryPWD
+	functionEntryPWD="$PWD"
+	
+	
+	local testPath_actual
+	local testPath
+	
+	mkdir -p "$safeTmp"/src
+	mkdir -p "$safeTmp"/sub
+	ln -s  "$safeTmp"/src "$safeTmp"/sub/lnk
+	
+	echo > "$safeTmp"/sub/point
+	
+	ln -s "$safeTmp"/sub/point "$safeTmp"/sub/lnk/ref
+	
+	#correct
+	#"$safeTmp"/sub/ref
+	#realpath -L "$safeTmp"/sub/lnk/../ref
+	
+	#default, wrong
+	#"$safeTmp"/ref
+	#realpath -P "$safeTmp"/sub/lnk/../ref
+	#echo -n '>'
+	#readlink -f "$safeTmp"/sub/lnk/../ref
+	
+	testPath_actual="$safeTmp"/sub/ref
+	
+	cd "$functionEntryPWD"
+	testPath=$(_realpath_L "$safeTmp"/sub/lnk/../ref)
+	[[ "$testPath" != "$testPath_actual" ]] && echo 'crit: ! _realpath_L' && _stop 1
+	
+	cd "$safeTmp"
+	testPath=$(_realpath_L ./sub/lnk/../ref)
+	[[ "$testPath" != "$testPath_actual" ]] && echo 'crit: ! _realpath_L' && _stop 1
+	
+	#correct
+	#"$safeTmp"/sub/lnk/ref
+	#realpath -L -s "$safeTmp"/sub/lnk/ref
+	
+	#default, wrong for some use cases
+	#"$safeTmp"/sub/point
+	#realpath -L "$safeTmp"/sub/lnk/ref
+	#echo -n '>'
+	#readlink -f "$safeTmp"/sub/lnk/ref
+	
+	testPath_actual="$safeTmp"/sub/lnk/ref
+	
+	cd "$functionEntryPWD"
+	testPath=$(_realpath_L_s "$safeTmp"/sub/lnk/ref)
+	[[ "$testPath" != "$testPath_actual" ]] && echo 'crit: ! _realpath_L_s' && _stop 1
+	
+	cd "$safeTmp"
+	testPath=$(_realpath_L_s ./sub/lnk/ref)
+	[[ "$testPath" != "$testPath_actual" ]] && echo 'crit: ! _realpath_L_s' && _stop 1
+	
+	
+	cd "$functionEntryPWD"
+	_stop
+}
+
+_test_realpath_L_s() {
+	#Optional safety check. Nonconformant realpath solution should be caught by synthetic test cases.
+	#_compat_realpath
+	#! [[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && echo 'crit: missing: realpath' && _stop 1
+	
+	"$scriptAbsoluteLocation" _test_realpath_L_s_sequence "$@"
+	[[ "$?" != "0" ]] && _stop 1
+	return 0
+}
+
+_test_realpath_L() {
+	_test_realpath_L_s "$@"
+}
+
+_test_realpath() {
+	_test_realpath_L_s "$@"
+}
+
+_test_readlink_f_sequence() {
+	_start
+	
+	echo > "$safeTmp"/realFile
+	ln -s "$safeTmp"/realFile "$safeTmp"/linkA
+	ln -s "$safeTmp"/linkA "$safeTmp"/linkB
+	
+	local currentReadlinkResult
+	currentReadlinkResult=$(readlink -f "$safeTmp"/linkB)
+	
+	local currentReadlinkResultBasename
+	currentReadlinkResultBasename=$(basename "$currentReadlinkResult")
+	
+	if [[ "$currentReadlinkResultBasename" != "realFile" ]]
+	then
+		#echo 'fail: readlink -f'
+		_stop 1
+	fi
+	
+	_stop 0
+}
+
+_test_readlink_f() {
+	if ! "$scriptAbsoluteLocation" _test_readlink_f_sequence
+	then
+		echo 'fail: readlink -f'
+		_stop 1
+	fi
+	
+	return 0
+}
+
+_compat_realpath() {
+	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
+	
+	#Workaround, Mac. See https://github.com/mirage335/ubiquitous_bash/issues/1 .
+	export compat_realpath_bin=/opt/local/libexec/gnubin/realpath
+	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
+	
+	export compat_realpath_bin=$(which realpath)
+	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
+	
+	export compat_realpath_bin=/bin/realpath
+	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
+	
+	export compat_realpath_bin=/usr/bin/realpath
+	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
+	
+	# ATTENTION
+	# Command "readlink -f" or text processing can be used as fallbacks to obtain absolute path
+	# https://stackoverflow.com/questions/3572030/bash-script-absolute-path-with-osx
+	
+	export compat_realpath_bin=""
+	return 1
+}
+
+_compat_realpath_run() {
+	! _compat_realpath && return 1
+	
+	"$compat_realpath_bin" "$@"
+}
+
+_realpath_L() {
+	if ! _compat_realpath_run -L . > /dev/null 2>&1
+	then
+		readlink -f "$@"
+		return
+	fi
+	
+	realpath -L "$@"
+}
+
+_realpath_L_s() {
+	if ! _compat_realpath_run -L . > /dev/null 2>&1
+	then
+		readlink -f "$@"
+		return
+	fi
+	
+	realpath -L -s "$@"
+}
+
+
 #Critical prerequsites.
 _getAbsolute_criticalDep() {
-	! type realpath > /dev/null 2>&1 && return 1
+	#! type realpath > /dev/null 2>&1 && return 1
 	! type readlink > /dev/null 2>&1 && return 1
 	! type dirname > /dev/null 2>&1 && return 1
 	
-	#Known issue on Mac. See https://github.com/mirage335/ubiquitous_bash/issues/1 .
-	! realpath -L . > /dev/null 2>&1 && return 1
+	#Known to succeed under BusyBox (OpenWRT), NetBSD, and common Linux variants. No known failure modes. Extra precaution.
+	! readlink -f . > /dev/null 2>&1 && return 1
 	
 	return 0
 }
@@ -156,17 +441,17 @@ _getScriptAbsoluteLocation() {
 	
 	local absoluteLocation
 	if [[ (-e $PWD\/$0) && ($0 != "") ]] && [[ "$0" != "/"* ]]
-			then
-	absoluteLocation="$PWD"\/"$0"
-	absoluteLocation=$(realpath -L -s "$absoluteLocation")
-			else
-	absoluteLocation=$(realpath -L "$0")
+	then
+		absoluteLocation="$PWD"\/"$0"
+		absoluteLocation=$(_realpath_L_s "$absoluteLocation")
+	else
+		absoluteLocation=$(_realpath_L "$0")
 	fi
-
+	
 	if [[ -h "$absoluteLocation" ]]
-			then
-	absoluteLocation=$(readlink -f "$absoluteLocation")
-	absoluteLocation=$(realpath -L "$absoluteLocation")
+	then
+		absoluteLocation=$(readlink -f "$absoluteLocation")
+		absoluteLocation=$(_realpath_L "$absoluteLocation")
 	fi
 	echo $absoluteLocation
 }
@@ -200,11 +485,11 @@ _getAbsoluteLocation() {
 	
 	local absoluteLocation
 	if [[ (-e $PWD\/$1) && ($1 != "") ]] && [[ "$1" != "/"* ]]
-			then
-	absoluteLocation="$PWD"\/"$1"
-	absoluteLocation=$(realpath -L -s "$absoluteLocation")
-			else
-	absoluteLocation=$(realpath -L "$1")
+	then
+		absoluteLocation="$PWD"\/"$1"
+		absoluteLocation=$(_realpath_L_s "$absoluteLocation")
+	else
+		absoluteLocation=$(_realpath_L "$1")
 	fi
 	echo "$absoluteLocation"
 }
@@ -356,23 +641,26 @@ _safeRMR() {
 	#[[ "$1" == "/home/$USER"* ]] && safeToRM="true"
 	[[ "$1" == "/tmp/"* ]] && safeToRM="true"
 	
+	# WARNING: Allows removal of temporary folders created by current ubiquitous bash session only.
+	[[ "$sessionid" != "" ]] && [[ "$1" == *"$sessionid"* ]] && safeToRM="true"
+	
 	[[ "$safeToRM" == "false" ]] && return 1
 	
 	#Safeguards/
 	[[ "$safeToDeleteGit" != "true" ]] && [[ -d "$1" ]] && [[ -e "$1" ]] && find "$1" | grep -i '\.git$' >/dev/null 2>&1 && return 1
 	
 	#Validate necessary tools were available for path building and checks.
-	_checkDep realpath
-	_checkDep readlink
-	_checkDep dirname
-	_checkDep basename
+	#! type realpath > /dev/null 2>&1 && return 1
+	! type readlink > /dev/null 2>&1 && return 1
+	! type dirname > /dev/null 2>&1 && return 1
+	! type basename > /dev/null 2>&1 && return 1
 	
 	if [[ -e "$1" ]]
 	then
 		#sleep 0
 		#echo "$1"
 		# WARNING Recommend against adding any non-portable flags.
-		rm -rf "$1"
+		rm -rf "$1" > /dev/null 2>&1
 	fi
 }
 
@@ -436,16 +724,19 @@ _safePath() {
 	#[[ "$1" == "/home/$USER"* ]] && safeToRM="true"
 	[[ "$1" == "/tmp/"* ]] && safeToRM="true"
 	
+	# WARNING: Allows removal of temporary folders created by current ubiquitous bash session only.
+	[[ "$sessionid" != "" ]] && [[ "$1" == *"$sessionid"* ]] && safeToRM="true"
+	
 	[[ "$safeToRM" == "false" ]] && return 1
 	
 	#Safeguards/
 	[[ "$safeToDeleteGit" != "true" ]] && [[ -d "$1" ]] && [[ -e "$1" ]] && find "$1" | grep -i '\.git$' >/dev/null 2>&1 && return 1
 	
 	#Validate necessary tools were available for path building and checks.
-	_checkDep realpath
-	_checkDep readlink
-	_checkDep dirname
-	_checkDep basename
+	#! type realpath > /dev/null 2>&1 && return 1
+	! type readlink > /dev/null 2>&1 && return 1
+	! type dirname > /dev/null 2>&1 && return 1
+	! type basename > /dev/null 2>&1 && return 1
 	
 	if [[ -e "$1" ]]
 	then
@@ -461,8 +752,8 @@ _safeBackup() {
 	! type _getAbsolute_criticalDep > /dev/null 2>&1 && return 1
 	! _getAbsolute_criticalDep && return 1
 	
-	[[ ! -e "$scriptAbsoluteLocation" ]] && exit 1
-	[[ ! -e "$scriptAbsoluteFolder" ]] && exit 1
+	[[ ! -e "$scriptAbsoluteLocation" ]] && return 1
+	[[ ! -e "$scriptAbsoluteFolder" ]] && return 1
 	
 	#Fail sooner, avoiding irrelevant error messages. Especially important to cases where an upstream process has already removed the "$safeTmp" directory of a downstream process which reaches "_stop" later.
 	! [[ -e "$1" ]] && return 1
@@ -505,8 +796,8 @@ _command_safeBackup() {
 	! type _command_getAbsolute_criticalDep > /dev/null 2>&1 && return 1
 	! _command_getAbsolute_criticalDep && return 1
 	
-	[[ ! -e "$commandScriptAbsoluteLocation" ]] && exit 1
-	[[ ! -e "$commandScriptAbsoluteFolder" ]] && exit 1
+	[[ ! -e "$commandScriptAbsoluteLocation" ]] && return 1
+	[[ ! -e "$commandScriptAbsoluteFolder" ]] && return 1
 	
 	#Fail sooner, avoiding irrelevant error messages. Especially important to cases where an upstream process has already removed the "$safeTmp" directory of a downstream process which reaches "_stop" later.
 	! [[ -e "$1" ]] && return 1
@@ -535,7 +826,7 @@ _command_safeBackup() {
 	[[ "$1" == "$HOME" ]] && return 1
 	[[ "$1" == "$HOME/" ]] && return 1
 	
-	! type realpath > /dev/null 2>&1 && return 1
+	#! type realpath > /dev/null 2>&1 && return 1
 	! type readlink > /dev/null 2>&1 && return 1
 	! type dirname > /dev/null 2>&1 && return 1
 	! type basename > /dev/null 2>&1 && return 1
@@ -544,6 +835,23 @@ _command_safeBackup() {
 }
 
 
+
+_all_exist() {
+	local currentArg
+	for currentArg in "$@"
+	do
+		! [[ -e "$currentArg" ]] && return 1
+	done
+	
+	return 0
+}
+
+_wait_not_all_exist() {
+	while ! _all_exist "$@"
+	do
+		sleep 0.1
+	done
+}
 
 #http://stackoverflow.com/questions/687948/timeout-a-command-in-bash-without-unnecessary-delay
 _timeout() { ( set +b; sleep "$1" & "${@:2}" & wait -n; r=$?; kill -9 `jobs -p`; exit $r; ) } 
@@ -565,14 +873,58 @@ _terminate() {
 	rm "$processListFile"
 }
 
-_terminateAll() {
+_terminateMetaHostAll() {
+	! ls -d -1 ./.m_*/.pid > /dev/null 2>&1 && return 0
+	
 	local processListFile
 	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
 	
 	local currentPID
 	
-	cat ./w_*/.pid >> "$processListFile" 2> /dev/null
+	cat ./.m_*/.pid >> "$processListFile" 2> /dev/null
+	
+	while read -r currentPID
+	do
+		pkill -P "$currentPID"
+		kill "$currentPID"
+	done < "$processListFile"
+	
+	rm "$processListFile"
+	
+	! ls -d -1 ./.m_*/.pid > /dev/null 2>&1 && return 0
+	sleep 0.3
+	! ls -d -1 ./.m_*/.pid > /dev/null 2>&1 && return 0
+	sleep 1
+	! ls -d -1 ./.m_*/.pid > /dev/null 2>&1 && return 0
+	sleep 3
+	! ls -d -1 ./.m_*/.pid > /dev/null 2>&1 && return 0
+	sleep 10
+	! ls -d -1 ./.m_*/.pid > /dev/null 2>&1 && return 0
+	sleep 20
+	! ls -d -1 ./.m_*/.pid > /dev/null 2>&1 && return 0
+	sleep 20
+	! ls -d -1 ./.m_*/.pid > /dev/null 2>&1 && return 0
+	sleep 20
+	! ls -d -1 ./.m_*/.pid > /dev/null 2>&1 && return 0
+	
+	return 1
+}
+
+_terminateAll() {
+	_terminateMetaHostAll
+	
+	local processListFile
+	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
+	
+	local currentPID
+	
+	
 	cat ./.s_*/.pid >> "$processListFile" 2> /dev/null
+	
+	cat ./.e_*/.pid >> "$processListFile" 2> /dev/null
+	cat ./.m_*/.pid >> "$processListFile" 2> /dev/null
+	
+	cat ./w_*/.pid >> "$processListFile" 2> /dev/null
 	
 	while read -r currentPID
 	do
@@ -585,10 +937,29 @@ _terminateAll() {
 
 #Generates random alphanumeric characters, default length 18.
 _uid() {
-	local uidLength
-	! [[ -z "$1" ]] && uidLength="$1" || uidLength=18
+	local curentLengthUID
+
+	currentLengthUID="18"
+	! [[ -z "$uidLengthPrefix" ]] && ! [[ "$uidLengthPrefix" -lt "18" ]] && currentLengthUID="$uidLengthPrefix"
+	! [[ -z "$1" ]] && currentLengthUID="$1"
+
+	cat /dev/urandom 2> /dev/null | base64 2> /dev/null | tr -dc 'a-zA-Z0-9' 2> /dev/null | head -c "$currentLengthUID" 2> /dev/null
+}
+
+_compat_stat_c_run() {
+	local functionOutput
 	
-	cat /dev/urandom 2> /dev/null | base64 2> /dev/null | tr -dc 'a-zA-Z0-9' 2> /dev/null | head -c "$uidLength" 2> /dev/null
+	functionOutput=$(stat -c "$@" 2> /dev/null)
+	[[ "$?" == "0" ]] && echo "$functionOutput" && return 0
+	
+	#BSD
+	if stat --help 2>&1 | grep '\-f ' > /dev/null 2>&1
+	then
+		functionOutput=$(stat -f "$@" 2> /dev/null)
+		[[ "$?" == "0" ]] && echo "$functionOutput" && return 0
+	fi
+	
+	return 1
 }
 
 _permissions_directory_checkForPath() {
@@ -599,7 +970,7 @@ _permissions_directory_checkForPath() {
 	
 	[[ "$parameterAbsoluteLocation" == "$PWD" ]] && ! [[ "$parameterAbsoluteLocation" == "$checkScriptAbsoluteFolder" ]] && return 1
 	
-	local permissions_readout=$(stat -c "%a" "$1")
+	local permissions_readout=$(_compat_stat_c_run "%a" "$1")
 	
 	local permissions_user
 	local permissions_group
@@ -619,8 +990,8 @@ _permissions_directory_checkForPath() {
 	local permissions_uid
 	local permissions_gid
 	
-	permissions_uid=$(stat -c "%u" "$1")
-	permissions_gid=$(stat -c "%g" "$1")
+	permissions_uid=$(_compat_stat_c_run "%u" "$1")
+	permissions_gid=$(_compat_stat_c_run "%g" "$1")
 	
 	#Normally these variables are available through ubiqutious bash, but this permissions check may be needed earlier in that global variables setting process.
 	local permissions_host_uid
@@ -670,6 +1041,224 @@ _test_permissions_ubiquitous() {
 #"${globalArgs[@]}"
 _gather_params() {
 	export globalArgs=("${@}")
+}
+
+_self_critial() {
+	_priority_critical_pid "$$"
+}
+
+_self_interactive() {
+	_priority_interactive_pid "$$"
+}
+
+_self_background() {
+	_priority_background_pid "$$"
+}
+
+_self_idle() {
+	_priority_idle_pid "$$"
+}
+
+_self_app() {
+	_priority_app_pid "$$"
+}
+
+_self_zero() {
+	_priority_zero_pid "$$"
+}
+
+
+#Example.
+_priority_critical() {
+	_priority_dispatch "_priority_critical_pid"
+}
+
+_priority_critical_pid_root() {
+	! _wantSudo && return 1
+	
+	sudo -n ionice -c 2 -n 2 -p "$1"
+	! sudo -n renice -15 -p "$1" && return 1
+	
+	return 0
+}
+
+_priority_critical_pid() {
+	[[ "$1" == "" ]] && return 1
+	
+	_priority_critical_pid_root "$1" && return 0
+	
+	ionice -c 2 -n 4 -p "$1"
+	! renice 0 -p "$1" && return 1
+	
+	return 1
+}
+
+_priority_interactive_pid_root() {
+	! _wantSudo && return 1
+	
+	sudo -n ionice -c 2 -n 2 -p "$1"
+	! sudo -n renice -10 -p "$1" && return 1
+	
+	return 0
+}
+
+_priority_interactive_pid() {
+	[[ "$1" == "" ]] && return 1
+	
+	_priority_interactive_pid_root "$1" && return 0
+	
+	ionice -c 2 -n 4 -p "$1"
+	! renice 0 -p "$1" && return 1
+	
+	return 1
+}
+
+_priority_app_pid_root() {
+	! _wantSudo && return 1
+	
+	sudo -n ionice -c 2 -n 3 -p "$1"
+	! sudo -n renice -5 -p "$1" && return 1
+	
+	return 0
+}
+
+_priority_app_pid() {
+	[[ "$1" == "" ]] && return 1
+	
+	_priority_app_pid_root "$1" && return 0
+	
+	ionice -c 2 -n 4 -p "$1"
+	! renice 0 -p "$1" && return 1
+	
+	return 1
+}
+
+_priority_background_pid_root() {
+	! _wantSudo && return 1
+	
+	sudo -n ionice -c 2 -n 5 -p "$1"
+	! sudo -n renice +5 -p "$1" && return 1
+	
+	return 0
+}
+
+_priority_background_pid() {
+	[[ "$1" == "" ]] && return 1
+	
+	if ! type ionice > /dev/null 2>&1 || ! groups | grep -E 'wheel|sudo' > /dev/null 2>&1
+	then
+		renice +5 -p "$1"
+		return 0
+	fi
+	
+	_priority_background_pid_root "$1" && return 0
+	
+	ionice -c 2 -n 5 -p "$1"
+	
+	renice +5 -p "$1"
+}
+
+
+
+_priority_idle_pid_root() {
+	! _wantSudo && return 1
+	
+	sudo -n ionice -c 3 -p "$1"
+	! sudo -n renice +15 -p "$1" && return 1
+	
+	return 0
+}
+
+_priority_idle_pid() {
+	[[ "$1" == "" ]] && return 1
+	
+	if ! type ionice > /dev/null 2>&1 || ! groups | grep -E 'wheel|sudo' > /dev/null 2>&1
+	then
+		renice +15 -p "$1"
+		return 0
+	fi
+	
+	_priority_idle_pid_root "$1" && return 0
+	
+	#https://linux.die.net/man/1/ionice
+	ionice -c 3 -p "$1"
+	
+	renice +15 -p "$1"
+}
+
+_priority_zero_pid_root() {
+	! _wantSudo && return 1
+	
+	sudo -n ionice -c 2 -n 4 -p "$1"
+	! sudo -n renice 0 -p "$1" && return 1
+	
+	return 0
+}
+
+_priority_zero_pid() {
+	[[ "$1" == "" ]] && return 1
+	
+	_priority_zero_pid_root "$1" && return 0
+	
+	#https://linux.die.net/man/1/ionice
+	ionice -c 2 -n 4 -p "$1"
+	
+	renice 0 -p "$1"
+}
+
+# WARNING: Untested.
+_priority_dispatch() {
+	local processListFile
+	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
+	
+	echo "$1" >> "$processListFile"
+	pgrep -P "$1" 2>/dev/null >> "$processListFile"
+	
+	local currentPID
+	
+	while read -r currentPID
+	do
+		"$@" "$currentPID"
+	done < "$processListFile"
+	
+	rm "$processListFile"
+}
+
+# WARNING: Untested.
+_priority_enumerate_pid() {
+	[[ "$1" == "" ]] && return 1
+	
+	echo "$1"
+	pgrep -P "$1" 2>/dev/null
+}
+
+_priority_enumerate_pattern() {
+	local processListFile
+	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
+	
+	echo -n >> "$processListFile"
+	
+	pgrep "$1" >> "$processListFile"
+	
+	
+	local parentListFile
+	parentListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
+	
+	echo -n >> "$parentListFile"
+	
+	local currentPID
+	
+	while read -r currentPID
+	do
+		pgrep -P "$currentPID" 2>/dev/null > "$parentListFile"
+	done < "$processListFile"
+	
+	cat "$processListFile"
+	cat "$parentListFile"
+	
+	
+	rm "$processListFile"
+	rm "$parentListFile"
 }
 
 _instance_internal() {
@@ -830,6 +1419,23 @@ _messagePlain_probe_expr() {
 	return 0
 }
 
+#Blue. Diagnostic instrumentation.
+#"generic/ubiquitousheader.sh"
+_messagePlain_probe_var() {
+	echo -e -n '\E[0;34m '
+	
+	echo -n "$1"'= '
+	
+	eval echo -e -n \$"$1"
+	
+	echo -e -n ' \E[0m'
+	echo
+	return 0
+}
+_messageVar() {
+	_messagePlain_probe_var "$@"
+}
+
 #Green. Working as expected.
 #"generic/ubiquitousheader.sh"
 _messagePlain_good() {
@@ -857,6 +1463,25 @@ _messagePlain_bad() {
 	echo -e -n ' \E[0m'
 	echo
 	return 0
+}
+
+#Blue. Diagnostic instrumentation.
+#Prints "$@" and runs "$@".
+# WARNING: Use with care.
+_messagePlain_probe_cmd() {
+	echo -e -n '\E[0;34m '
+	
+	_safeEcho "$@"
+	
+	echo -e -n ' \E[0m'
+	echo
+	
+	"$@"
+	
+	return
+}
+_messageCMD() {
+	_messagePlain_probe_cmd "$@"
 }
 
 #Demarcate major steps.
@@ -965,7 +1590,7 @@ _getExt() {
 #Reports either the directory provided, or the directory of the file provided.
 _findDir() {
 	local dirIn=$(_getAbsoluteLocation "$1")
-	dirInLogical=$(realpath -L -s "$dirIn")
+	dirInLogical=$(_realpath_L_s "$dirIn")
 	
 	if [[ -d "$dirInLogical" ]]
 	then
@@ -992,33 +1617,46 @@ _discoverResource() {
 }
 
 _rmlink() {
+	[[ "$1" == "/dev/null" ]] && return 1
+	
 	[[ -h "$1" ]] && rm -f "$1" && return 0
+	
 	! [[ -e "$1" ]] && return 0
+	
 	return 1
 }
 
 #Like "ln -sf", but will not proceed if target is not link and exists (ie. will not erase files).
-_relink_sequence() {
-
+_relink_procedure() {
 	#Do not update correct symlink.
 	local existingLinkTarget
 	existingLinkTarget=$(readlink "$2")
 	[[ "$existingLinkTarget" == "$1" ]] && return 0
 	
 	! [[ "$relinkRelativeUb" == "true" ]] && _rmlink "$2" && ln -s "$1" "$2" && return 0
-	[[ "$relinkRelativeUb" == "true" ]] && _rmlink "$2" && ln -s -r "$1" "$2" && return 0
+	
+	if [[ "$relinkRelativeUb" == "true" ]]
+	then
+		_rmlink "$2" && ln -s --relative "$1" "$2" && return 0
+	fi
 	
 	return 1
 }
 
 _relink() {
+	[[ "$2" == "/dev/null" ]] && return 1
 	[[ "$relinkRelativeUb" == "true" ]] && export relinkRelativeUb=""
-	_relink_sequence "$@"
+	_relink_procedure "$@"
 }
 
 _relink_relative() {
-	export relinkRelativeUb="true"
-	_relink_sequence "$@"
+	export relinkRelativeUb=""
+	
+	[[ "$relinkRelativeUb" != "true" ]] && ln --help 2>/dev/null | grep '\-\-relative' > /dev/null 2>&1 && export relinkRelativeUb="true"
+	[[ "$relinkRelativeUb" != "true" ]] && ln 2>&1 | grep '\-\-relative' > /dev/null 2>&1 && export relinkRelativeUb="true"
+	[[ "$relinkRelativeUb" != "true" ]] && man ln 2>/dev/null | grep '\-\-relative' > /dev/null 2>&1 && export relinkRelativeUb="true"
+	
+	_relink_procedure "$@"
 	export relinkRelativeUb=""
 	unset relinkRelativeUb
 }
@@ -1028,80 +1666,87 @@ _cpDiff() {
 	! diff "$1" "$2" > /dev/null 2>&1 && cp "$1" "$2"
 }
 
-_wait_umount() {
-	sudo -n umount "$1"
-	mountpoint "$1" > /dev/null 2>&1 || return 0
-	sleep 0.1
+_test_channel_fifo() {
+	_getDep mkfifo
 	
-	sudo -n umount "$1"
-	mountpoint "$1" > /dev/null 2>&1 || return 0
-	sleep 0.3
-	
-	[[ "$EMERGENCYSHUTDOWN" == "true" ]] && return 1
-	
-	sudo -n umount "$1"
-	mountpoint "$1" > /dev/null 2>&1 || return 0
-	sleep 1
-	
-	sudo -n umount "$1"
-	mountpoint "$1" > /dev/null 2>&1 || return 0
-	sleep 3
-	
-	sudo -n umount "$1"
-	mountpoint "$1" > /dev/null 2>&1 || return 0
-	sleep 9
-	
-	return 1
-} 
-
-_testMountChecks() {
-	_getDep mountpoint
+	#if ! dd if=$("$scriptAbsoluteLocation" _channel_host_fifo cat /dev/zero) of=/dev/null bs=1M count=10 iflag=fullblock > /dev/null 2>&1
+	if ! dd if=$("$scriptAbsoluteLocation" _channel_host_fifo cat /dev/zero) of=/dev/null bs=10000000 count=10 > /dev/null 2>&1
+	then
+		echo 'fail: channel: fifo'
+		_stop 1
+	fi
 }
 
-#"$1" == test directory
-#"$2" == flag file
-_flagMount() {
-	# TODO: Possible stability/portability improvements.
-	#https://unix.stackexchange.com/questions/248472/finding-mount-points-with-the-find-command
-	
-	mountpoint "$1" >/dev/null 2>&1 && echo -n true > "$2"
+_test_channel() {
+	_tryExec "_test_channel_fifo"
 }
 
-#Searches directory for mounted filesystems.
-# DANGER Do not drop requirement for sudo. As this function represents a final fail-safe, filesystem permissions cannot be allowed to interfere.
-#"$1" == test directory
-_checkForMounts() {
-	_mustGetSudo || return 0
-	
-	_start
-	
-	#If test directory itself is a directory, further testing is not necessary.
-	sudo -n mountpoint "$1" > /dev/null 2>&1 && _stop 0
-	
-	local mountCheckFile="$safeTmp"/mc-$(_uid)
-	
-	echo -n false > "$mountCheckFile"
-	
-	#Sanity check, file exists.
-	! [[ -e "$mountCheckFile" ]] && _stop 0
-	
-	# TODO: Possible stability/portability improvements.
-	#https://unix.stackexchange.com/questions/248472/finding-mount-points-with-the-find-command
-	
-	find "$1" -type d -exec sudo -n mountpoint {} 2>/dev/null \; | grep 'is a mountpoint' >/dev/null 2>&1 && echo -n true > "$mountCheckFile"
-	
-	#find "$1" -type d -exec "$scriptAbsoluteLocation" {} "$mountCheckFile" \;
-	
-	local includesMount
-	includesMount=$(cat "$mountCheckFile")
-	
-	#Thorough sanity checking.
-	[[ "$includesMount" != "false" ]] && _stop 0
-	[[ "$includesMount" == "true" ]] && _stop 0
-	[[ "$includesMount" == "false" ]] && _stop 1
-	
-	_stop 0
+_set_channel() {
+	export channelTmp="$scriptAbsoluteFolder""$tmpPrefix"/.c_"$sessionid"
 }
+
+_prepare_channel() {
+	mkdir -p "$channelTmp"
+}
+
+_stop_channel_allow() {
+	export channelStop="true"
+}
+_stop_channel_prohibit() {
+	export channelStop="false"
+}
+
+_rm_instance_channel() {
+	[[ "$channelStop" != "true" ]] && return 0
+	export channelStop="false"
+	
+	if [[ "$channelTmp" != "" ]] && [[ "$channelTmp" == *"$sessionid"* ]] && [[ -e "$channelTmp" ]]
+	then
+		_safeRMR "$channelTmp"
+		[[ -e "$channelTmp" ]] && sleep 0.1 && _safeRMR "$channelTmp"
+		[[ -e "$channelTmp" ]] && sleep 0.3 && _safeRMR "$channelTmp"
+		[[ -e "$channelTmp" ]] && sleep 1 && _safeRMR "$channelTmp"
+		[[ -e "$channelTmp" ]] && sleep 3 && _safeRMR "$channelTmp"
+		[[ -e "$channelTmp" ]] && sleep 3 && _safeRMR "$channelTmp"
+		[[ -e "$channelTmp" ]] && sleep 3 && _safeRMR "$channelTmp"
+	fi
+}
+
+_channel_fifo_example() {
+	cat /dev/urandom | base64
+}
+
+_channel_fifo_sequence() {
+	_stop_channel_allow
+	
+	"$@" 2>/dev/null > "$commandFIFO"
+	
+	_rm_instance_channel
+}
+
+_channel_host_fifo_sequence() {
+	_stop_channel_prohibit
+	_set_channel
+	_prepare_channel
+	
+	export commandFIFO="$channelTmp"/cmdfifo
+	mkfifo "$commandFIFO"
+	
+	echo "$commandFIFO"
+	
+	
+	#nohup "$scriptAbsoluteLocation" --embed _channel_fifo_sequence "$@" >/dev/null 2>&1 &
+	"$scriptAbsoluteLocation" --embed _channel_fifo_sequence "$@" >/dev/null 2>&1 &
+	#disown -h $!
+	disown -a -h
+}
+
+# example: dd if=$(./ubiquitous_bash.sh _channel_host_fifo _channel_fifo_example) of=/dev/null
+# example: dd if=$(./ubiquitous_bash.sh _channel_host_fifo cat /dev/zero) of=/dev/null bs=1M count=10000 iflag=fullblock
+_channel_host_fifo() {
+	"$scriptAbsoluteLocation" _channel_host_fifo_sequence "$@"
+}
+
 
 #Waits for the process PID specified by first parameter to end. Useful in conjunction with $! to provide process control and/or PID files. Unlike wait command, does not require PID to be a child of the current shell.
 _pauseForProcess() {
@@ -1346,10 +1991,17 @@ _validatePort() {
 }
 
 _testFindPort() {
-	_getDep ss
+	! _wantGetDep ss
+	! _wantGetDep sockstat
 	
-	local machineLowerPort=$(cat /proc/sys/net/ipv4/ip_local_port_range | cut -f1)
-	local machineUpperPort=$(cat /proc/sys/net/ipv4/ip_local_port_range | cut -f2)
+	! type ss > /dev/null 2>&1 && ! type sockstat > /dev/null 2>&1 && echo "missing socket detection" && _stop 1
+	
+	local machineLowerPort=$(cat /proc/sys/net/ipv4/ip_local_port_range 2> /dev/null | cut -f1)
+	local machineUpperPort=$(cat /proc/sys/net/ipv4/ip_local_port_range 2> /dev/null | cut -f2)
+	
+	[[ "$machineLowerPort" == "" ]] && echo "warn: autodetect: lower_port"
+	[[ "$machineUpperPort" == "" ]] && echo "warn: autodetect: upper_port"
+	[[ "$machineLowerPort" == "" ]] || [[ "$machineUpperPort" == "" ]] && return 0
 	
 	[[ "$machineLowerPort" -lt "1024" ]] && echo "invalid lower_port" && _stop 1
 	[[ "$machineLowerPort" -lt "32768" ]] && echo "warn: low lower_port"
@@ -1368,10 +2020,18 @@ _testFindPort() {
 _checkPort_local() {
 	[[ "$1" == "" ]] && return 1
 	
-	if ss -lpn | grep ":$1 " > /dev/null 2>&1
+	if type ss > /dev/null 2>&1
 	then
-		return 0
+		ss -lpn | grep ':'"$1"' ' > /dev/null 2>&1
+		return $?
 	fi
+	
+	if type sockstat > /dev/null 2>&1
+	then
+		sockstat -46ln | grep '\.'"$1"' ' > /dev/null 2>&1
+		return $?
+	fi
+	
 	return 1
 }
 
@@ -1438,10 +2098,10 @@ _findPort() {
 	while true
 	do
 		for (( currentPort = lower_port ; currentPort <= upper_port ; currentPort++ )); do
-			if ! ss -lpn | grep ":$currentPort " > /dev/null 2>&1
+			if ! _checkPort_local "$currentPort"
 			then
 				sleep 0.1
-				if ! ss -lpn | grep ":$currentPort " > /dev/null 2>&1
+				if ! _checkPort_local "$currentPort"
 				then
 					break 2
 				fi
@@ -3441,6 +4101,119 @@ _visualPrompt() {
 export PS1='\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])-\[\033[01;36m\]------------------------\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\ .%d)\[\033[01;34m\])-\[\033[01;36m\]- -|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]+\[\033[01;34m\]-|\#) \[\033[36m\]>\[\033[00m\] '
 } 
 
+#Simulated client/server discussion testing.
+
+_log_query() {
+	[[ "$1" == "" ]] && return 1
+	
+	tee "$1"
+	
+	return 0
+}
+
+_report_query_stdout() {
+	[[ "$1" == "" ]] && return 1
+	
+	_messagePlain_probe 'stdout: strings'
+	strings "$1"
+	
+	_messagePlain_probe 'stdout: hex'
+	xxd -p "$1" | tr -d '\n'
+	echo
+	
+	return 0
+}
+
+# ATTENTION: Overload with "core.sh" or similar.
+_prepare_query_prog() {
+	true
+}
+
+_prepare_query() {
+	export ub_queryclientdir="$queryTmp"/client
+	export qc="$ub_queryclientdir"
+	
+	export ub_queryclient="$ub_queryclientdir"/script
+	export qce="$ub_queryclient"
+	
+	export ub_queryserverdir="$queryTmp"/server
+	export qs="$ub_queryserverdir"
+	
+	export ub_queryserver="$ub_queryserverdir"/script
+	export qse="$ub_queryserver"
+	
+	mkdir -p "$ub_queryclientdir"
+	mkdir -p "$ub_queryserverdir"
+	
+	! [[ -e "$ub_queryclient" ]] && cp "$scriptAbsoluteLocation" "$ub_queryclient"
+	! [[ -e "$ub_queryserver" ]] && cp "$scriptAbsoluteLocation" "$ub_queryserver"
+	
+	_prepare_query_prog "$@"
+}
+
+_queryServer_sequence() {
+	_start
+	
+	local currentExitStatus
+	
+	export queryType="server"
+	"$ub_queryserver" "$@"
+	currentExitStatus="$?"
+	
+	env > env_$(_uid)
+	
+	_stop "$currentExitStatus"
+}
+_queryServer() {
+	"$scriptAbsoluteLocation" _queryServer_sequence "$@"
+}
+_qs() {
+	_queryServer "$@"
+}
+
+_queryClient_sequence() {
+	_start
+	
+	local currentExitStatus
+	
+	export queryType="client"
+	"$ub_queryclient" "$@"
+	currentExitStatus="$?"
+	
+	env > env_$(_uid)
+	
+	_stop "$currentExitStatus"
+}
+_queryClient() {
+	"$scriptAbsoluteLocation" _queryClient_sequence "$@"
+}
+_qc() {
+	_queryClient "$@"
+}
+
+_query_diag() {
+	echo test | _query "$@"
+	local currentExitStatus="$?"
+	
+	_messagePlain_nominal 'diag: tx.log'
+	_report_query_stdout "$queryTmp"/tx.log
+	
+	_messagePlain_nominal 'diag: xc.log'
+	_report_query_stdout "$queryTmp"/xc.log
+	
+	_messagePlain_nominal 'diag: rx.log'
+	_report_query_stdout "$queryTmp"/rx.log
+	
+	return "$currentExitStatus"
+}
+
+# ATTENTION: Overload with "core.sh" or similar.
+_query() {
+	_prepare_query
+	
+	( cd "$qc" ; _queryClient _bin cat | _log_query "$queryTmp"/tx.log | ( cd "$qs" ; _queryServer _bin cat | _log_query "$queryTmp"/xc.log | ( cd "$qc" ; _queryClient _bin cat | _log_query "$queryTmp"/rx.log ; return "${PIPESTATUS[0]}" )))
+}
+
 _testGit() {
 	_getDep git
 }
@@ -3713,10 +4486,15 @@ _bupRetrieve() {
 
 _setupUbiquitous_here() {
 	cat << CZXWXcRMTo8EmM8i4d
+type sudo > /dev/null 2>&1 && groups | grep -E 'wheel|sudo' > /dev/null 2>&1 && sudo -n renice -n -10 -p \$\$ > /dev/null 2>&1
+
 export profileScriptLocation="$ubcoreUBdir"/ubiquitous_bash.sh
 export profileScriptFolder="$ubcoreUBdir"
 [[ "\$scriptAbsoluteLocation" != "" ]] && . "\$scriptAbsoluteLocation" --parent _importShortcuts
 [[ "\$scriptAbsoluteLocation" == "" ]] && . "\$profileScriptLocation" --profile _importShortcuts
+
+renice -n 0 -p \$\$ > /dev/null 2>&1
+
 true
 CZXWXcRMTo8EmM8i4d
 }
@@ -3899,6 +4677,201 @@ _anchor() {
 	
 	return 0
 }
+
+
+_unix_renice_execDaemon() {
+	_cmdDaemon "$scriptAbsoluteLocation" _unix_renice_repeat
+}
+
+_unix_renice_daemon() {
+	_priority_idle_pid "$$" > /dev/null 2>&1
+	
+	_start
+	
+	_killDaemon
+	
+	
+	_unix_renice_execDaemon
+	while _daemonStatus
+	do
+		sleep 5
+	done
+	
+	_stop
+}
+
+_unix_renice_repeat() {
+	while true
+	do
+		_unix_renice_app > /dev/null 2>&1
+		sleep 10
+		_unix_renice_app > /dev/null 2>&1
+		sleep 10
+		_unix_renice_app > /dev/null 2>&1
+		sleep 10
+		_unix_renice_app > /dev/null 2>&1
+		sleep 10
+		_unix_renice_app > /dev/null 2>&1
+		sleep 10
+		_unix_renice_app > /dev/null 2>&1
+		sleep 10
+		_unix_renice_app > /dev/null 2>&1
+		sleep 10
+		_unix_renice_app > /dev/null 2>&1
+		sleep 10
+		_unix_renice_app > /dev/null 2>&1
+		sleep 10
+		
+		_unix_renice
+		sleep 10
+	done
+}
+
+_unix_renice() {
+	_priority_idle_pid "$$" > /dev/null 2>&1
+	
+	_unix_renice_critical > /dev/null 2>&1
+	_unix_renice_interactive > /dev/null 2>&1
+	_unix_renice_app > /dev/null 2>&1
+	_unix_renice_idle > /dev/null 2>&1
+}
+
+_unix_renice_critical() {
+	local processListFile
+	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
+	
+	_priority_enumerate_pattern "^ksysguard$" >> "$processListFile"
+	_priority_enumerate_pattern "^ksysguardd$" >> "$processListFile"
+	_priority_enumerate_pattern "^top$" >> "$processListFile"
+	_priority_enumerate_pattern "^iotop$" >> "$processListFile"
+	_priority_enumerate_pattern "^latencytop$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^Xorg$" >> "$processListFile"
+	_priority_enumerate_pattern "^modeset$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^smbd$" >> "$processListFile"
+	_priority_enumerate_pattern "^nmbd$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^ssh$" >> "$processListFile"
+	_priority_enumerate_pattern "^sshd$" >> "$processListFile"
+	_priority_enumerate_pattern "^ssh-agent$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^sshfs$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^socat$" >> "$processListFile"
+	
+	#_priority_enumerate_pattern "^cron$" >> "$processListFile"
+	
+	local currentPID
+	
+	while read -r currentPID
+	do
+		_priority_critical_pid "$currentPID"
+	done < "$processListFile"
+	
+	rm "$processListFile"
+}
+
+_unix_renice_interactive() {
+	local processListFile
+	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
+	
+	_priority_enumerate_pattern "^kwin$" >> "$processListFile"
+	_priority_enumerate_pattern "^pager$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^pulseaudio$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^synergy$" >> "$processListFile"
+	_priority_enumerate_pattern "^synergys$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^kactivitymanagerd$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^dbus" >> "$processListFile"
+	
+	local currentPID
+	
+	while read -r currentPID
+	do
+		_priority_interactive_pid "$currentPID"
+	done < "$processListFile"
+	
+	rm "$processListFile"
+}
+
+_unix_renice_app() {
+	local processListFile
+	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
+	
+	_priority_enumerate_pattern "^plasmashell$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^audacious$" >> "$processListFile"
+	_priority_enumerate_pattern "^vlc$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^firefox$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^dolphin$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^kwrite$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^konsole$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^pavucontrol$" >> "$processListFile"
+	
+	local currentPID
+	
+	while read -r currentPID
+	do
+		_priority_app_pid "$currentPID"
+	done < "$processListFile"
+	
+	rm "$processListFile"
+}
+
+_unix_renice_idle() {
+	local processListFile
+	processListFile="$scriptAbsoluteFolder"/.pidlist_$(_uid)
+	
+	_priority_enumerate_pattern "^packagekitd$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^apt-config$" >> "$processListFile"
+	
+	#_priority_enumerate_pattern "^ModemManager$" >> "$processListFile"
+	
+	#_priority_enumerate_pattern "^sddm$" >> "$processListFile"
+	
+	#_priority_enumerate_pattern "^lpqd$" >> "$processListFile"
+	#_priority_enumerate_pattern "^cupsd$" >> "$processListFile"
+	#_priority_enumerate_pattern "^cups-browsed$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^akonadi" >> "$processListFile"
+	_priority_enumerate_pattern "^akonadi_indexing_agent$" >> "$processListFile"
+	
+	#_priority_enumerate_pattern "^kdeconnectd$" >> "$processListFile"
+	#_priority_enumerate_pattern "^kacceessibleapp$" >> "$processListFile"
+	#_priority_enumerate_pattern "^kglobalaccel5$" >> "$processListFile"
+	
+	#_priority_enumerate_pattern "^kded4$" >> "$processListFile"
+	#_priority_enumerate_pattern "^ksmserver$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^sleep$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^exim4$" >> "$processListFile"
+	_priority_enumerate_pattern "^apache2$" >> "$processListFile"
+	_priority_enumerate_pattern "^mysqld$" >> "$processListFile"
+	_priority_enumerate_pattern "^ntpd$" >> "$processListFile"
+	#_priority_enumerate_pattern "^avahi-daemon$" >> "$processListFile"
+	
+	
+	local currentPID
+	
+	while read -r currentPID
+	do
+		_priority_idle_pid "$currentPID"
+	done < "$processListFile"
+	
+	rm "$processListFile"
+}
+
 
 
 _setup_command_commands() {
@@ -4228,8 +5201,9 @@ export initPWD="$PWD"
 intInitPWD="$PWD"
 
 #Temporary directories.
-export safeTmp="$scriptAbsoluteFolder"/w_"$sessionid"
-export scopeTmp="$scriptAbsoluteFolder"/s_"$sessionid"
+export safeTmp="$scriptAbsoluteFolder""$tmpPrefix"/w_"$sessionid"
+export scopeTmp="$scriptAbsoluteFolder""$tmpPrefix"/s_"$sessionid"
+export queryTmp="$scriptAbsoluteFolder""$tmpPrefix"/q_"$sessionid"
 export logTmp="$safeTmp"/log
 #Solely for misbehaved applications called upon.
 export shortTmp=/tmp/w_"$sessionid"
@@ -4270,6 +5244,10 @@ export bootTmp="$scriptLocal"
 [[ -d /dev/shm ]] && export bootTmp='/dev/shm'
 
 #Specialized temporary directories.
+
+#MetaEngine/Engine Tmp Defaults (example, no production use)
+#export metaTmp="$scriptAbsoluteFolder""$tmpPrefix"/.m_"$sessionid"
+#export engineTmp="$scriptAbsoluteFolder""$tmpPrefix"/.e_"$sessionid"
 
 # WARNING: Only one user per (virtual) machine. Requires _prepare_abstract . Not default.
 # DANGER: Mandatory strict directory 8.3 compliance for this variable! Long subdirectory/filenames permitted thereafter.
@@ -4373,6 +5351,9 @@ export globalBuildFS="$globalBuildDir"/fs
 export globalBuildTmp="$globalBuildDir"/tmp
 
 
+#Reset prefixes.
+export tmpPrefix=""
+
 # WARNING Must use unique netName!
 export netName=default
 export gatewayName=gw-"$netName"
@@ -4444,9 +5425,9 @@ _prepare_ssh() {
 
 #####Local Environment Management (Resources)
 
-_prepare_prog() {
-	true
-}
+#_prepare_prog() {
+#	true
+#}
 
 _extra() {
 	true
@@ -4456,12 +5437,19 @@ _prepare_abstract() {
 	! mkdir -p "$abstractfs_root" && exit 1
 	chmod 0700 "$abstractfs_root" > /dev/null 2>&1
 	! chmod 700 "$abstractfs_root" && exit 1
-	! chown "$USER":"$USER" "$abstractfs_root" && exit 1
+	if ! chown "$USER":"$USER" "$abstractfs_root" > /dev/null 2>&1
+	then
+		! /sbin/chown "$USER" "$abstractfs_root" && exit 1
+	fi
+	
 	
 	! mkdir -p "$abstractfs_lock" && exit 1
 	chmod 0700 "$abstractfs_lock" > /dev/null 2>&1
 	! chmod 700 "$abstractfs_lock" && exit 1
-	! chown "$USER":"$USER" "$abstractfs_lock" && exit 1
+	if ! chown "$USER":"$USER" "$abstractfs_lock" > /dev/null 2>&1
+	then
+		! /sbin/chown "$USER" "$abstractfs_root" && exit 1
+	fi
 }
 
 _prepare() {
@@ -4479,14 +5467,14 @@ _prepare() {
 	#_prepare_abstract
 	
 	_extra
-	_prepare_prog
+	_tryExec "_prepare_prog"
 }
 
 #####Local Environment Management (Instancing)
 
-_start_prog() {
-	true
-}
+#_start_prog() {
+#	true
+#}
 
 _start() {
 	
@@ -4500,26 +5488,26 @@ _start() {
 	_embed_here > "$safeTmp"/.embed.sh
 	chmod 755 "$safeTmp"/.embed.sh
 	
-	_start_prog
+	_tryExec "_start_prog"
 }
 
-_saveVar_prog() {
-	true
-}
+#_saveVar_prog() {
+#	true
+#}
 
 _saveVar() {
 	true
 	#declare -p varName > "$varStore"
 	
-	_saveVar_prog
+	_tryExec "_saveVar_prog"
 }
 
-_stop_prog() {
-	true
-}
+#_stop_prog() {
+#	true
+#}
 
 _stop() {
-	_stop_prog
+	_tryExec "_stop_prog"
 	
 	_preserveLog
 	
@@ -4536,10 +5524,32 @@ _stop() {
 	fi
 	
 	rm -f "$pidFile" > /dev/null 2>&1	#Redundant, as this usually resides in "$safeTmp".
-	rm -f "$ub_scope" > /dev/null 2>&1	#Symlink, or nonexistent.
-	[[ -e "$scopeTmp" ]] && _safeRMR "$scopeTmp"			#Only created if needed by scope.
+	
+	if [[ -e "$scopeTmp" ]] && [[ -e "$scopeTmp"/.pid ]] && [[ "$$" == $(cat "$scopeTmp"/.pid 2>/dev/null) ]]
+	then
+		rm -f "$ub_scope" > /dev/null 2>&1			#Symlink, or nonexistent.
+		#Only created if needed by scope.
+		[[ -e "$scopeTmp" ]] && _safeRMR "$scopeTmp"
+	fi
+	
+	#Only created if needed by query.
+	[[ -e "$queryTmp" ]] && _safeRMR "$queryTmp"
+	
+	#Only created if needed by engine.
+	[[ -e "$engineTmp" ]] && _safeRMR "$engineTmp"
+	
+	_tryExec _rm_instance_metaengine
+	_tryExec _rm_instance_channel
+	
 	_safeRMR "$shortTmp"
 	_safeRMR "$safeTmp"
+	
+	[[ -e "$safeTmp" ]] && sleep 0.1 && _safeRMR "$safeTmp"
+	[[ -e "$safeTmp" ]] && sleep 0.3 && _safeRMR "$safeTmp"
+	[[ -e "$safeTmp" ]] && sleep 1 && _safeRMR "$safeTmp"
+	[[ -e "$safeTmp" ]] && sleep 3 && _safeRMR "$safeTmp"
+	[[ -e "$safeTmp" ]] && sleep 3 && _safeRMR "$safeTmp"
+	[[ -e "$safeTmp" ]] && sleep 3 && _safeRMR "$safeTmp"
 	
 	_tryExec _rm_instance_fakeHome
 	
@@ -4555,9 +5565,9 @@ _stop() {
 }
 
 #Do not overload this unless you know why you need it instead of _stop_prog.
-_stop_emergency_prog() {
-	true
-}
+#_stop_emergency_prog() {
+#	true
+#}
 
 #Called upon SIGTERM or similar signal.
 _stop_emergency() {
@@ -4566,7 +5576,7 @@ _stop_emergency() {
 	export EMERGENCYSHUTDOWN=true
 	
 	#Not yet using _tryExec since this function would typically result from user intervention, or system shutdown, both emergency situations in which an error message would be ignored if not useful. Higher priority is guaranteeing execution if needed and available.
-	_closeChRoot_emergency
+	_tryExec "_closeChRoot_emergency"
 	
 	#Daemon uses a separate instance, and will not be affected by previous actions, possibly even if running in the foreground.
 	#jobs -p >> "$daemonPidFile" #Could derrange the correct order of descendent job termination.
@@ -4574,7 +5584,7 @@ _stop_emergency() {
 	
 	_tryExec _stop_virtLocal
 	
-	_stop_emergency_prog
+	_tryExec "_stop_emergency_prog"
 	
 	_stop "$1"
 	
@@ -4954,14 +5964,65 @@ _timetest() {
 	_stop 1
 }
 
-_test_prog() {
-	true
-}
+#_test_prog() {
+#	true
+#}
 
 _test() {
+	_messageNormal "Sanity..."
+	
+	! "$scriptAbsoluteLocation" _true && _messageFAIL && return 1
+	"$scriptAbsoluteLocation" _false && _messageFAIL && return 1
+	
+	local santiySessionID_length
+	santiySessionID_length=$(echo -n "$sessionid" | wc -c | tr -dc '0-9')
+	
+	[[ "$santiySessionID_length" -lt "18" ]] && _messageFAIL && return 1
+	[[ "$uidLengthPrefix" != "" ]] && [[ "$santiySessionID_length" -lt "$uidLengthPrefix" ]] && _messageFAIL && return 1
+	
+	[[ -e "$safeTmp" ]] && _messageFAIL && return 1
+	
 	_start
 	
-	_tryExec "_test_permissions_ubiquitous"
+	[[ ! -e "$safeTmp" ]] && _messageFAIL && return 1
+	
+	local currentTestUID=$(_uid 245)
+	mkdir -p "$safeTmp"/"$currentTestUID"
+	echo > "$safeTmp"/"$currentTestUID"/"$currentTestUID"
+	
+	[[ ! -e "$safeTmp"/"$currentTestUID"/"$currentTestUID" ]] && _messageFAIL && return 1
+	
+	rm -f "$safeTmp"/"$currentTestUID"/"$currentTestUID"
+	rmdir "$safeTmp"/"$currentTestUID"
+	
+	[[ -e "$safeTmp"/"$currentTestUID" ]] && _messageFAIL && return 1
+	
+	echo 'true' > "$safeTmp"/shouldNotOverwrite
+	mv "$safeTmp"/doesNotExist "$safeTmp"/shouldNotOverwrite > /dev/null 2>&1 && _messageFAIL && return 1
+	[[ $(cat "$safeTmp"/shouldNotOverwrite) != "true" ]] && _messageFAIL && return 1
+	rm -f "$safeTmp"/shouldNotOverwrite > /dev/null 2>&1
+	
+	
+	_getDep flock
+	
+	( flock 200; echo > "$safeTmp"/ready ; sleep 3 ) 200>"$safeTmp"/flock &
+	sleep 1
+	if ( flock 200; ! [[ -e "$safeTmp"/ready ]] ) 200>"$safeTmp"/flock
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	rm -f "$safeTmp"/flock > /dev/null 2>&1
+	rm -f "$safeTmp"/ready > /dev/null 2>&1
+	
+	_messagePASS
+	
+	
+	_messageNormal "Permissions..."
+	
+	! _test_permissions_ubiquitous && _messageFAIL
+	
+	_messagePASS
 	
 	echo -n -e '\E[1;32;46m Argument length...	\E[0m'
 	
@@ -4970,6 +6031,10 @@ _test() {
 	! testArgLength=$(getconf ARG_MAX) && _messageFAIL && _stop 1
 	[[ "$testArgLength" -lt 131071 ]] && _messageFAIL && _stop 1
 	
+	_messagePASS
+	
+	_messageNormal "Absolute pathfinding..."
+	#_tryExec "_test_getAbsoluteLocation"
 	_messagePASS
 	
 	echo -n -e '\E[1;32;46m Timing...		\E[0m'
@@ -4991,8 +6056,10 @@ _test() {
 	_getDep head
 	_getDep tail
 	
+	_getDep wc
 	
-	_getDep realpath
+	
+	! _compat_realpath && ! _wantGetDep realpath && echo 'realpath missing'
 	_getDep readlink
 	_getDep dirname
 	_getDep basename
@@ -5033,8 +6100,9 @@ _test() {
 	
 	_getDep diff
 	
-	_tryExec "_test_package"
+	_test_readlink_f
 	
+	_tryExec "_test_package"
 	
 	_tryExec "_test_daemon"
 	
@@ -5108,6 +6176,10 @@ _test() {
 	_tryExec "_test_ethereum"
 	_tryExec "_test_ethereum_parity"
 	
+	_tryExec "_test_metaengine"
+	
+	_tryExec "_test_channel"
+	
 	[[ -e /dev/urandom ]] || echo /dev/urandom missing _stop
 	
 	_messagePASS
@@ -5116,14 +6188,14 @@ _test() {
 	_vector
 	_messagePASS
 	
-	_test_prog
+	_tryExec "_test_prog"
 	
 	_stop
 }
 
-_testBuilt_prog() {
-	true
-}
+#_testBuilt_prog() {
+#	true
+#}
 
 _testBuilt() {
 	_start
@@ -5141,7 +6213,7 @@ _testBuilt() {
 	
 	_tryExec "_testBuiltExtra"
 	
-	_testBuilt_prog
+	_tryExec "_testBuilt_prog"
 	
 	_messagePASS
 	
@@ -5206,13 +6278,13 @@ _setupCommands() {
 	_tryExec "_setup_command_commands"
 }
 
-_setup_pre() {
-	true
-}
+#_setup_pre() {
+#	true
+#}
 
-_setup_prog() {
-	true
-}
+#_setup_prog() {
+#	true
+#}
 
 _setup() {
 	_start
@@ -5234,11 +6306,11 @@ _setup() {
 	
 	_setupCommands
 	
-	_setup_pre
+	_tryExec "_setup_pre"
 	
 	_tryExec "_setup_ssh"
 	
-	_setup_prog
+	_tryExec "_setup_prog"
 	
 	_stop
 }
@@ -5312,61 +6384,6 @@ _main() {
 	
 	_stop
 }
-
-#matchingReversePorts=""
-#matchingEMBEDDED=""
-
-
-#####Network Specific Variables
-#Statically embedded into monolithic ubiquitous_bash.sh/cautossh script by compile .
-
-# WARNING Must use unique netName!
-export netName=default
-export gatewayName=gw-"$netName"
-export LOCALSSHPORT=22
-
-export AUTOSSH_FIRST_POLL=45
-export AUTOSSH_POLL=45
-#export AUTOSSH_GATETIME=0
-export AUTOSSH_GATETIME=15
-#export AUTOSSH_PORT=0
-#export AUTOSSH_DEBUG=1
-#export AUTOSSH_LOGLEVEL=7
-
-_get_reversePorts() {
-	export matchingReversePorts
-	matchingReversePorts=()
-	export matchingEMBEDDED="false"
-
-	local matched
-
-	local testHostname
-	testHostname="$1"
-	[[ "$testHostname" == "" ]] && testHostname=$(hostname -s)
-
-	if [[ "$testHostname" == 'hostnameA' ]] || [[ "$testHostname" == 'hostnameB' ]]
-	then
-		matchingReversePorts+=( '20001' )
-		matched='true'
-	fi
-	if [[ "$testHostname" == 'hostnameC' ]] || [[ "$testHostname" == 'hostnameD' ]]
-	then
-		matchingReversePorts+=( '20002' )
-		export matchingEMBEDDED='true'
-		matched='true'
-	fi
-	if ! [[ "$matched" == 'true' ]] || [[ "$testHostname" == '*' ]]
-	then
-		matchingReversePorts+=( '20003' )
-	fi
-
-	export matchingReversePorts
-}
-_get_reversePorts
-export reversePorts=("${matchingReversePorts[@]}")
-export EMBEDDED="$matchingEMBEDDED"
-
-export keepKeys_SSH='true'
 
 #####Overrides
 
@@ -5455,6 +6472,10 @@ _false() {
 }
 _echo() {
 	echo "$@"
+}
+
+_diag() {
+	echo "$sessionid"
 }
 
 #Stop if script is imported, parameter not specified, and command not given.
