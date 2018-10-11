@@ -7,7 +7,7 @@ Dynamic configuration can now be achieved by scritping the "netName", "_here_ssh
 See USAGE.html. 
 
 # Version
-v2.2
+v3.0
 
 Semantic versioning is applied. Major version numbers (v2.x) indicate a compatible API. Minor numbers indicate the current feature set has been tested for usability. Any git commits not tagged with a version number may be technically considered unstable development code. New functions present in git commits may be experimental.
 

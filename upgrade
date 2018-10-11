@@ -110,11 +110,11 @@ _upgrade_derive() {
 
 _upgrade_cautossh() {
 	cd "$scriptLocation"
-	if ! git diff-index --quiet HEAD --
-	then
-		echo 'CONFLICT'
-		exit 1
-	fi
+	#if ! git diff-index --quiet HEAD --
+	#then
+	#	echo 'CONFLICT'
+	#	exit 1
+	#fi
 	git pull
 
 	_upgrade_ub "$@"
