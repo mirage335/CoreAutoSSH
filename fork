@@ -45,7 +45,7 @@ cp ./_lib/coreautossh/_lib/ubiquitous_bash/_lib/ssh/ops ./_local/ssh/ops
 #cp -a ./_lib/coreautossh/_local ./
 
 ##### Specialized project scripts.
-cp ./_lib/coreautossh/update ./
+cp ./_lib/coreautossh/upgrade ./
 cp ./_lib/coreautossh/fork ./
 
 
