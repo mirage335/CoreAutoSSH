@@ -4,7 +4,20 @@ Self-contained, robust, multipath and reverse SSH configuration package. The fra
 Dynamic configuration can now be achieved by scritping the "netName", "_here_ssh_config", and "_ssh_proxy_*" in an "ops" file. AutoSSH and Tor NAT punching are supported.
 
 
-See USAGE.html. 
+See USAGE.html.
+
+# Gateway Server
+Configuiring a short client timeout is strongly recommended to prevent AutoSSH from encountering collisions with zombie tunnels.
+
+#Aggressive.
+ClientAliveInterval 3
+ClientAliveCountMax 3
+
+#Tolerant.
+#/etc/ssh/sshd_config
+ClientAliveInterval 6
+ClientAliveCountMax 9
+
 
 # Version
 v3.0
