@@ -123,6 +123,7 @@ _upgrade_cautossh() {
 
 	_upgrade_derive "$@"
 
+	cd "$scriptLocation"
 	./compile.sh
 }
 
