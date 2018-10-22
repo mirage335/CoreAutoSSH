@@ -7,7 +7,12 @@ Dynamic configuration can now be achieved by scritping the "netName", "_here_ssh
 See USAGE.html.
 
 # Gateway Server
-Configuiring a short client timeout is strongly recommended to prevent AutoSSH from encountering collisions with zombie tunnels.
+
+#Allows tunneling public ports.
+#GatewayPorts yes
+GatewayPorts clientspecified
+
+#Configuiring a short client timeout is strongly recommended to prevent AutoSSH from encountering collisions with zombie tunnels.
 
 #Aggressive.
 ClientAliveInterval 3
