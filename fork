@@ -13,6 +13,7 @@ mkdir ./_prog
 
 git init
 
+# ATTENTION: Configure source.
 git submodule add --depth 1 git@github.com:mirage335/CoreAutoSSH.git ./_lib/coreautossh
 
 #Parent derivative of ubiquitous_bash.
