@@ -94,6 +94,8 @@ _upgrade_coreautossh() {
 	
 	cd "$scriptLocation"/_lib/coreautossh/_lib/ubiquitous_bash
 	git submodule update
+	
+	#git submodule update --recursive
 }
 
 _upgrade_derive() {
