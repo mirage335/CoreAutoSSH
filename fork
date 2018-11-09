@@ -4,6 +4,7 @@
 
 workingDir="$PWD"
 
+# ATTENTION: Configure "$netName".
 export netName=default
 mkdir -p "$workingDir"/"$netName"
 cd "$workingDir"/"$netName"
