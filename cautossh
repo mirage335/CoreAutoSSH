@@ -3095,7 +3095,8 @@ _vnc_sequence() {
 		_stop
 	fi
 	_messageNormal '_vnc_sequence: Ready: sleep, _checkPort. Launch: _vncviewer'
-	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' '"$scriptAbsoluteLocation"' _vncviewer'
+	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' vncviewer_startFull='"$vncviewer_startFull"' '"$scriptAbsoluteLocation"' _vncviewer'
+	'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' vncviewer_startFull='"$vncviewer_startFull"' '"$scriptAbsoluteLocation"' _vncviewer'
 	
 	sleep 3
 	if ! _checkPort localhost "$vncPort"
@@ -3105,7 +3106,7 @@ _vnc_sequence() {
 		_stop
 	fi
 	_messageNormal '_vnc_sequence: Ready: sleep, _checkPort. Launch: _vncviewer'
-	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' '"$scriptAbsoluteLocation"' _vncviewer'
+	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' vncviewer_startFull='"$vncviewer_startFull"' '"$scriptAbsoluteLocation"' _vncviewer'
 	
 	sleep 9
 	if ! _checkPort localhost "$vncPort"
@@ -3115,7 +3116,7 @@ _vnc_sequence() {
 		_stop
 	fi
 	_messageNormal '_vnc_sequence: Ready: sleep, _checkPort. Launch: _vncviewer'
-	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' '"$scriptAbsoluteLocation"' _vncviewer'
+	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' vncviewer_startFull='"$vncviewer_startFull"' '"$scriptAbsoluteLocation"' _vncviewer'
 	
 	
 	_messageNormal '_vnc_sequence: Done: final attempt: _vncviewer'
@@ -3155,7 +3156,7 @@ _push_vnc_sequence() {
 		_stop
 	fi
 	_messageNormal '_push_vnc_sequence: Ready: sleep, _checkPort. Launch: _vncviewer'
-	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' '"$safeTmpSSH"/cautossh' _vncviewer'
+	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' vncviewer_startFull='"$vncviewer_startFull"' '"$safeTmpSSH"/cautossh' _vncviewer'
 	
 	sleep 3
 	if ! _checkPort localhost "$vncPort"
@@ -3165,7 +3166,7 @@ _push_vnc_sequence() {
 		_stop
 	fi
 	_messageNormal '_push_vnc_sequence: Ready: sleep, _checkPort. Launch: _vncviewer'
-	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' '"$safeTmpSSH"/cautossh' _vncviewer'
+	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' vncviewer_startFull='"$vncviewer_startFull"' '"$safeTmpSSH"/cautossh' _vncviewer'
 	
 	sleep 9
 	if ! _checkPort localhost "$vncPort"
@@ -3175,7 +3176,7 @@ _push_vnc_sequence() {
 		_stop
 	fi
 	_messageNormal '_push_vnc_sequence: Ready: sleep, _checkPort. Launch: _vncviewer'
-	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' '"$safeTmpSSH"/cautossh' _vncviewer'
+	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' vncviewer_startFull='"$vncviewer_startFull"' '"$safeTmpSSH"/cautossh' _vncviewer'
 	
 	_messageNormal '_push_vnc_sequence: Done: final attempt: _vncviewer'
 	
@@ -3205,7 +3206,7 @@ _desktop_sequence() {
 	
 	_messageNormal '_vnc_sequence: Ready: _waitPort. Launch: _vncviewer'
 	
-	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' '"$scriptAbsoluteLocation"' _vncviewer'
+	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' vncviewer_startFull='"$vncviewer_startFull"' '"$scriptAbsoluteLocation"' _vncviewer'
 	stty echo > /dev/null 2>&1
 	
 	_messageNormal '_vnc_sequence: Terminate: _vncserver_terminate'
@@ -3237,7 +3238,7 @@ _push_desktop_sequence() {
 	
 	_messageNormal '_push_desktop_sequence: Ready: _waitPort. Launch: _vncviewer'
 	
-	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' destination_DISPLAY='""' '"$safeTmpSSH"/cautossh' _vncviewer'
+	cat "$vncPasswdFile".pln | _vnc_ssh -R "$vncPort":localhost:"$vncPort" "$@" 'env vncPort='"$vncPort"' destination_DISPLAY='""' vncviewer_startFull='"$vncviewer_startFull"' '"$safeTmpSSH"/cautossh' _vncviewer'
 	stty echo > /dev/null 2>&1
 	
 	_messageNormal '_push_desktop_sequence: Terminate: _vncserver_terminate'
@@ -3381,19 +3382,19 @@ _setup_ssh_operations() {
 	
 	if ! [[ -e "$scriptLocal"/ssh/id_rsa ]] && ! [[ -e "$sshLocalSSH"/id_rsa ]]
 	then
-		ssh-keygen -b 4096 -t rsa -N "" -f "$scriptLocal"/ssh/id_rsa
+		ssh-keygen -b 4096 -t rsa -N "" -f "$scriptLocal"/ssh/id_rsa -C cautossh@"$netName"
 	fi
 	
 	#Less privileged key used by asset machines to establish persistent reverse tunnels ending at a gateway server.
 	if ! [[ -e "$scriptLocal"/ssh/rev_gate ]] && ! [[ -e "$sshLocalSSH"/rev_gate ]]
 	then
-		ssh-keygen -b 4096 -t rsa -N "" -f "$scriptLocal"/ssh/rev_gate
+		ssh-keygen -b 4096 -t rsa -N "" -f "$scriptLocal"/ssh/rev_gate -C cautossh@"$netName"
 	fi
 	
 	#Less privileged key used by random machines to establish temporary reverse tunnels ending at a command machine.
 	if ! [[ -e "$scriptLocal"/ssh/rev_cmd ]] && ! [[ -e "$sshLocalSSH"/rev_cmd ]]
 	then
-		ssh-keygen -b 4096 -t rsa -N "" -f "$scriptLocal"/ssh/rev_cmd
+		ssh-keygen -b 4096 -t rsa -N "" -f "$scriptLocal"/ssh/rev_cmd -C cautossh@"$netName"
 	fi
 	
 	_here_ssh_config >> "$safeTmp"/config
@@ -3765,7 +3766,9 @@ _vncviewer_operations() {
 	then
 		_messagePlain_good 'found: vncviewer (TigerVNC)'
 		
-		if ! vncviewer -DotWhenNoCursor -passwd "$vncPasswdFile" localhost:"$vncPort" "$@"
+		[[ "$vncviewer_startFull" == "true" ]] && vncviewerArgs+=(-FullScreen)
+		
+		if ! vncviewer -DotWhenNoCursor -passwd "$vncPasswdFile" localhost:"$vncPort" "${vncviewerArgs[@]}" "$@"
 		then
 			_messagePlain_bad 'fail: vncviewer'
 			stty echo > /dev/null 2>&1
