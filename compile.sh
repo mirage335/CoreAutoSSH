@@ -158,6 +158,15 @@ fi
 
 #Override (Program).
 
+#Override, cygwin.
+
+if ! type nmap > /dev/null 2>&1 && type '/cygdrive/c/Program Files (x86)/Nmap/nmap.exe' > /dev/null 2>&1
+then
+	nmap() {
+		'/cygdrive/c/Program Files (x86)/Nmap/nmap.exe' "$@"
+	}
+fi
+
 #####Utilities
 
 _test_getAbsoluteLocation_sequence() {
@@ -1982,6 +1991,13 @@ _testFindPort() {
 	! _wantGetDep ss
 	! _wantGetDep sockstat
 	
+	# WARNING: Cygwin port range detection not yet implemented.
+	if uname -a | grep -i cygwin > /dev/null 2>&1
+	then
+		! type nmap > /dev/null 2>&1 && echo "missing socket detection" && _stop 1
+		return 0
+	fi
+	
 	! type ss > /dev/null 2>&1 && ! type sockstat > /dev/null 2>&1 && echo "missing socket detection" && _stop 1
 	
 	local machineLowerPort=$(cat /proc/sys/net/ipv4/ip_local_port_range 2> /dev/null | cut -f1)
@@ -2017,6 +2033,12 @@ _checkPort_local() {
 	if type sockstat > /dev/null 2>&1
 	then
 		sockstat -46ln | grep '\.'"$1"' ' > /dev/null 2>&1
+		return $?
+	fi
+	
+	if uname -a | grep -i cygwin > /dev/null 2>&1
+	then
+		nmap --host-timeout 0.1 -Pn localhost -p "$1" 2> /dev/null | grep open > /dev/null 2>&1
 		return $?
 	fi
 	
@@ -3079,6 +3101,8 @@ _compile_bash_header() {
 	
 	includeScriptList+=( "os/override"/override.sh )
 	includeScriptList+=( "os/override"/override_prog.sh )
+	
+	includeScriptList+=( "os/override"/override_cygwin.sh )
 }
 
 _compile_bash_header_program() {
