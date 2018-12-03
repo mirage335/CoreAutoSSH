@@ -6,6 +6,13 @@ Dynamic configuration can now be achieved by scritping the "netName", "_here_ssh
 
 See USAGE.html.
 
+# Workarounds
+
+From the x11vnc man page.
+	"You can use 3 Alt_L's (the Left "Alt" key) taps in
+	a row (as described under -scrollcopyrect) instead to
+	manually request a screen repaint when it is needed."
+
 # Gateway Server
 
 #Allows tunneling public ports.
