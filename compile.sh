@@ -179,19 +179,19 @@ fi
 
 #if ! type vncviewer > /dev/null 2>&1 && type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1
 
-#if type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
-#then
-#	vncviewer() {
-#		'/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' "$@"
-#	}
-#fi
+if type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
+then
+	vncviewer() {
+		'/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' "$@"
+	}
+fi
 
-#if type '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
-#then
-#	vncviewer() {
-#		'/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' "$@"
-#	}
-#fi
+if type '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
+then
+	vncviewer() {
+		'/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' "$@"
+	}
+fi
 
 
 #####Utilities
@@ -3254,7 +3254,8 @@ _compile_bash_utilities_virtualization() {
 	
 	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/findInfrastructure_virt.sh )
 	
-	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/osTranslation.sh )
+	# Any script managing MSW from UNIX may need basic file parameter translation without needing complete remapping. Example: "_vncviewer_operations" .
+	( [[ "$enUb_virt" == "true" ]] || [[ "$enUb_proxy" == "true" ]] ) && includeScriptList+=( "virtualization"/osTranslation.sh )
 	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/localPathTranslation.sh )
 	
 	[[ "$enUb_abstractfs" == "true" ]] && includeScriptList+=( "virtualization/abstractfs"/abstractfs.sh )

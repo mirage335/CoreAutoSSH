@@ -179,19 +179,19 @@ fi
 
 #if ! type vncviewer > /dev/null 2>&1 && type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1
 
-#if type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
-#then
-#	vncviewer() {
-#		'/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' "$@"
-#	}
-#fi
+if type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
+then
+	vncviewer() {
+		'/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' "$@"
+	}
+fi
 
-#if type '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
-#then
-#	vncviewer() {
-#		'/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' "$@"
-#	}
-#fi
+if type '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
+then
+	vncviewer() {
+		'/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' "$@"
+	}
+fi
 
 
 #Core Auto SSH v1.0
@@ -2947,7 +2947,7 @@ chmod 700 '"$safeTmpSSH"'/cautossh
 
 _stop_safeTmp_ssh() {
 #rm '"$safeTmpSSH"'/w_*/*
-	cat "$scriptAbsoluteLocation" | _ssh -C -o ConnectionAttempts=2 "$@" '
+	_ssh -C -o ConnectionAttempts=2 "$@" '
 rm '"$safeTmpSSH"'/cautossh
 rmdir '"$safeTmpSSH"'/_local
 rmdir '"$safeTmpSSH"'
@@ -3844,10 +3844,12 @@ _vncviewer_operations() {
 		
 		_messagePlain_nominal 'wait...'
 		
+		# WARNING: Relies on VNC server replying "RFP" to TCP connections.
 		sleep 9
-		while _checkPort localhost "$vncPort"
+		#while _checkPort localhost "$vncPort"
+		while _timeout 6 socat - TCP:localhost:33773,connect-timeout="$netTimeout" 2> /dev/null | grep RFB >/dev/null 2>&1
 		do
-			sleep 6
+			sleep 3
 		done
 		sleep 3
 		
@@ -4323,6 +4325,35 @@ _getUUID() {
 	cat /proc/sys/kernel/random/uuid
 }
 alias getUUID=_getUUID
+
+
+#Removes 'file://' often used by browsers.
+_removeFilePrefix() {
+	local translatedFileParam
+	translatedFileParam=${1/#file:\/\/}
+	
+	_safeEcho_newline "$translatedFileParam"
+}
+
+#Translates back slash parameters (UNIX paths) to forward slash parameters (MSW paths).
+_slashBackToForward() {
+	local translatedFileParam
+	translatedFileParam=${1//\//\\}
+	
+	_safeEcho_newline "$translatedFileParam"
+}
+
+_nixToMSW() {
+	echo -e -n 'Z:'
+	
+	local localAbsoluteFirstParam
+	localAbsoluteFirstParam=$(_getAbsoluteLocation "$1")
+	
+	local intermediateStepOne
+	intermediateStepOne=_removeFilePrefix "$localAbsoluteFirstParam"
+	
+	_slashBackToForward "$intermediateStepOne"
+}
 
 _resetFakeHomeEnv_extra() {
 	true
