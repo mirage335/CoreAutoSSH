@@ -3083,7 +3083,7 @@ _stop_safeTmp_ssh() {
 #rm '"$safeTmpSSH"'/w_*/*
 	_ssh -C -o ConnectionAttempts=2 "$@" '
 rm '"$safeTmpSSH"'/cautossh
-rmdir '"$safeTmpSSH"'/_local
+rmdir '"$safeTmpSSH"'/_local > /dev/null 2>&1
 rmdir '"$safeTmpSSH"'
 '
 	#Preventative workaround, not normally necessary.
@@ -4682,6 +4682,19 @@ _getUUID() {
 	cat /proc/sys/kernel/random/uuid
 }
 alias getUUID=_getUUID
+
+_stopwatch() {
+	local measureDateA
+	local measureDateB
+	
+	measureDateA=$(date +%s%N | cut -b1-13)
+
+	"$@"
+
+	measureDateB=$(date +%s%N | cut -b1-13)
+
+	bc <<< "$measureDateB - $measureDateA"
+}
 
 
 #Removes 'file://' often used by browsers.

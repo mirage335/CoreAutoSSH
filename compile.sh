@@ -2803,6 +2803,8 @@ _init_deps() {
 	export enUb_user=""
 	
 	export enUb_metaengine=""
+	
+	export enUb_stopwatch=""
 }
 
 _deps_dev() {
@@ -2995,6 +2997,10 @@ _deps_channel() {
 	export enUb_channel="true"
 }
 
+_deps_stopwatch() {
+	export enUb_stopwatch="true"
+}
+
 #placeholder, define under "metaengine/build"
 #_deps_metaengine() {
 #	_deps_notLean
@@ -3100,6 +3106,8 @@ _compile_bash_deps() {
 		
 		_deps_command
 		_deps_synergy
+		
+		_deps_stopwatch
 		
 		return 0
 	fi
@@ -3366,7 +3374,7 @@ _compile_bash_utilities() {
 	includeScriptList+=( "special"/uuid.sh )
 	
 	[[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "instrumentation"/bashdb/bashdb.sh )
-	[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "instrumentation"/profiling/stopwatch.sh )
+	([[ "$enUb_notLean" == "true" ]] || [[ "$enUb_stopwatch" == "true" ]]) && includeScriptList+=( "instrumentation"/profiling/stopwatch.sh )
 }
 
 _compile_bash_utilities_virtualization() {
