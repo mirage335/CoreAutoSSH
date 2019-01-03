@@ -3366,7 +3366,6 @@ _vnc_sequence() {
 	fi
 	_messageNormal '_vnc_sequence: Ready: sleep, _checkPort. Launch: _vncviewer'
 	cat "$vncPasswdFile".pln | bash -c 'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' vncviewer_startFull='"$vncviewer_startFull"' vncviewer_manual='"$vncviewer_manual"' '"$scriptAbsoluteLocation"' _vncviewer'
-	'env vncPort='"$vncPort"' destination_DISPLAY='"$DISPLAY"' destination_AUTH='"$XAUTHORITY"' vncviewer_startFull='"$vncviewer_startFull"' vncviewer_manual='"$vncviewer_manual"' '"$scriptAbsoluteLocation"' _vncviewer'
 	
 	sleep 3
 	if ! _checkPort localhost "$vncPort"
@@ -3689,7 +3688,7 @@ _setup_ssh_operations() {
 	[[ -e "$scriptLocal"/ssh/opsauto ]] && cat "$scriptLocal"/ssh/opsauto >> "$safeTmp"/opsAll
 	
 	
-	_cpDiff "$safeTmp"/opsAll "$sshLocalSSH"/ops
+	_cpDiff "$safeTmp"/opsAll "$sshLocalSSH"/ops > /dev/null 2>&1
 	
 	_setup_ssh_extra
 }
