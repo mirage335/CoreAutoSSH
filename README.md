@@ -6,6 +6,12 @@ Dynamic configuration can now be achieved by scritping the "netName", "_here_ssh
 
 See USAGE.html.
 
+# netDoc
+
+The "netDoc" project is part of "CoreAutoSSH", under the "_doc" folder.
+
+Checklists are included for "CoreAutoSSH" as well as "PFSense". Network topology for simulated and real physical networks is described.
+
 # Workarounds
 
 From the x11vnc man page.

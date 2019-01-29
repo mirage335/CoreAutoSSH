@@ -1,0 +1,73 @@
+-Certification-
+Checklist fully validated by "mirage335" through manual log kept during simulated usage prior to 2019-01-29.
+
+-CoreAutoSSH-
+*) Decide or determine entity long name, refer to as "$netName".
+	*) Only alphanumeric characters passing "tr -dc 'a-zA-Z0-9'" .
+
+*) Fork CoreAutoSSH.
+	*) Must edit "fork" script.
+		*) Correct "$netName" .
+*) Generate keys - "_setup_local" .
+
+*) Decide or determine four letter entity short name, refer to as "$netPrefix" .
+*) Decide reverse port assignment starting number, refer to as "$netStart" .
+	*) Prefer within 10000-49000.
+	*) Prefer telephone keypad for four letter entity short name.
+*) Decide public tunnel port offset number, refer to as "$offset" .
+	*) Default +100 - "netVars.sh" - "_offset_reversePorts" .
+
+*) Assign hostname with ports - "netVars.sh" - "_get_reversePorts" .
+	*) Typically 'Facility' and 'Asset' machines.
+	*) Prefer standard hostnames.
+		"$netPrefix"srv , "$netPrefix"pc , "$netPrefix"rpi
+		
+	*) Prefer first 10 ports given to first or primary 'Facility' machines, and server.
+		*) 1 - "pc", 2 - "rpi", 9 - "srv".
+	*) Prefer next 10 ports given to 'Asset' machines.
+		*) 10 - "a1", 11 - "a2"
+
+*) Tor keys.
+	*) Run "_torServer_SSH_all_launch" .
+
+*) Enumerate options, machines, paths - "ops" .
+	*) Start with netDoc as loose guidance.
+		*) Start with the existing "ops" file as a loose example.
+		*) Assign hostname without ports - "ops" - "_here_ssh_config" .
+			*) Prefer WAN router ssh name wan-"$netName", hostname "$netPrefix"w.lan .
+			*) Prefer LAN router ssh name lan-"$netName", hostname "$netPrefix"l.lan .
+		*) Assign LAN IPv4 subnet number - "ops"  - "_check_LAN"* , "_ssh_proxy_"* .
+			*) Prefer 10-49, from first two digits of telephone keypad four letter entity short name.
+		*) Assign simulated LAN IPv4 subnet number - "ops" - "_check_LAN"* , "_ssh_proxy_"* .
+			*) Prefer +10 from actual LAN subnet number.
+			*) Intended to allow 'soft' use of DHCP IPv4 address assignments without PFSense/OpenWRT default numbering conflicts.
+		*) Configure "_check_LAN_default" and "_proxy" "hostname".lan assignments - "ops - "_ssh_proxy_" .
+	*) Configure Tor hostnames.
+
+*) If needed, extend CoreAutoSSH further through "_config", "ops", and similar. If appropriate, overload "_setup_local".
+
+*) Construct "_index" shortcuts as per examples.
+
+*) Generate and record passwords, if any, under "_index" directories in "cred" text files.
+	*) Prefer format username/password .
+
+*) Configure physical network infrastructure (ie. routers).
+
+*) When available, configure gateway machine SSH server.
+	*) Short timeouts as documented in CoreAutoSSH "README.md" .
+	*) Tunnel public port forwards, if appropriate, as documented in CoreAutoSSH "README.md" .
+
+*) When available, configure SSH servers to disable password login, if appropriate.
+
+*) When available, install ssh public key at machines.
+	_ssh_copy_id_gateway root@machine-"$netName"
+	_ssh_copy_id_gateway user@machine-"$netName"
+	_ssh_copy_id_gateway pi@machine-"$netName"
+	_ssh_copy_id_gateway gateway@machine-"$netName"
+
+*) When available, install gateway public key for gateway user at gateway machine.
+	_ssh_copy_id_gateway gateway@gw-"$netName"
+
+*) When available, install command public key for gateway user at command machine.
+	*) Typically done from command machine.
+	_ssh_copy_id_command gateway@localhost

@@ -1,0 +1,43 @@
+-Certification-
+Checklist partially validated by "mirage335" through manual log kept during simulated usage prior to 2019-01-29.
+
+All steps have been performed, all aberrant behavior noted. Some discoverable configuration prerequsites may be missing, but this is unlikely.
+
+
+_PFSense_
+*) Workarounds
+	*) WebGUI performance may improve if DNS Resolver timeout is reduced. However, this apparently cannot be made persistent (https://redmine.pfsense.org/issues/790) .
+		echo 'options timeout:0.3 attempts:1' >> /etc/resolv.conf
+	*) NAT Port Forward rules will not necessarily function by default if WAN address includes IPv6. Toggling one Port Forward rule from "WAN address" to "any", "single host" with WAN IP, and/or similar, seems to resolve the issue entirely.
+*) RouterLAN
+	*) Disable referrer check if webConfigurator is to be used through port forwarding.
+		pfSsh.php playback disablereferercheck
+*) RouterLAN Wizard
+	*) Password
+	*) WAN - Hostname, IPv4 Address, IPv4 Gateway
+*) RouterLAN Interfaces
+	*) WAN IP Addresses, IPv4 Gateway
+	*) LAN IP Addresses
+*) RouterLAN System
+	*) webConfigurator Port
+	*) webConfigurator "Disable HTTP Strict Transport Security"
+	*) SSH, Enable, Port
+*) RouterLAN Firewall
+	*) Pass Router services (ie. webConfigurator, SSH) port ranges on WAN
+	*) Allow ICMP through WAN, to WAN, to LAN .
+	*) NAT (IPv4), Pass (IPv6)
+	*) Virtual IPs
+*) RouterLAN DHCP Server
+	*) DHCPv4 Dynamic Assignment Range
+	*) DHCPv6 Dynamic Assignment Range
+	*) DHCPv6 Router Advertisement Subnet
+		Must issue /64 for pickup by non-router clients.
+*) RouterWAN Routing
+	*) Gateway - ifLAN to RouterLAN Static WAN IPv6 Address
+	*) Routes - ifLAN to RouterLAN Gateway Destination RouterLAN Subnets
+*) RouterWAN Firewall
+	*) Allow ICMP through WAN, to WAN, to LAN .
+	*) NAT (IPv4), Pass (IPv6)
+*) RouterWAN Test
+	*) Ping a field computer IPv6 address connected to RouterLAN from RouterWAN.
+	*) Port check RouterWAN for RouterLAN webConfigurator and SSH IPv4 forwarding .
