@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 #####Utilities
+
 _command_messageNormal() {
 	echo -e -n '\E[1;32;46m '
 	echo -n "$@"
@@ -17,7 +18,28 @@ _command_messageError() {
 	return 0
 }
 
-#Critical prerequsites.
+
+
+_realpath_L() {
+	if ! _compat_realpath_run -L . > /dev/null 2>&1
+	then
+		readlink -f "$@"
+		return
+	fi
+	
+	realpath -L "$@"
+}
+
+_realpath_L_s() {
+	if ! _compat_realpath_run -L . > /dev/null 2>&1
+	then
+		readlink -f "$@"
+		return
+	fi
+	
+	realpath -L -s "$@"
+}
+
 _command_getAbsolute_criticalDep() {
 	! type realpath > /dev/null 2>&1 && return 1
 	! type readlink > /dev/null 2>&1 && return 1
@@ -28,8 +50,9 @@ _command_getAbsolute_criticalDep() {
 	
 	return 0
 }
-! _command_getAbsolute_criticalDep && _command_messageError "FAIL: critical pathfinding dependencies" && exit 1
+! _command_getAbsolute_criticalDep && exit 1
 
+#####Utilities.
 #Retrieves absolute path of current script, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
 #However, will dereference symlinks IF the script location itself is a symlink. This is to allow symlinking to scripts to function normally.
 #Suitable for allowing scripts to find other scripts they depend on. May look like an ugly hack, but it has proven reliable over the years.
@@ -41,20 +64,21 @@ _command_getScriptAbsoluteLocation() {
 	
 	local absoluteLocation
 	if [[ (-e $PWD\/$0) && ($0 != "") ]] && [[ "$0" != "/"* ]]
-			then
-	absoluteLocation="$PWD"\/"$0"
-	absoluteLocation=$(realpath -L -s "$absoluteLocation")
-			else
-	absoluteLocation=$(realpath -L "$0")
+	then
+		absoluteLocation="$PWD"\/"$0"
+		absoluteLocation=$(_realpath_L_s "$absoluteLocation")
+	else
+		absoluteLocation=$(_realpath_L "$0")
 	fi
-
+	
 	if [[ -h "$absoluteLocation" ]]
-			then
-	absoluteLocation=$(readlink -f "$absoluteLocation")
-	absoluteLocation=$(realpath -L "$absoluteLocation")
+	then
+		absoluteLocation=$(readlink -f "$absoluteLocation")
+		absoluteLocation=$(_realpath_L "$absoluteLocation")
 	fi
 	echo $absoluteLocation
 }
+alias getScriptAbsoluteLocation=_command_getScriptAbsoluteLocation
 
 #Retrieves absolute path of current script, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
 #Suitable for allowing scripts to find other scripts they depend on.
@@ -66,6 +90,7 @@ _command_getScriptAbsoluteFolder() {
 	
 	dirname "$(_command_getScriptAbsoluteLocation)"
 }
+alias getScriptAbsoluteFolder=_command_getScriptAbsoluteFolder
 
 #Retrieves absolute path of parameter, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
 #Suitable for finding absolute paths, when it is desirable not to interfere with symlink specified folder structure.
@@ -83,14 +108,17 @@ _command_getAbsoluteLocation() {
 	
 	local absoluteLocation
 	if [[ (-e $PWD\/$1) && ($1 != "") ]] && [[ "$1" != "/"* ]]
-			then
-	absoluteLocation="$PWD"\/"$1"
-	absoluteLocation=$(realpath -L -s "$absoluteLocation")
-			else
-	absoluteLocation=$(realpath -L "$1")
+	then
+		absoluteLocation="$PWD"\/"$1"
+		absoluteLocation=$(_realpath_L_s "$absoluteLocation")
+	else
+		absoluteLocation=$(_realpath_L "$1")
 	fi
-	echo $absoluteLocation
+	echo "$absoluteLocation"
 }
+alias getAbsoluteLocation=_command_getAbsoluteLocation
+
+
 
 #Retrieves absolute path of parameter, while maintaining symlinks, even when "./" would translate with "readlink -f" into something disregarding symlinked components in $PWD.
 #Suitable for finding absolute paths, when it is desirable not to interfere with symlink specified folder structure.
@@ -100,9 +128,11 @@ _command_getAbsoluteFolder() {
 		return 1
 	fi
 	
-	local absoluteLocation=$(_command_getAbsoluteLocation "$1")
+	local absoluteLocation=$(_getAbsoluteLocation "$1")
 	dirname "$absoluteLocation"
 }
+
+
 
 _command_discoverResource() {
 	[[ "$commandScriptAbsoluteFolder" == "" ]] && return 1
@@ -158,6 +188,9 @@ _command_safeBackup() {
 	
 	return 0
 }
+
+
+
 
 ##### Command Functions
 _command_prepare_search() {
@@ -217,16 +250,24 @@ _command_prepare_rsync_backup_config() {
 
 
 
-
-##### Config
-export criticalUser=""
-export criticalSourcePath=""
-export criticalDestinationPath=""
-export criticalDestinationPrefix=""
-export relativeBackup=""
-
+# Set by script.
 export criticalBackupSource=""
 export criticalBackupDestination=""
+
+##### Config
+
+#blank (default: 'root' if script name not '-home' or '' if script name '-home'), or 'username'
+export criticalUser=""
+#blank (default: '/' if 'criticalUser=root' or '' if script name '-home'), or '/path/to/source'
+export criticalSourcePath=""
+#blank, or 'name', or '[./]path/to/destination' (if 'relativeBackup=true')
+export criticalDestinationPath=""
+
+#blank (default: '_arc'), or '_subfolder_name'
+export criticalDestinationPrefix=""
+
+#blank, or 'true'
+export relativeBackup=""
 
 #####
 
@@ -240,6 +281,8 @@ _command_prepare_rsync_backup_config
 
 _command_messageNormal "Main - copying backup."
 #cd "$commandOuterPWD"
+
+# DANGER: WARNING: ATTENTION: Modify to enable "--delete" after testing.
 
 echo "EXAMPLE: "
 echo sudo -n "$criticalScriptLocation"' _rsync -A -X -x -avz --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found","/home/*/.gvfs"} --delete '"$criticalBackupSource" "$criticalBackupDestination"/fs
