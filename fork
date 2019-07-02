@@ -16,13 +16,16 @@ git init
 
 # ATTENTION: Configure source.
 git submodule add --depth 1 git@github.com:mirage335/CoreAutoSSH.git ./_lib/coreautossh
+cd ./_lib/coreautossh ; git fetch --shallow-exclude=v3.0 ; git reset --hard
+cd "$workingDir"/"$netName"
 
 #Parent derivative of ubiquitous_bash.
 cd ./_lib/coreautossh
 git submodule update --depth 1 --init ./_lib/ubiquitous_bash
+cd ./_lib/ubiquitous_bash ; git fetch --shallow-exclude=v3.0 ; git reset --hard
 cd "$workingDir"/"$netName"
 
-#git submodule update --depth 1 --init --recursive
+#git submodule update --init --recursive
 
 cp ./_lib/coreautossh/cautossh ./
 cp ./_lib/coreautossh/compile.sh ./
@@ -42,7 +45,7 @@ cp -a ./_lib/coreautossh/_prog/. ./_prog
 mkdir -p ./_local/ssh
 
 #Parent derivative of ubiquitous_bash.
-cp ./_lib/coreautossh/_lib/ubiquitous_bash/_lib/ssh/ops ./_local/ssh/ops
+cp ./_lib/coreautossh/_lib/ubiquitous_bash/_lib/ssh/ops.sh ./_local/ssh/ops.sh
 
 #cp -a ./_lib/coreautossh/_local ./
 

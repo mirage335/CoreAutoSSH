@@ -271,6 +271,10 @@ export relativeBackup=""
 
 #####
 
+[[ "$interactiveWaitPrompt" == "true" ]] && echo 'press enter...' && ! read && exit 1
+
+
+
 _command_prepare_search
 
 _command_prepare_rsync_backup_config
@@ -320,6 +324,12 @@ sudo -n "$criticalScriptLocation" _bupStore
 #true
 
 [[ "$?" -gt "0" ]] && _command_messageError "FAIL" && exit 1
+
+
+
+_command_messageNormal 'PASS'
+
+[[ "$interactiveWaitPrompt" == "true" ]] && echo 'press enter...' && ! read && exit 1
 
 exit 0
 

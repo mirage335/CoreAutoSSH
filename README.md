@@ -38,7 +38,7 @@ ClientAliveCountMax 9
 
 
 # Version
-v3.0
+v3.1
 
 Semantic versioning is applied. Major version numbers (v2.x) indicate a compatible API. Minor numbers indicate the current feature set has been tested for usability. Any git commits not tagged with a version number may be technically considered unstable development code. New functions present in git commits may be experimental.
 
