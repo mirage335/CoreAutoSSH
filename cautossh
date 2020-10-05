@@ -138,6 +138,7 @@ else	#FAIL, implies [[ "$ub_import" == "true" ]]
 fi
 
 #Override.
+# DANGER: Recursion hazard. Do not create overrides without checking that alternate exists.
 
 # WARNING: Only partially compatible.
 if ! type md5sum > /dev/null 2>&1 && type md5 > /dev/null 2>&1
@@ -155,6 +156,30 @@ fi
 #		md5sum "$@"
 #	}
 #fi
+
+
+# WARNING: DANGER: Compatibility may not be guaranteed!
+if ! type unionfs-fuse > /dev/null 2>&1 && type unionfs > /dev/null 2>&1 && man unionfs | grep 'unionfs-fuse - A userspace unionfs implementation' > /dev/null 2>&1
+then
+	unionfs-fuse() {
+		unionfs "$@"
+	}
+fi
+
+if ! type qemu-arm-static > /dev/null 2>&1 && type qemu-arm > /dev/null 2>&1
+then
+	qemu-arm-static() {
+		qemu-arm "$@"
+	}
+fi
+
+if ! type qemu-armeb-static > /dev/null 2>&1 && type qemu-armeb > /dev/null 2>&1
+then
+	qemu-armeb-static() {
+		qemu-armeb "$@"
+	}
+fi
+
 
 #Override (Program).
 
@@ -440,7 +465,7 @@ _compat_realpath() {
 	export compat_realpath_bin=/opt/local/libexec/gnubin/realpath
 	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
 	
-	export compat_realpath_bin=$(which realpath)
+	export compat_realpath_bin=$(type -p realpath)
 	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
 	
 	export compat_realpath_bin=/bin/realpath
@@ -680,7 +705,7 @@ _safeRMR() {
 		return 1
 	fi
 	
-	#Blacklist.
+	#Denylist.
 	[[ "$1" == "/home" ]] && return 1
 	[[ "$1" == "/home/" ]] && return 1
 	[[ "$1" == "/home/$USER" ]] && return 1
@@ -694,7 +719,7 @@ _safeRMR() {
 	[[ "$1" == "$HOME" ]] && return 1
 	[[ "$1" == "$HOME/" ]] && return 1
 	
-	#Whitelist.
+	#Allowlist.
 	local safeToRM=false
 	
 	local safeScriptAbsoluteFolder
@@ -763,7 +788,7 @@ _safePath() {
 		return 1
 	fi
 	
-	#Blacklist.
+	#Denylist.
 	[[ "$1" == "/home" ]] && return 1
 	[[ "$1" == "/home/" ]] && return 1
 	[[ "$1" == "/home/$USER" ]] && return 1
@@ -777,7 +802,7 @@ _safePath() {
 	[[ "$1" == "$HOME" ]] && return 1
 	[[ "$1" == "$HOME/" ]] && return 1
 	
-	#Whitelist.
+	#Allowlist.
 	local safeToRM=false
 	
 	local safeScriptAbsoluteFolder
@@ -1336,12 +1361,17 @@ _priority_enumerate_pattern() {
 	rm "$parentListFile"
 }
 
+# DANGER: Best practice is to call as with trailing slashes and source trailing dot .
+# _instance_internal /root/source/. /root/destination/
+# _instance_internal "$1"/. "$actualFakeHome"/"$2"/
+# DANGER: Do not silence output unless specifically required (eg. links, possibly to directories, intended not to overwrite copies).
+# _instance_internal "$globalFakeHome"/. "$actualFakeHome"/ > /dev/null 2>&1
 _instance_internal() {
 	! [[ -e "$1" ]] && return 1
 	! [[ -d "$1" ]] && return 1
 	! [[ -e "$2" ]] && return 1
 	! [[ -d "$2" ]] && return 1
-	rsync -q -ax --exclude "/.cache" --exclude "/.git" "$@"
+	rsync -q -ax --exclude "/.cache" --exclude "/.git" --exclude ".git" "$@"
 }
 
 #echo -n
@@ -1566,6 +1596,45 @@ _messagePlain_probe_cmd() {
 }
 _messageCMD() {
 	_messagePlain_probe_cmd "$@"
+}
+
+#Blue. Diagnostic instrumentation.
+#Prints "$@" with quotes around every parameter.
+_messagePlain_probe_quoteAdd() {
+	
+	#https://stackoverflow.com/questions/1668649/how-to-keep-quotes-in-bash-arguments
+	
+	local currentCommandStringPunctuated
+	local currentCommandStringParameter
+	for currentCommandStringParameter in "$@"; do 
+		currentCommandStringParameter="${currentCommandStringParameter//\\/\\\\}"
+		currentCommandStringPunctuated="$currentCommandStringPunctuated \"${currentCommandStringParameter//\"/\\\"}\""
+	done
+	#_messagePlain_probe "$currentCommandStringPunctuated"
+	
+	echo -e -n '\E[0;34m '
+	
+	_safeEcho "$currentCommandStringPunctuated"
+	
+	echo -e -n ' \E[0m'
+	echo
+	
+	return
+}
+
+#Blue. Diagnostic instrumentation.
+#Prints "$@" and runs "$@".
+# WARNING: Use with care.
+_messagePlain_probe_cmd_quoteAdd() {
+	
+	_messagePlain_probe_quoteAdd "$@"
+	
+	"$@"
+	
+	return
+}
+_messageCMD_quoteAdd() {
+	_messagePlain_probe_cmd_quoteAdd "$@"
 }
 
 #Demarcate major steps.
@@ -2664,8 +2733,8 @@ Host *-$netName*
 	UserKnownHostsFile "$sshLocalSSH/known_hosts"
 	IdentityFile "$sshLocalSSH/id_rsa"
 	
-	Cipher aes256-gcm@openssh.com
-	Ciphers aes256-gcm@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,arcfour256,arcfour128,aes128-gcm@openssh.com,chacha20-poly1305@openssh.com,aes128-cbc,3des-cbc,blowfish-cbc,cast128-cbc,aes192-cbc,aes256-cbc,arcfour
+	#Cipher aes256-gcm@openssh.com
+	#Ciphers aes256-gcm@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,arcfour256,arcfour128,aes128-gcm@openssh.com,chacha20-poly1305@openssh.com,aes128-cbc,3des-cbc,blowfish-cbc,cast128-cbc,aes192-cbc,aes256-cbc,arcfour
 
 Host machine-$netName
 	User user
@@ -5422,17 +5491,30 @@ _detect_x11() {
 	return 1
 }
 
+_typeShare() {
+	_typeDep "$1" && return 0
+	
+	[[ -e /usr/share/"$1" ]] && ! [[ -d /usr/share/"$1" ]] && return 0
+	[[ -e /usr/local/share/"$1" ]] && ! [[ -d /usr/local/share/"$1" ]] && return 0
+	
+	return 1
+}
+
 _typeDep() {
-	[[ -e /lib/"$1" ]] && return 0
-	[[ -e /lib/x86_64-linux-gnu/"$1" ]] && return 0
-	[[ -e /lib64/"$1" ]] && return 0
-	[[ -e /lib64/x86_64-linux-gnu/"$1" ]] && return 0
-	[[ -e /usr/lib/"$1" ]] && return 0
-	[[ -e /usr/lib/x86_64-linux-gnu/"$1" ]] && return 0
-	[[ -e /usr/local/lib/"$1" ]] && return 0
-	[[ -e /usr/local/lib/x86_64-linux-gnu/"$1" ]] && return 0
-	[[ -e /usr/include/"$1" ]] && return 0
-	[[ -e /usr/local/include/"$1" ]] && return 0
+	
+	# WARNING: Allows specification of entire path from root. *Strongly* prefer use of subpath matching, for increased portability.
+	[[ "$1" == '/'* ]] && [[ -e "$1" ]] && return 0
+	
+	[[ -e /lib/"$1" ]] && ! [[ -d /lib/"$1" ]] && return 0
+	[[ -e /lib/x86_64-linux-gnu/"$1" ]] && ! [[ -d /lib/x86_64-linux-gnu/"$1" ]] && return 0
+	[[ -e /lib64/"$1" ]] && ! [[ -d /lib64/"$1" ]] && return 0
+	[[ -e /lib64/x86_64-linux-gnu/"$1" ]] && ! [[ -d /lib64/x86_64-linux-gnu/"$1" ]] && return 0
+	[[ -e /usr/lib/"$1" ]] && ! [[ -d /usr/lib/"$1" ]] && return 0
+	[[ -e /usr/lib/x86_64-linux-gnu/"$1" ]] && ! [[ -d /usr/lib/x86_64-linux-gnu/"$1" ]] && return 0
+	[[ -e /usr/local/lib/"$1" ]] && ! [[ -d  /usr/local/lib/"$1" ]] && return 0
+	[[ -e /usr/local/lib/x86_64-linux-gnu/"$1" ]] && ! [[ -d /usr/local/lib/x86_64-linux-gnu/"$1" ]] && return 0
+	[[ -e /usr/include/"$1" ]] && ! [[ -d /usr/include/"$1" ]] && return 0
+	[[ -e /usr/local/include/"$1" ]] && ! [[ -d /usr/local/include/"$1" ]] && return 0
 	
 	if ! type "$1" >/dev/null 2>&1
 	then
@@ -5595,10 +5677,37 @@ _resetFakeHomeEnv() {
 #####Shortcuts
 
 _visualPrompt() {
-#+%H:%M:%S\ %Y-%m-%d\ Q%q
-#+%H:%M:%S\ %b\ %d,\ %y
-export PS1='\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])-\[\033[01;36m\]------------------------\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\ .%d)\[\033[01;34m\])-\[\033[01;36m\]- -|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]+\[\033[01;34m\]-|\#) \[\033[36m\]>\[\033[00m\] '
-} 
+	#+%H:%M:%S\ %Y-%m-%d\ Q%q
+	#+%H:%M:%S\ %b\ %d,\ %y
+
+	#Long.
+	#export PS1='\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])-\[\033[01;36m\]--\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\ .%d)\[\033[01;34m\])-\[\033[01;36m\]-|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]-|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]+\[\033[01;34m\]-|\#) \[\033[36m\]>\[\033[00m\] '
+
+	#Short.
+	#export PS1='\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])-\[\033[01;36m\]-\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\ .%d)\[\033[01;34m\])\[\033[01;36m\]|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]+\[\033[01;34m\]|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]+\[\033[01;34m\]|\#) \[\033[36m\]>\[\033[00m\] '
+	
+	#Truncated, 40 columns.
+	export PS1='\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])\[\033[01;36m\]\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\.%d)\[\033[01;34m\])\[\033[01;36m\]|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]\[\033[01;34m\]|\#) \[\033[36m\]>\[\033[00m\] '
+}
+
+#https://stackoverflow.com/questions/15432156/display-filename-before-matching-line-grep
+_grepFileLine() {
+	grep -n "$@" /dev/null
+}
+
+_findFunction() {
+	#-name '*.sh'
+	#-not -path "./_local/*"
+	#find ./blockchain -name '*.sh' -type f -size -10000k -exec grep -n "$@" '{}' /dev/null \;
+	#find ./generic -name '*.sh' -type f -size -10000k -exec grep -n "$@" '{}' /dev/null \;
+	#find ./instrumentation -name '*.sh' -type f -size -10000k -exec grep -n "$@" '{}' /dev/null \;
+	#find ./labels -name '*.sh' -type f -size -10000k -exec grep -n "$@" '{}' /dev/null \;
+	#find ./os -name '*.sh' -type f -size -10000k -exec grep -n "$@" '{}' /dev/null \;
+	#find ./shortcuts -name '*.sh' -type f -size -10000k -exec grep -n "$@" '{}' /dev/null \;
+	#find . -name '*.sh' -type f -size -10000k -exec grep -n "$@" '{}' /dev/null \;
+	
+	find . -not -path "./_local/*" -name '*.sh' -type f -size -1000k -exec grep -n "$@" '{}' /dev/null \;
+}
 
 #Simulated client/server discussion testing.
 
@@ -5714,7 +5823,7 @@ _query() {
 }
 
 _testGit() {
-	_getDep git
+	_wantGetDep git
 }
 
 #Ignores file modes, suitable for use with possibly broken filesystems like NTFS.
@@ -5763,6 +5872,7 @@ _gitNew() {
 	git init
 	git add .
 	git commit -a -m "first commit"
+	git branch -M main
 }
 
 _gitImport() {
@@ -5864,6 +5974,7 @@ _createBareGitRepo() {
 	cd $bareRepoDir
 	
 	git --bare init
+	git branch -M main
 	
 	echo "-----"
 }
@@ -5876,10 +5987,14 @@ _setBareGitRepo() {
 	git remote add origin "$bareRepoDir"
 	git push --set-upstream origin master
 	
+	# WARNING: TODO: Experimental, requires further testing. Use branch 'main' if extant.
+	git push --set-upstream origin main
+	
 	echo "-----"
 }
 
 _showGitRepoURI() {
+	echo git clone --recursive "$bareRepoAbsoluteDir" "$repoName"
 	echo git clone --recursive ssh://"$USER"@"$repoHostname""$repoPort""$bareRepoAbsoluteDir" "$repoName"
 	
 	
@@ -5992,15 +6107,820 @@ _bupRetrieve() {
 	[[ "$1" != "" ]] && bup join "$@" | tar --one-file-system --xattrs --acls -xf -
 }
 
+_kernelConfig_list_here() {
+	cat << CZXWXcRMTo8EmM8i4d
+
+
+
+CZXWXcRMTo8EmM8i4d
+}
+
+
+
+
+
+_kernelConfig_reject-comments() {
+	grep -v '^\#\|\#'
+}
+
+_kernelConfig_request() {
+	local current_kernelConfig_statement
+	current_kernelConfig_statement=$(cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=' | tr -dc 'a-zA-Z0-9\=\_')
+	
+	_messagePlain_request 'hazard: '"$1"': '"$current_kernelConfig_statement"
+}
+
+
+_kernelConfig_require-yes() {
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=y' > /dev/null 2>&1 && return 0
+	return 1
+}
+
+_kernelConfig_require-module-or-yes() {
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=m' > /dev/null 2>&1 && return 0
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=y' > /dev/null 2>&1 && return 0
+	return 1
+}
+
+# DANGER: Currently assuming lack of an entry is equivalent to option set as '=n' with make menuconfig or similar.
+_kernelConfig_require-no() {
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=m' > /dev/null 2>&1 && return 1
+	cat "$kernelConfig_file" | _kernelConfig_reject-comments | grep "$1"'\=y' > /dev/null 2>&1 && return 1
+	return 0
+}
+
+
+_kernelConfig_warn-y__() {
+	_kernelConfig_require-yes "$1" && return 0
+	_messagePlain_warn 'warn: not:    Y: '"$1"
+	export kernelConfig_warn='true'
+	return 1
+}
+
+_kernelConfig_warn-y_m() {
+	_kernelConfig_require-module-or-yes "$1" && return 0
+	_messagePlain_warn 'warn: not:  M/Y: '"$1"
+	export kernelConfig_warn='true'
+	return 1
+}
+
+_kernelConfig_warn-n__() {
+	_kernelConfig_require-no "$1" && return 0
+	_messagePlain_warn 'warn: not:    N: '"$1"
+	export kernelConfig_warn='true'
+	return 1
+}
+
+_kernelConfig_warn-any() {
+	_kernelConfig_warn-y_m "$1"
+	_kernelConfig_warn-n__ "$1"
+}
+
+_kernelConfig__bad-y__() {
+	_kernelConfig_require-yes "$1" && return 0
+	_messagePlain_bad 'bad: not:     Y: '"$1"
+	export kernelConfig_bad='true'
+	return 1
+}
+
+_kernelConfig__bad-y_m() {
+	_kernelConfig_require-module-or-yes "$1" && return 0
+	_messagePlain_bad 'bad: not:   M/Y: '"$1"
+	export kernelConfig_bad='true'
+	return 1
+}
+
+_kernelConfig__bad-n__() {
+	_kernelConfig_require-no "$1" && return 0
+	_messagePlain_bad 'bad: not:     N: '"$1"
+	export kernelConfig_bad='true'
+	return 1
+}
+
+_kernelConfig_require-tradeoff-legacy() {
+	_messagePlain_nominal 'kernelConfig: tradeoff-legacy'
+	_messagePlain_request 'Carefully evaluate '\''tradeoff-legacy'\'' for specific use cases.'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-n__ LEGACY_VSYSCALL_EMULATE
+}
+
+# WARNING: Risk must be evaluated for specific use cases.
+# WARNING: Insecure.
+# Standalone simulators (eg. flight sim):
+# * May have hard real-time frame latency limits within 10% of the fastest avaialble from a commercially avaialble CPU.
+# * May be severely single-thread CPU constrained.
+# * May have real-time workloads exactly matching those suffering half performance due to security mitigations.
+# * May not require real-time security mitigations.
+# Disabling hardening may as much as double performance for some workloads.
+# https://www.phoronix.com/scan.php?page=article&item=linux-retpoline-benchmarks&num=2
+# https://www.phoronix.com/scan.php?page=article&item=linux-416early-spectremelt&num=4
+_kernelConfig_require-tradeoff-perform() {
+	_messagePlain_nominal 'kernelConfig: tradeoff-perform'
+	_messagePlain_request 'Carefully evaluate '\''tradeoff-perform'\'' for specific use cases.'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-n__ CONFIG_RETPOLINE
+	_kernelConfig__bad-n__ CONFIG_PAGE_TABLE_ISOLATION
+	_kernelConfig__bad-n__ CONFIG_X86_SMAP
+	
+	_kernelConfig_warn-n__ AMD_MEM_ENCRYPT
+	
+	_kernelConfig__bad-y__ CONFIG_X86_INTEL_TSX_MODE_ON
+}
+
+# WARNING: Risk must be evaluated for specific use cases.
+# WARNING: BREAKS some high-performance real-time applicatons (eg. flight sim, VR, AR).
+# Standalone simulators (eg. flight sim):
+# * May have hard real-time frame latency limits within 10% of the fastest avaialble from a commercially avaialble CPU.
+# * May be severely single-thread CPU constrained.
+# * May have real-time workloads exactly matching those suffering half performance due to security mitigations.
+# * May not require real-time security mitigations.
+# Disabling hardening may as much as double performance for some workloads.
+# https://www.phoronix.com/scan.php?page=article&item=linux-retpoline-benchmarks&num=2
+# https://www.phoronix.com/scan.php?page=article&item=linux-416early-spectremelt&num=4
+_kernelConfig_require-tradeoff-harden() {
+	_messagePlain_nominal 'kernelConfig: tradeoff-harden'
+	_messagePlain_request 'Carefully evaluate '\''tradeoff-harden'\'' for specific use cases.'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-y__ CONFIG_RETPOLINE
+	_kernelConfig__bad-y__ CONFIG_PAGE_TABLE_ISOLATION
+	_kernelConfig__bad-y__ CONFIG_X86_SMAP
+	
+	# Uncertain.
+	#_kernelConfig_warn-y__ AMD_MEM_ENCRYPT
+	
+	_kernelConfig__bad-y__ CONFIG_X86_INTEL_TSX_MODE_OFF
+}
+
+# ATTENTION: Override with 'ops.sh' or similar.
+_kernelConfig_require-tradeoff() {
+	_kernelConfig_require-tradeoff-legacy "$@"
+	
+	
+	[[ "$kernelConfig_tradeoff_perform" == "" ]] && export kernelConfig_tradeoff_perform='false'
+	
+	if [[ "$kernelConfig_tradeoff_perform" == 'true' ]]
+	then
+		_kernelConfig_require-tradeoff-perform "$@"
+		return
+	fi
+	
+	_kernelConfig_require-tradeoff-harden "$@"
+	return
+}
+
+# Based on kernel config documentation and Debian default config.
+_kernelConfig_require-virtualization-accessory() {
+	_messagePlain_nominal 'kernelConfig: virtualization-accessory'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig_warn-y_m CONFIG_KVM
+	_kernelConfig_warn-y_m CONFIG_KVM_INTEL
+	_kernelConfig_warn-y_m CONFIG_KVM_AMD
+	
+	_kernelConfig_warn-y__ CONFIG_KVM_AMD_SEV
+	
+	_kernelConfig_warn-y_m CONFIG_VHOST_NET
+	_kernelConfig_warn-y_m CONFIG_VHOST_SCSI
+	_kernelConfig_warn-y_m CONFIG_VHOST_VSOCK
+	
+	_kernelConfig__bad-y_m DRM_VMWGFX
+	
+	_kernelConfig__bad-n__ CONFIG_VBOXGUEST
+	_kernelConfig__bad-n__ CONFIG_DRM_VBOXVIDEO
+	
+	_kernelConfig_warn-y__ VIRTIO_MENU
+	_kernelConfig_warn-y__ CONFIG_VIRTIO_PCI
+	_kernelConfig_warn-y__ CONFIG_VIRTIO_PCI_LEGACY
+	_kernelConfig__bad-y_m CONFIG_VIRTIO_BALLOON
+	_kernelConfig__bad-y_m CONFIG_VIRTIO_INPUT
+	_kernelConfig__bad-y_m CONFIG_VIRTIO_MMIO
+	_kernelConfig_warn-y__ CONFIG_VIRTIO_MMIO_CMDLINE_DEVICES
+	
+	_kernelConfig_warn-y_m CONFIG_DRM_VIRTIO_GPU
+	
+	# Uncertain. Apparently new feature.
+	_kernelConfig_warn-y_m CONFIG_VIRTIO_FS
+	
+	_kernelConfig_warn-y_m CONFIG_HYPERV
+	_kernelConfig_warn-y_m CONFIG_HYPERV_UTILS
+	_kernelConfig_warn-y_m CONFIG_HYPERV_BALLOON
+	
+	_kernelConfig_warn-y__ CONFIG_XEN_BALLOON
+	_kernelConfig_warn-y__ CONFIG_XEN_BALLOON_MEMORY_HOTPLUG
+	_kernelConfig_warn-y__ CONFIG_XEN_SCRUB_PAGES_DEFAULT
+	_kernelConfig__bad-y_m CONFIG_XEN_DEV_EVTCHN
+	_kernelConfig_warn-y__ CONFIG_XEN_BACKEND
+	_kernelConfig__bad-y_m CONFIG_XENFS
+	_kernelConfig_warn-y__ CONFIG_XEN_COMPAT_XENFS
+	_kernelConfig_warn-y__ CONFIG_XEN_SYS_HYPERVISOR
+	_kernelConfig__bad-y_m CONFIG_XEN_SYS_HYPERVISOR
+	_kernelConfig__bad-y_m CONFIG_XEN_GRANT_DEV_ALLOC
+	_kernelConfig__bad-y_m CONFIG_XEN_PCIDEV_BACKEND
+	_kernelConfig__bad-y_m CONFIG_XEN_SCSI_BACKEND
+	_kernelConfig__bad-y_m CONFIG_XEN_ACPI_PROCESSOR
+	_kernelConfig_warn-y__ CONFIG_XEN_MCE_LOG
+	_kernelConfig_warn-y__ CONFIG_XEN_SYMS
+	
+	_kernelConfig_warn-y__ CONFIG_DRM_XEN
+	
+	# Uncertain.
+	#_kernelConfig_warn-n__ CONFIG_XEN_SELFBALLOONING
+	#_kernelConfig_warn-n__ CONFIG_IOMMU_DEFAULT_PASSTHROUGH
+	#_kernelConfig_warn-n__ CONFIG_INTEL_IOMMU_DEFAULT_ON
+}
+
+# https://wiki.gentoo.org/wiki/VirtualBox
+_kernelConfig_require-virtualbox() {
+	_messagePlain_nominal 'kernelConfig: virtualbox'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-y__ CONFIG_X86_SYSFB
+	
+	_kernelConfig__bad-y__ CONFIG_ATA
+	_kernelConfig__bad-y__ CONFIG_SATA_AHCI
+	_kernelConfig__bad-y__ CONFIG_ATA_SFF
+	_kernelConfig__bad-y__ CONFIG_ATA_BMDMA
+	_kernelConfig__bad-y__ CONFIG_ATA_PIIX
+	
+	_kernelConfig__bad-y__ CONFIG_NETDEVICES
+	_kernelConfig__bad-y__ CONFIG_ETHERNET
+	_kernelConfig__bad-y__ CONFIG_NET_VENDOR_INTEL
+	_kernelConfig__bad-y__ CONFIG_E1000
+	
+	_kernelConfig__bad-y__ CONFIG_INPUT_KEYBOARD
+	_kernelConfig__bad-y__ CONFIG_KEYBOARD_ATKBD
+	_kernelConfig__bad-y__ CONFIG_INPUT_MOUSE
+	_kernelConfig__bad-y__ CONFIG_MOUSE_PS2
+	
+	_kernelConfig__bad-y__ CONFIG_DRM
+	_kernelConfig__bad-y__ CONFIG_DRM_FBDEV_EMULATION
+	_kernelConfig__bad-y__ CONFIG_DRM_VIRTIO_GPU
+	
+	_kernelConfig__bad-y__ CONFIG_FB
+	_kernelConfig__bad-y__ CONFIG_FIRMWARE_EDID
+	_kernelConfig__bad-y__ CONFIG_FB_SIMPLE
+	
+	_kernelConfig__bad-y__ CONFIG_FRAMEBUFFER_CONSOLE
+	_kernelConfig__bad-y__ CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY
+	
+	_kernelConfig__bad-y__ CONFIG_SOUND
+	_kernelConfig__bad-y__ CONFIG_SND
+	_kernelConfig__bad-y__ CONFIG_SND_PCI
+	_kernelConfig__bad-y__ CONFIG_SND_INTEL8X0
+	
+	_kernelConfig__bad-y__ CONFIG_USB_SUPPORT
+	_kernelConfig__bad-y__ CONFIG_USB_XHCI_HCD
+	_kernelConfig__bad-y__ CONFIG_USB_EHCI_HCD
+}
+
+
+# https://wiki.gentoo.org/wiki/Handbook:AMD64/Full/Installation#Activating_required_options
+_kernelConfig_require-boot() {
+	_messagePlain_nominal 'kernelConfig: boot'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-y__ CONFIG_FW_LOADER
+	#_kernelConfig__bad-y__ CONFIG_FIRMWARE_IN_KERNEL
+	
+	_kernelConfig__bad-y__ CONFIG_DEVTMPFS
+	_kernelConfig__bad-y__ CONFIG_DEVTMPFS_MOUNT
+	_kernelConfig__bad-y__ CONFIG_BLK_DEV_SD
+	
+	
+	_kernelConfig__bad-y__ CONFIG_EXT4_FS
+	_kernelConfig__bad-y__ CONFIG_EXT4_FS_POSIX_ACL
+	_kernelConfig__bad-y__ CONFIG_EXT4_FS_SECURITY
+	#_kernelConfig__bad-y__ CONFIG_EXT4_ENCRYPTION
+	
+	if ! _kernelConfig_warn-y__ CONFIG_EXT4_USE_FOR_EXT2 > /dev/null 2>&1
+	then
+		_kernelConfig__bad-y__ CONFIG_EXT2_FS
+		_kernelConfig__bad-y__ CONFIG_EXT3_FS
+		_kernelConfig__bad-y__ CONFIG_EXT3_FS_POSIX_ACL
+		_kernelConfig__bad-y__ CONFIG_EXT3_FS_SECURITY
+	else
+		_kernelConfig_warn-y__ CONFIG_EXT4_USE_FOR_EXT2
+	fi
+	
+	_kernelConfig__bad-y__ CONFIG_MSDOS_FS
+	_kernelConfig__bad-y__ CONFIG_VFAT_FS
+	
+	_kernelConfig__bad-y__ CONFIG_PROC_FS
+	_kernelConfig__bad-y__ CONFIG_TMPFS
+	
+	_kernelConfig__bad-y__ CONFIG_PPP
+	_kernelConfig__bad-y__ CONFIG_PPP_ASYNC
+	_kernelConfig__bad-y__ CONFIG_PPP_SYNC_TTY
+	
+	_kernelConfig__bad-y__ CONFIG_SMP
+	
+	# https://wiki.gentoo.org/wiki/Kernel/Gentoo_Kernel_Configuration_Guide
+	# 'Support for Host-side USB'
+	_kernelConfig__bad-y__ CONFIG_USB_SUPPORT
+	_kernelConfig__bad-y__ CONFIG_USB_XHCI_HCD
+	_kernelConfig__bad-y__ CONFIG_USB_EHCI_HCD
+	_kernelConfig__bad-y__ CONFIG_USB_OHCI_HCD
+	
+	_kernelConfig__bad-y__ CONFIG_HID
+	_kernelConfig__bad-y__ CONFIG_HID_GENERIC
+	_kernelConfig__bad-y__ CONFIG_HID_BATTERY_STRENGTH
+	_kernelConfig__bad-y__ CONFIG_USB_HID
+	
+	_kernelConfig__bad-y__ CONFIG_PARTITION_ADVANCED
+	_kernelConfig__bad-y__ CONFIG_EFI_PARTITION
+	
+	_kernelConfig__bad-y__ CONFIG_EFI
+	_kernelConfig__bad-y__ CONFIG_EFI_STUB
+	_kernelConfig__bad-y__ CONFIG_EFI_MIXED
+	
+	_kernelConfig__bad-y__ CONFIG_EFI_VARS
+}
+
+
+_kernelConfig_require-arch-x64() {
+	_messagePlain_nominal 'kernelConfig: arch-x64'
+	export kernelConfig_file="$1"
+	
+	# CRITICAL! Expected to accommodate modern CPUs.
+	_messagePlain_request 'request: -march=sandybridge -mtune=skylake'
+	_messagePlain_request 'export KCFLAGS="-O2 -march=sandybridge -mtune=skylake -pipe"'
+	_messagePlain_request 'export KCPPFLAGS="-O2 -march=sandybridge -mtune=skylake -pipe"'
+	
+	_kernelConfig_warn-n__ CONFIG_GENERIC_CPU
+	
+	_kernelConfig_request MCORE2
+	
+	_kernelConfig_warn-y__ CONFIG_X86_MCE
+	_kernelConfig_warn-y__ CONFIG_X86_MCE_INTEL
+	_kernelConfig_warn-y__ CONFIG_X86_MCE_AMD
+	
+	# Uncertain. May or may not improve performance.
+	_kernelConfig_warn-y__ CONFIG_INTEL_RDT
+	
+	# Maintenance may be easier with this enabled.
+	_kernelConfig_warn-y_m CONFIG_EFIVAR_FS
+	
+	# Presumably mixing entropy may be preferable.
+	_kernelConfig__bad-n__ CONFIG_RANDOM_TRUST_CPU
+	
+	
+	# If possible, it may be desirable to check clocksource defaults.
+	
+	_kernelConfig__bad-y__ X86_TSC
+	
+	_kernelConfig_warn-y__ HPET
+	_kernelConfig_warn-y__ HPET_EMULATE_RTC
+	_kernelConfig_warn-y__ HPET_MMAP
+	_kernelConfig_warn-y__ HPET_MMAP_DEFAULT
+	_kernelConfig_warn-y__ HPET_TIMER
+	
+	
+	_kernelConfig__bad-y__ CONFIG_IA32_EMULATION
+	_kernelConfig_warn-n__ IA32_AOUT
+	_kernelConfig__bad-y__ CONFIG_X86_X32
+	
+	_kernelConfig__bad-y__ CONFIG_BINFMT_ELF
+	_kernelConfig__bad-y_m CONFIG_BINFMT_MISC
+	
+	# May not have been optional under older kernel configurations.
+	_kernelConfig__bad-y__ CONFIG_BINFMT_SCRIPT
+}
+
+_kernelConfig_require-accessory() {
+	_messagePlain_nominal 'kernelConfig: accessory'
+	export kernelConfig_file="$1"
+	
+	# May be critical to 'ss' tool functionality typically expected by Ubiquitous Bash.
+	_kernelConfig_warn-y_m CONFIG_PACKET_DIAG
+	_kernelConfig_warn-y_m CONFIG_UNIX_DIAG
+	_kernelConfig_warn-y_m CONFIG_INET_DIAG
+	_kernelConfig_warn-y_m CONFIG_NETLINK_DIAG
+	
+	# Essential for a wide variety of platforms.
+	_kernelConfig_warn-y_m CONFIG_MOUSE_PS2_TRACKPOINT
+	
+	# Common and useful GPU features.
+	_kernelConfig_warn-y_m CONFIG_DRM_RADEON
+	_kernelConfig_warn-y_m CONFIG_DRM_AMDGPU
+	_kernelConfig_warn-y_m CONFIG_DRM_I915
+	_kernelConfig_warn-y_m CONFIG_DRM_VIA
+	_kernelConfig_warn-y_m CONFIG_DRM_NOUVEAU
+	
+	# Uncertain.
+	#_kernelConfig_warn-y__ CONFIG_IRQ_REMAP
+	
+	# TODO: Accessory features which may become interesting.
+	#ACPI_HMAT
+	#PCIE_BW
+	#ACRN_GUEST
+	#XILINX SDFEC
+}
+
+_kernelConfig_require-build() {
+	_messagePlain_nominal 'kernelConfig: build'
+	export kernelConfig_file="$1"
+	
+	# May cause failure if set incorrectly.
+	if ! cat "$kernelConfig_file" | grep 'CONFIG_SYSTEM_TRUSTED_KEYS\=\"\"' > /dev/null 2>&1 && ! cat "$kernelConfig_file" | grep -v 'CONFIG_SYSTEM_TRUSTED_KEYS' > /dev/null 2>&1
+	then
+		#_messagePlain_bad 'bad: not:    Y: '"$1"
+		 _messagePlain_bad 'bad: not:    _: 'CONFIG_SYSTEM_TRUSTED_KEYS
+	fi
+	
+}
+
+# ATTENTION: As desired, ignore, or override with 'ops.sh' or similar.
+# ATTENTION: Dependency of '_kernelConfig_require-latency' .
+_kernelConfig_require-latency_frequency() {
+	# High HZ rate (ie. HZ 1000) may be preferable for machines directly rendering simulator/VR graphics.
+	# Theoretically graphics VSYNC might prefer HZ 300 or similar, as a multiple of common graphics refresh rates.
+	# 25,~29.97,30,60=300 60,72=360 60,75=300 60,80=240 32,36,64,72=576
+	# Theoretically, a setting of 250 may be beneficial for virtualization where the host kernel may be 1000 .
+	# Typically values: 250,300,1000 .
+	# https://passthroughpo.st/config_hz-how-does-it-affect-kvm/
+	# https://github.com/vmprof/vmprof-python/issues/163
+	[[ "$kernelConfig_frequency" == "" ]] && export kernelConfig_frequency=300
+	
+	
+	if ! cat "$kernelConfig_file" | grep 'HZ='"$kernelConfig_frequency" > /dev/null 2>&1
+	then
+		#_messagePlain_bad  'bad: not:     Y: '"$1"
+		#_messagePlain_warn 'warn: not:    Y: '"$1"
+		 _messagePlain_bad 'bad: not:   '"$kernelConfig_frequency"': 'HZ
+	fi
+	_kernelConfig__bad-y__ HZ_"$kernelConfig_frequency"
+}
+
+_kernelConfig_require-latency() {
+	_messagePlain_nominal 'kernelConfig: latency'
+	export kernelConfig_file="$1"
+	
+	# Uncertain. Default off per Debian config.
+	_kernelConfig_warn-n__ CONFIG_X86_GENERIC
+	
+	# CRITICAL!
+	_kernelConfig__bad-y__ CPU_FREQ_DEFAULT_GOV_ONDEMAND
+	_kernelConfig__bad-y__ CONFIG_CPU_FREQ_GOV_ONDEMAND
+	
+	# CRITICAL!
+	# CONFIG_PREEMPT is significantly more stable and compatible with third party (eg. VirtualBox) modules.
+	# CONFIG_PREEMPT_RT is significantly less likely to incurr noticeable worst-case latency.
+	# Lack of both CONFIG_PREEMPT and CONFIG_PREEMPT_RT may incurr noticeable worst-case latency.
+	_kernelConfig_request CONFIG_PREEMPT
+	_kernelConfig_request CONFIG_PREEMPT_RT
+	if ! _kernelConfig__bad-y__ CONFIG_PREEMPT_RT > /dev/null 2>&1 && ! _kernelConfig__bad-y__ CONFIG_PREEMPT > /dev/null 2>&1 
+	then
+		_kernelConfig__bad-y__ CONFIG_PREEMPT
+		_kernelConfig__bad-y__ CONFIG_PREEMPT_RT
+	fi
+	
+	_kernelConfig_require-latency_frequency "$@"
+	
+	# Dynamic/Tickless kernel *might* be the cause of irregular display updates on some platforms.
+	[[ "$kernelConfig_tickless" == "" ]] && export kernelConfig_tickless='false'
+	if [[ "$kernelConfig_tickless" == 'true' ]]
+	then
+		#_kernelConfig__bad-n__ CONFIG_HZ_PERIODIC
+		#_kernelConfig__bad-y__ CONFIG_NO_HZ
+		#_kernelConfig__bad-y__ CONFIG_NO_HZ_COMMON
+		#_kernelConfig__bad-y__ CONFIG_NO_HZ_FULL
+		_kernelConfig__bad-y__ CONFIG_NO_HZ_IDLE
+		#_kernelConfig__bad-y__ CONFIG_RCU_FAST_NO_HZ
+	else
+		_kernelConfig__bad-y__ CONFIG_HZ_PERIODIC
+		_kernelConfig__bad-n__ CONFIG_NO_HZ
+		_kernelConfig__bad-n__ CONFIG_NO_HZ_COMMON
+		_kernelConfig__bad-n__ CONFIG_NO_HZ_FULL
+		_kernelConfig__bad-n__ CONFIG_NO_HZ_IDLE
+		_kernelConfig__bad-n__ CONFIG_RCU_FAST_NO_HZ
+		
+		_kernelConfig__bad-y__ CPU_IDLE_GOV_MENU
+	fi
+	
+	# Essential.
+	_kernelConfig__bad-y__ CONFIG_LATENCYTOP
+	
+	
+	# CRITICAL!
+	_kernelConfig__bad-y__ CONFIG_CGROUP_SCHED
+	_kernelConfig__bad-y__ FAIR_GROUP_SCHED
+	_kernelConfig__bad-y__ CONFIG_CFS_BANDWIDTH
+	
+	# CRITICAL!
+	# Expected to protect single-thread interactive applications from competing multi-thread workloads.
+	_kernelConfig__bad-y__ CONFIG_SCHED_AUTOGROUP
+	
+	
+	# CRITICAL!
+	# Default cannot be set currently.
+	_messagePlain_request 'request: Set '\''bfq'\'' as default IO scheduler (strongly recommended).'
+	#_kernelConfig__bad-y__ DEFAULT_IOSCHED
+	#_kernelConfig__bad-y__ DEFAULT_BFQ
+	
+	# CRITICAL!
+	# Expected to protect interactive applications from background IO.
+	# https://www.youtube.com/watch?v=ANfqNiJVoVE
+	_kernelConfig__bad-y__ CONFIG_IOSCHED_BFQ
+	_kernelConfig__bad-y__ CONFIG_BFQ_GROUP_IOSCHED
+	
+	
+	# Uncertain.
+	# https://forum.manjaro.org/t/please-enable-writeback-throttling-by-default-linux-4-10/18135/22
+	#_kernelConfig__bad-y__ BLK_WBT
+	#_kernelConfig__bad-y__ BLK_WBT_MQ
+	#_kernelConfig__bad-y__ BLK_WBT_SQ
+	
+	
+	# https://lwn.net/Articles/789304/
+	_kernelConfig__bad-y__ CONFIG_SPARSEMEM
+	
+	
+	_kernelConfig__bad-n__ CONFIG_REFCOUNT_FULL
+	_kernelConfig__bad-n__ CONFIG_DEBUG_NOTIFIERS
+	_kernelConfig_warn-n__ CONFIG_FTRACE
+	
+	_kernelConfig__bad-y__ CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
+	
+	# CRITICAL!
+	# Lightweight kernel compression theoretically may significantly accelerate startup from slow disks.
+	_kernelConfig__bad-y__ CONFIG_KERNEL_LZO
+	
+}
+
+_kernelConfig_require-memory() {
+	_messagePlain_nominal 'kernelConfig: memory'
+	export kernelConfig_file="$1"
+	
+	# Uncertain.
+	# https://fa.linux.kernel.narkive.com/CNnVwDlb/hack-bench-regression-with-config-slub-cpu-partial-disabled-info-only
+	_kernelConfig_warn-y__ CONFIG_SLUB_CPU_PARTIAL
+	
+	# Uncertain.
+	_kernelConfig_warn-y__ CONFIG_TRANSPARENT_HUGEPAGE
+	_kernelConfig_warn-y__ CONFIG_CLEANCACHE
+	_kernelConfig_warn-y__ CONFIG_FRONTSWAP
+	_kernelConfig_warn-y__ CONFIG_ZSWAP
+	
+	
+	_kernelConfig__bad-y__ CONFIG_COMPACTION
+	_kernelConfig_warn-y__ CONFIG_BALLOON_COMPACTION
+	
+	# Uncertain.
+	_kernelConfig_warn-y__ CONFIG_MEMORY_FAILURE
+	
+	# CRITICAL!
+	_kernelConfig_warn-y__ CONFIG_KSM
+}
+
+_kernelConfig_require-integration() {
+	_messagePlain_nominal 'kernelConfig: integration'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig__bad-y_m CONFIG_FUSE_FS
+	_kernelConfig__bad-y_m CONFIG_CUSE
+	_kernelConfig__bad-y__ CONFIG_OVERLAY_FS
+	_kernelConfig__bad-y_m CONFIG_NTFS_FS
+	_kernelConfig_request CONFIG_NTFS_RW
+	_kernelConfig__bad-y__ CONFIG_MSDOS_FS
+	_kernelConfig__bad-y__ CONFIG_VFAT_FS
+	_kernelConfig__bad-y__ CONFIG_MSDOS_PARTITION
+	
+	# TODO: LiveCD UnionFS or similar boot requirements.
+	
+	# Gentoo specific. Start with "gentoo-sources" if possible.
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX_UDEV
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX_PORTAGE
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX_INIT_SCRIPT
+	_kernelConfig_warn-y__ CONFIG_GENTOO_LINUX_INIT_SYSTEMD
+}
+
+# Recommended by docker ebuild during installation under Gentoo.
+_kernelConfig_require-investigation_docker() {
+	_messagePlain_nominal 'kernelConfig: investigation: docker'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig_warn-y__ CONFIG_MEMCG_SWAP_ENABLED
+	_kernelConfig_warn-y__ CONFIG_CGROUP_HUGETLB
+	_kernelConfig_warn-y__ CONFIG_RT_GROUP_SCHED
+	
+	true
+}
+
+
+# ATTENTION: Insufficiently investigated stuff to think about. Unknown consequences.
+_kernelConfig_require-investigation() {
+	_messagePlain_nominal 'kernelConfig: investigation'
+	export kernelConfig_file="$1"
+	
+	_kernelConfig_warn-any ACPI_HMAT
+	_kernelConfig_warn-any PCIE_BW
+	
+	_kernelConfig_warn-any CONFIG_UCLAMP_TASK
+	
+	_kernelConfig_warn-any CPU_IDLE_GOV_TEO
+	
+	_kernelConfig_warn-any LOCK_EVENT_COUNTS
+	
+	
+	_kernelConfig_require-investigation_docker "$@"
+	_kernelConfig_require-investigation_prog "$@"
+	true
+}
+
+
+_kernelConfig_require-investigation_prog() {
+	_messagePlain_nominal 'kernelConfig: investigation: prog'
+	export kernelConfig_file="$1"
+	
+	true
+}
+
+
+
+
+
+
+_kernelConfig_request_build() {
+	_messagePlain_request 'request: make menuconfig'
+	
+	_messagePlain_request 'request: make -j $(nproc)'
+	
+	# WARNING: Building debian kernel packages from Gentoo may be complex.
+	#https://forums.gentoo.org/viewtopic-t-1096872-start-0.html
+	#_messagePlain_request 'emerge dpkg fakeroot bc kmod cpio ; touch /var/lib/dpkg/status'
+	
+	_messagePlain_request 'request: make deb-pkg -j $(nproc)'
+}
+
+
+# ATTENTION: As desired, ignore, or override with 'ops.sh' or similar.
+_kernelConfig_panel() {
+	_messageNormal 'kernelConfig: panel'
+	
+	[[ "$kernelConfig_tradeoff_perform" == "" ]] && export kernelConfig_tradeoff_perform='false'
+	[[ "$kernelConfig_frequency" == "" ]] && export kernelConfig_frequency=300
+	[[ "$kernelConfig_tickless" == "" ]] && export kernelConfig_tickless='false'
+	
+	_kernelConfig_require-tradeoff "$@"
+	
+	_kernelConfig_require-virtualization-accessory "$@"
+	
+	_kernelConfig_require-virtualbox "$@"
+	
+	_kernelConfig_require-boot "$@"
+	
+	_kernelConfig_require-arch-x64 "$@"
+	
+	_kernelConfig_require-accessory "$@"
+	
+	_kernelConfig_require-build "$@"
+	
+	_kernelConfig_require-latency "$@"
+	
+	_kernelConfig_require-memory "$@"
+	
+	_kernelConfig_require-integration "$@"
+	
+	_kernelConfig_require-investigation "$@"
+	
+	
+	_kernelConfig_request_build
+}
+
+# ATTENTION: As desired, ignore, or override with 'ops.sh' or similar.
+_kernelConfig_mobile() {
+	_messageNormal 'kernelConfig: mobile'
+	
+	[[ "$kernelConfig_tradeoff_perform" == "" ]] && export kernelConfig_tradeoff_perform='false'
+	[[ "$kernelConfig_frequency" == "" ]] && export kernelConfig_frequency=300
+	[[ "$kernelConfig_tickless" == "" ]] && export kernelConfig_tickless='true'
+	
+	_kernelConfig_require-tradeoff "$@"
+	
+	_kernelConfig_require-virtualization-accessory "$@"
+	
+	_kernelConfig_require-virtualbox "$@"
+	
+	_kernelConfig_require-boot "$@"
+	
+	_kernelConfig_require-arch-x64 "$@"
+	
+	_kernelConfig_require-accessory "$@"
+	
+	_kernelConfig_require-build "$@"
+	
+	_kernelConfig_require-latency "$@"
+	
+	_kernelConfig_require-memory "$@"
+	
+	_kernelConfig_require-integration "$@"
+	
+	_kernelConfig_require-investigation "$@"
+	
+	
+	_kernelConfig_request_build
+}
+
+# ATTENTION: As desired, ignore, or override with 'ops.sh' or similar.
+_kernelConfig_desktop() {
+	_messageNormal 'kernelConfig: desktop'
+	
+	[[ "$kernelConfig_tradeoff_perform" == "" ]] && export kernelConfig_tradeoff_perform='false'
+	[[ "$kernelConfig_frequency" == "" ]] && export kernelConfig_frequency=1000
+	[[ "$kernelConfig_tickless" == "" ]] && export kernelConfig_tickless='false'
+	
+	_kernelConfig_require-tradeoff "$@"
+	
+	_kernelConfig_require-virtualization-accessory "$@"
+	
+	_kernelConfig_require-virtualbox "$@"
+	
+	_kernelConfig_require-boot "$@"
+	
+	_kernelConfig_require-arch-x64 "$@"
+	
+	_kernelConfig_require-accessory "$@"
+	
+	_kernelConfig_require-build "$@"
+	
+	_kernelConfig_require-latency "$@"
+	
+	_kernelConfig_require-memory "$@"
+	
+	_kernelConfig_require-integration "$@"
+	
+	_kernelConfig_require-investigation "$@"
+	
+	
+	_kernelConfig_request_build
+}
+
+
+# "$1" == alternateRootPrefix
+_write_bfq() {
+	_messagePlain_nominal 'write_bfq: init'
+	
+	_mustGetSudo
+	
+	
+	_messagePlain_nominal 'write_bfq: write'
+	
+	sudo -n cat << 'CZXWXcRMTo8EmM8i4d' | sudo tee "$1"'/etc/modules-load.d/bfq-'"$ubiquitiousBashIDshort"'.conf' > /dev/null
+bfq
+
+CZXWXcRMTo8EmM8i4d
+
+
+	cat << 'CZXWXcRMTo8EmM8i4d' | sudo tee "$1"'/etc/udev/rules.d/60-scheduler-'"$ubiquitiousBashIDshort"'.rules' > /dev/null
+ACTION=="add|change", KERNEL=="sd*[!0-9]|sr*", ATTR{queue/scheduler}="bfq"
+ACTION=="add|change", KERNEL=="nvme[0-9]n[0-9]", ATTR{queue/scheduler}="bfq"
+
+CZXWXcRMTo8EmM8i4d
+
+	_messagePlain_good 'write_bfq: success'
+
+}
+
+
+
+
+
 _setupUbiquitous_here() {
 	cat << CZXWXcRMTo8EmM8i4d
-type sudo > /dev/null 2>&1 && groups | grep -E 'wheel|sudo' > /dev/null 2>&1 && sudo -n renice -n -10 -p \$\$ > /dev/null 2>&1
 
-export profileScriptLocation="$ubcoreUBdir"/ubiquitous_bash.sh
+if type sudo > /dev/null 2>&1 && groups | grep -E 'wheel|sudo' > /dev/null 2>&1
+then
+	# Greater or equal, '_priority_critical_pid_root' .
+	sudo -n renice -n -15 -p \$\$ > /dev/null 2>&1
+	sudo -n ionice -c 2 -n 2 -p \$\$ > /dev/null 2>&1
+fi
+# ^
+# Ensures admin user shell startup, including Ubiquitous Bash, is relatively quick under heavy system load.
+# Near-realtime priority may be acceptable, due to reliability of relevant Ubiquitous Bash functions.
+# WARNING: Do NOT prioritize highly enough to interfere with embedded hard realtime processes.
+
+# WARNING: Importing complete 'ubiquitous_bash.sh' may cause other scripts to call functions inappropriate for their needs during "_test" and "_setup" .
+# This may be acceptable if the user has already run "_setup" from the imported script .
+#export profileScriptLocation="$ubcoreUBdir"/ubiquitous_bash.sh
+export profileScriptLocation="$ubcoreUBdir"/ubcore.sh
+#export profileScriptLocation="$ubcoreUBdir"/lean.sh
 export profileScriptFolder="$ubcoreUBdir"
 [[ "\$scriptAbsoluteLocation" != "" ]] && . "\$scriptAbsoluteLocation" --parent _importShortcuts
 [[ "\$scriptAbsoluteLocation" == "" ]] && . "\$profileScriptLocation" --profile _importShortcuts
 
+
+# Returns priority to normal.
+# Greater or equal, '_priority_app_pid_root' .
+#ionice -c 2 -n 3 -p \$\$
+#renice -n -5 -p \$\$ > /dev/null 2>&1
+
+# Returns priority to normal.
+# Greater or equal, '_priority_app_pid' .
+ionice -c 2 -n 4 -p \$\$
 renice -n 0 -p \$\$ > /dev/null 2>&1
 
 true
@@ -6046,7 +6966,11 @@ _gitClone_ubiquitous() {
 
 _selfCloneUbiquitous() {
 	"$scriptBin"/.ubrgbin.sh _ubrgbin_cpA "$scriptBin" "$ubcoreUBdir"/ > /dev/null 2>&1
+	cp -a "$scriptAbsoluteLocation" "$ubcoreUBdir"/lean.sh
+	cp -a "$scriptAbsoluteLocation" "$ubcoreUBdir"/ubcore.sh
 	cp -a "$scriptAbsoluteFolder"/lean.sh "$ubcoreUBdir"/lean.sh > /dev/null 2>&1
+	cp -a "$scriptAbsoluteFolder"/lean.sh "$ubcoreUBdir"/ubcore.sh > /dev/null 2>&1
+	cp -a "$scriptAbsoluteFolder"/ubcore.sh "$ubcoreUBdir"/ubcore.sh > /dev/null 2>&1
 	cp -a "$scriptAbsoluteLocation" "$ubcoreUBdir"/ubiquitous_bash.sh
 }
 
@@ -6172,23 +7096,254 @@ _resetUbiquitous() {
 _refresh_anchors_ubiquitous() {
 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_ubide
 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_ubdb
+	
+	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_test
 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_true
 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_false
+	
+	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_test.bat
+	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_true.bat
+	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_false.bat
 }
 
+# EXAMPLE ONLY.
+# _refresh_anchors() {
+# 	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/_true
+# }
+
+
+# CAUTION: Anchor scripts MUST include code to ignore '--' suffix specific software name convention!
+# CAUTION: ONLY intended to be used either with generic software, or anchors following '--' suffix specific software name convention!
+# WARNING: DO NOT enable in "core.sh". Intended to be enabled by "_local/ops.sh".
+# ATTENTION: Set "$ub_anchor_specificSoftwareName" or similar in "ops.sh".
+# ATTENTION: Set ub_anchor_user='true' or similar in "ops.sh".
+#export ub_anchor_specificSoftwareName='experimental'
+#export ub_anchor_user="true"
+_set_refresh_anchors_specific() {
+	export ub_anchor_suffix=
+	export ub_anchor_suffix
+	
+	[[ "$ub_anchor_specificSoftwareName" == "" ]] && return 0
+	
+	export ub_anchor_suffix='--'"$ub_anchor_specificSoftwareName"
+	
+	return 0
+}
+
+_refresh_anchors_specific_single_procedure() {
+	[[ "$ub_anchor_specificSoftwareName" == "" ]] && return 1
+	
+	_set_refresh_anchors_specific
+	
+	cp -a "$scriptAbsoluteFolder"/_anchor "$scriptAbsoluteFolder"/"$1""$ub_anchor_suffix"
+	
+	return 0
+}
+# Assumes user has included "$HOME"/bin in their "$PATH".
+_refresh_anchors_user_single_procedure() {
+	[[ "$ub_anchor_user" != 'true' ]] && return 1
+	
+	_set_refresh_anchors_specific
+	! mkdir -p "$HOME"/bin && return 1
+	
+	
+	# WARNING: Default to replacement. Rare case considered acceptable for several reasons.
+	# Negligible damage potential - all replaced files are symlinks or anchors.
+	# Limited to specifically named anchor symlinks, defined in "_associate_anchors_request", typically overloaded with 'core.sh' or similar.
+	# Usually requested 'manually' through "_setup" or "_anchor", even if called through a multi-installation request.
+	# Incorrectly calling a moved, uninstalled, or otherwise incorrect previous version, of linked software, is anticipated to be a more commonly impose greater risk.
+	#ln -s "$scriptAbsoluteFolder"/"$1""$ub_anchor_suffix" "$HOME"/bin/ > /dev/null 2>&1
+	ln -sf "$scriptAbsoluteFolder"/"$1""$ub_anchor_suffix" "$HOME"/bin/
+	
+	return 0
+}
+
+# ATTENTION: Overload with 'core.sh' or similar.
+# # EXAMPLE ONLY.
+# _refresh_anchors_specific() {
+# 	_refresh_anchors_specific_single_procedure _true
+# }
+# # EXAMPLE ONLY.
+# _refresh_anchors_user() {
+# 	_refresh_anchors_user_single_procedure _true
+# }
+
+
+# ATTENTION: Overload with 'core'sh' or similar.
+# _associate_anchors_request() {
+# 	if type "_refresh_anchors_user" > /dev/null 2>&1
+# 	then
+# 		_tryExec "_refresh_anchors_user"
+# 		#return
+# 	fi
+# 	
+# 	_messagePlain_request 'association: dir'
+# 	echo _scope_konsole"$ub_anchor_suffix"
+# 	
+# 	_messagePlain_request 'association: dir'
+# 	echo _scope_designer_designeride"$ub_anchor_suffix"
+# 	
+# 	_messagePlain_request 'association: dir, *.ino'
+# 	echo _designer_generate"$ub_anchor_suffix"
+# }
+
+
+
+# ATTENTION: Overload with 'core.sh' or similar.
+# WARNING: May become default behavior.
+_anchor_autoupgrade() {
+	local currentScriptBaseName
+	currentScriptBaseName=$(basename $scriptAbsoluteLocation)
+	[[ "$currentScriptBaseName" != "ubiquitous_bash.sh" ]] && return 1
+	
+	[[ "$ub_anchor_autoupgrade" != 'true' ]] && return 0
+	
+	_findUbiquitous
+	
+	[[ -e "$ubiquitiousLibDir"/_anchor ]] && cp -a "$ubiquitiousLibDir"/_anchor "$scriptAbsoluteFolder"/_anchor
+}
+
+_anchor_configure() {
+	export ubAnchorTemplateCurrent="$scriptAbsoluteFolder"/_anchor
+	[[ "$1" != "" ]] && export ubAnchorTemplateCurrent="$1"
+	
+	! [[ -e "$ubAnchorTemplateCurrent" ]] && return 1
+	
+	#https://superuser.com/questions/450868/what-is-the-simplest-scriptable-way-to-check-whether-a-shell-variable-is-exporte
+	! [ "$(bash -c 'echo ${objectName}')" ] && return 1
+	
+	
+	rm -f "$scriptAbsoluteFolder"/_anchor.tmp "$scriptAbsoluteFolder"/_anchor.tmp1 "$scriptAbsoluteFolder"/_anchor.tmp2 > /dev/null 2>&1
+	cp "$ubAnchorTemplateCurrent" "$scriptAbsoluteFolder"/_anchor.tmp
+	cp "$ubAnchorTemplateCurrent" "$scriptAbsoluteFolder"/_anchor.tmp1
+	cp "$ubAnchorTemplateCurrent" "$scriptAbsoluteFolder"/_anchor.tmp2
+	
+	cat "$scriptAbsoluteFolder"/_anchor.tmp  | sed 's/^export anchorSourceDir\=.*$/export anchorSourceDir\=\"'"$objectName"'\"/g' > "$scriptAbsoluteFolder"/_anchor.tmp1
+	#perl -p -e 's/export anchorSourceDir=.*/export anchorSourceDir="$ENV{objectName}"/g' "$scriptAbsoluteFolder"/_anchor.tmp > "$scriptAbsoluteFolder"/_anchor.tmp1
+	
+	cat "$scriptAbsoluteFolder"/_anchor.tmp1 | sed 's/^SET \"MSWanchorSourceDir\=.*$/^SET \"MSWanchorSourceDir\=\"'"$objectName"'\"/g' > "$scriptAbsoluteFolder"/_anchor.tmp2
+	#perl -p -e 's/SET "MSWanchorSourceDir=.*/SET "MSWanchorSourceDir=$ENV{objectName}"/g' "$scriptAbsoluteFolder"/_anchor.tmp1 > "$scriptAbsoluteFolder"/_anchor.tmp2
+	
+	
+	mv "$scriptAbsoluteFolder"/_anchor.tmp2 "$ubAnchorTemplateCurrent"
+	rm -f "$scriptAbsoluteFolder"/_anchor.tmp "$scriptAbsoluteFolder"/_anchor.tmp1 "$scriptAbsoluteFolder"/_anchor.tmp2 > /dev/null 2>&1
+}
+
+
 _anchor() {
+	_anchor_autoupgrade
+	
+	_anchor_configure
+	_anchor_configure "$scriptAbsoluteFolder"/_anchor.bat
+	
+	! [[ -e "$scriptAbsoluteFolder"/_anchor ]] && ! [[ -e "$scriptAbsoluteFolder"/_anchor.bat ]] && return 1
+	
 	[[ "$scriptAbsoluteFolder" == *"ubiquitous_bash" ]] && _refresh_anchors_ubiquitous
 	
 	if type "_refresh_anchors" > /dev/null 2>&1
 	then
 		_tryExec "_refresh_anchors"
-		return
+		#return
 	fi
+	
+	# CAUTION: Anchor scripts MUST include code to ignore '--' suffix specific software name convention!
+	# WARNING: DO NOT enable in "core.sh". Intended to be enabled by "_local/ops.sh".
+	if type "_refresh_anchors_specific" > /dev/null 2>&1
+	then
+		_tryExec "_refresh_anchors_specific"
+		#return
+	fi
+	
+	# CAUTION: ONLY intended to be used either with generic software, or anchors following '--' suffix specific software name convention!
+	# WARNING: DO NOT enable in "core.sh". Intended to be enabled by "_local/ops.sh".
+	if type "_refresh_anchors_user" > /dev/null 2>&1
+	then
+		_tryExec "_refresh_anchors_user"
+		#return
+	fi
+	
+	# WARNING: Calls _refresh_anchors_user . Same variables required to enable, intended to be set by "_local/ops.sh".
+	#if type "_associate_anchors_request" > /dev/null 2>&1
+	#then
+		#_tryExec "_associate_anchors_request"
+		##return
+	#fi
 	
 	return 0
 }
 
 
+
+
+_setup_renice() {
+	_messageNormal '_setup_renice'
+	
+	if [[ "$scriptAbsoluteFolder" == *'ubiquitous_bash' ]] && [[ "$1" != '--force' ]]
+	then
+		_messagePlain_bad 'bad: generic ubiquitous_bash installation detected'
+		_messageFAIL
+		_stop 1
+	fi
+	
+	
+	_messagePlain_nominal '_setup_renice: hook: ubcore'
+	local ubHome
+	ubHome="$HOME"
+	export ubcoreDir="$ubHome"/.ubcore
+	export ubcoreFile="$ubcoreDir"/.ubcorerc
+	
+	if ! [[ -e "$ubcoreFile" ]]
+	then
+		_messagePlain_warn 'fail: hook: missing: .ubcorerc'
+		return 1
+	fi
+	
+	if grep 'token_ub_renice' "$ubcoreFile" > /dev/null 2>&1
+	then
+		_messagePlain_good 'good: hook: present: .ubcorerc'
+		return 0
+	fi
+	
+	#echo '# token_ub_renice' >> "$ubcoreFile"
+	cat << CZXWXcRMTo8EmM8i4d >> "$ubcoreFile"
+
+# token_ub_renice
+if [[ "\$__overrideRecursionGuard_make" != 'true' ]] && [[ "\$__overrideKeepPriority_make" != 'true' ]] && type type > /dev/null 2>&1 && type -p make > /dev/null 2>&1
+then
+	__overrideRecursionGuard_make='true'
+	__override_make=$(type -p make 2>/dev/null)
+	make() {
+		#Greater or equal, _priority_idle_pid
+		
+ 		ionice -c 2 -n 5 -p \$\$ > /dev/null 2>&1
+		renice -n 3 -p \$\$ > /dev/null 2>&1
+		
+		"\$__override_make" "\$@"
+	}
+fi
+
+CZXWXcRMTo8EmM8i4d
+	
+	if grep 'token_ub_renice' "$ubcoreFile" > /dev/null 2>&1
+	then
+		_messagePlain_good 'good: hook: present: .ubcorerc'
+		#return 0
+	else
+		_messagePlain_bad 'fail: hook: missing: token: .ubcorerc'
+		_messageFAIL
+		return 1
+	fi
+	
+	
+	
+	_messagePlain_nominal '_setup_renice: hook: cron'
+	echo '@reboot '"$scriptAbsoluteLocation"' _unix_renice_execDaemon' | crontab -
+	
+	#echo '*/7 * * * * '"$scriptAbsoluteLocation"' _unix_renice'
+	#echo '*/1 * * * * '"$scriptAbsoluteLocation"' _unix_renice_app'
+}
+
+# WARNING: Recommend, using an independent installation (ie. not '~/core/infrastructure/ubiquitous_bash').
 _unix_renice_execDaemon() {
 	_cmdDaemon "$scriptAbsoluteLocation" _unix_renice_repeat
 }
@@ -6211,29 +7366,39 @@ _unix_renice_daemon() {
 }
 
 _unix_renice_repeat() {
+	# sleep 0.7
+	_unix_renice_app
+	_unix_renice
+	
+	sleep 3
+	_unix_renice_app
+	_unix_renice
+	
+	sleep 9
+	_unix_renice_app
+	_unix_renice
+	
+	sleep 27
+	_unix_renice_app
+	_unix_renice
+	
+	sleep 27
+	_unix_renice_app
+	_unix_renice
+	
+	local currentIteration
 	while true
 	do
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
-		_unix_renice_app > /dev/null 2>&1
-		sleep 10
+		currentIteration=0
+		while [[ "$currentIteration" -lt "4" ]]
+		do
+			sleep 120
+			[[ "$matchingEMBEDDED" != 'false' ]] && sleep 120
+			_unix_renice_app > /dev/null 2>&1
+			let currentIteration="$currentIteration"+1
+		done
 		
 		_unix_renice
-		sleep 10
 	done
 }
 
@@ -6325,6 +7490,14 @@ _unix_renice_app() {
 	
 	_priority_enumerate_pattern "^konsole$" >> "$processListFile"
 	
+	
+	_priority_enumerate_pattern "^okular$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^xournal$" >> "$processListFile"
+	
+	_priority_enumerate_pattern "^soffice.bin$" >> "$processListFile"
+	
+	
 	_priority_enumerate_pattern "^pavucontrol$" >> "$processListFile"
 	
 	local currentPID
@@ -6370,6 +7543,11 @@ _unix_renice_idle() {
 	_priority_enumerate_pattern "^mysqld$" >> "$processListFile"
 	_priority_enumerate_pattern "^ntpd$" >> "$processListFile"
 	#_priority_enumerate_pattern "^avahi-daemon$" >> "$processListFile"
+	
+	
+	# WARNING: Probably unnecessary and counterproductive. May risk halting important compile jobs.
+	#_priority_enumerate_pattern "^cc1$" >> "$processListFile"
+	#_priority_enumerate_pattern "^cc1plus$" >> "$processListFile"
 	
 	
 	local currentPID
@@ -6735,6 +7913,7 @@ export scriptLib="$scriptAbsoluteFolder"/_lib
 [[ ! -e "$scriptLib" ]] && export scriptLib="$scriptAbsoluteFolder"
 
 
+# WARNING: Standard relied upon by other standalone scripts (eg. MSW compatible _anchor.bat )
 export scriptLocal="$scriptAbsoluteFolder"/_local
 
 #For system installations (exclusively intended to support _setupUbiquitous and _drop* hooks).
@@ -6869,6 +8048,18 @@ export globalArcTmp="$globalArcDir"/tmp
 export globalBuildDir="$scriptLocal"/b
 export globalBuildFS="$globalBuildDir"/fs
 export globalBuildTmp="$globalBuildDir"/tmp
+
+
+export ub_anchor_specificSoftwareName=""
+export ub_anchor_specificSoftwareName
+
+export ub_anchor_user=""
+export ub_anchor_user
+
+export ub_anchor_autoupgrade=""
+export ub_anchor_autoupgrade
+
+
 
 # WARNING Must use unique netName!
 export netName=default
@@ -7077,6 +8268,7 @@ _stop_stty_echo() {
 	[[ "$ubFoundEchoStatus" != "" ]] && stty --file=/dev/tty "$ubFoundEchoStatus" 2> /dev/null
 }
 
+# DANGER: Use of "_stop" must NOT require successful "_start". Do NOT include actions which would not be safe if "_start" was not used or unsuccessful.
 _stop() {
 	_stop_stty_echo
 	
@@ -7558,6 +8750,78 @@ _testarglength() {
 	_messagePASS
 }
 
+_uid_test() {
+	local current_uid_1
+	local current_uid_2
+	local current_uid_3
+	
+	current_uid_1=$(_uid)
+	current_uid_2=$(_uid)
+	current_uid_3_char=$(_uid 8 | wc -c)
+	
+	if [[ "$current_uid_1" == "" ]]
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	
+	if [[ "$current_uid_2" == "" ]]
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	
+	if [[ "$current_uid_1" == "$current_uid_2" ]]
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	
+	if [[ "$current_uid_3_char" != "8" ]]
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	
+	return 0
+}
+
+
+# Creating a function from within a function may be relied upon for some overrides.
+# Enumerating a function's text with 'typeset -f' may be relied upon by some 'here document' functions.
+_define_function_test() {
+	local current_uid_1
+	current_uid_1=$(_uid)
+	
+	local current_uid_2
+	current_uid_2=$(_uid)
+	
+	# https://stackoverflow.com/questions/7145337/bash-how-do-i-create-function-from-variable
+	eval "__$current_uid_1() { __$current_uid_2() { echo $ubiquitiousBashID; }; }"
+	
+	if [[ $(typeset -f __$current_uid_1 | wc -c) -lt 50 ]]
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	
+	if [[ $(typeset -f __$current_uid_2 | wc -c) -gt 0 ]]
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	
+	__$current_uid_1
+	
+	if [[ $(typeset -f __$current_uid_2 | wc -c) -lt 15 ]]
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	
+	return 0
+}
+
 #_test_prog() {
 #	true
 #}
@@ -7608,6 +8872,29 @@ _test() {
 	fi
 	rm -f "$safeTmp"/flock > /dev/null 2>&1
 	rm -f "$safeTmp"/ready > /dev/null 2>&1
+	
+	ln -s /dev/null "$safeTmp"/working
+	ln -s /dev/null/broken "$safeTmp"/broken
+	if ! [[ -h "$safeTmp"/broken ]] || ! [[ -h "$safeTmp"/working ]] || [[ -e "$safeTmp"/broken ]] || ! [[ -e "$safeTmp"/working ]]
+	then
+		_messageFAIL
+		_stop 1
+	fi
+	rm -f "$safeTmp"/working
+	rm -f "$safeTmp"/broken
+	
+	
+	
+	_uid_test
+	
+	_define_function_test
+	
+	
+	
+	# WARNING: Not tested by default, due to lack of use except where faults are tolerable, and slim possibility of useful embedded systems not able to pass.
+	#! echo \$123 | grep -E '^\$[0-9]|^\.[0-9]' > /dev/null 2>&1 && _messageFAIL && return 1
+	#! echo \.123 | grep -E '^\$[0-9]|^\.[0-9]' > /dev/null 2>&1 && _messageFAIL && return 1
+	#echo 123 | grep -E '^\$[0-9]|^\.[0-9]' > /dev/null 2>&1 && _messageFAIL && return 1
 	
 	_messagePASS
 	
@@ -7665,13 +8952,21 @@ _test() {
 	_getDep bash
 	_getDep echo
 	_getDep cat
+	_getDep tac
 	_getDep type
 	_getDep mkdir
 	_getDep trap
 	_getDep return
 	_getDep set
 	
+	# WARNING: Deprecated. Migrate to 'type -p' instead when possible.
+	# WARNING: No known production use.
+	#https://unix.stackexchange.com/questions/85249/why-not-use-which-what-to-use-then
+	_getDep which
+	
 	_getDep printf
+	
+	_getDep stat
 	
 	_getDep dd
 	
@@ -7876,6 +9171,15 @@ _setupCommands() {
 #	true
 #}
 
+
+_setup_anchor() {
+	if type "_associate_anchors_request" > /dev/null 2>&1
+	then
+		_tryExec "_associate_anchors_request"
+		return
+	fi
+}
+
 _setup() {
 	_start
 	
@@ -7902,6 +9206,8 @@ _setup() {
 	
 	_tryExec "_setup_prog"
 	
+	_setup_anchor
+	
 	_stop
 }
 
@@ -7922,10 +9228,63 @@ _package_prog() {
 	true
 }
 
+
+_package_ubcp_copy() {
+	mkdir -p "$safeTmp"/package/_local
+	
+	if [[ -e "$scriptLocal"/ubcp ]]
+	then
+		cp -a "$scriptLocal"/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	if [[ -e "$scriptLib"/ubcp ]]
+	then
+		cp -a "$scriptLib"/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	if [[ -e "$scriptAbsoluteFolder"/ubcp ]]
+	then
+		cp -a "$scriptAbsoluteFolder"/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	
+	
+	if [[ -e "$scriptLib"/ubiquitous_bash/_local/ubcp ]]
+	then
+		cp -a "$scriptLib"/ubiquitous_bash/_local/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	if [[ -e "$scriptLib"/ubiquitous_bash/_lib/ubcp ]]
+	then
+		cp -a "$scriptLib"/ubiquitous_bash/_lib/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	if [[ -e "$scriptLib"/ubiquitous_bash/ubcp ]]
+	then
+		cp -a "$scriptLib"/ubiquitous_bash/ubcp "$safeTmp"/package/_local/
+		return 0
+	fi
+	
+	
+	cd "$outerPWD"
+	_stop 1
+}
+
+# ATTENTION: Override with 'ops' or similar ONLY if necessary.
+_package_subdir() {
+	#return 0
+	
+	mkdir -p "$safeTmp"/package/"$objectName"/
+	( shopt -s dotglob ; mv "$safeTmp"/package/* "$safeTmp"/package/"$objectName"/ )
+}
+
 # WARNING Must define "_package_license" function in ops to include license files in package!
-_package() {
+_package_procedure() {
 	_start
 	mkdir -p "$safeTmp"/package
+	
+	# WARNING: Largely due to presence of '.gitignore' files in 'ubcp' .
+	export safeToDeleteGit="true"
 	
 	_package_prog
 	
@@ -7933,11 +9292,34 @@ _package() {
 	
 	_tryExec "_package_cautossh"
 	
+	#cp -a "$scriptAbsoluteFolder"/.git "$safeTmp"/package/ > /dev/null 2>&1
+	cp "$scriptAbsoluteFolder"/.gitmodules "$safeTmp"/package/ > /dev/null 2>&1
+	
+	cp "$scriptAbsoluteFolder"/COPYING "$safeTmp"/package/ > /dev/null 2>&1
+	cp "$scriptAbsoluteFolder"/COPYING* "$safeTmp"/package/ > /dev/null 2>&1
+	
+	cp "$scriptAbsoluteFolder"/gpl.txt "$safeTmp"/package/ > /dev/null 2>&1
+	cp "$scriptAbsoluteFolder"/gpl-*.txt "$safeTmp"/package/ > /dev/null 2>&1
+	cp "$scriptAbsoluteFolder"/gpl-3.0.txt "$safeTmp"/package/ > /dev/null 2>&1
+	
+	cp "$scriptAbsoluteFolder"/agpl.txt "$safeTmp"/package/ > /dev/null 2>&1
+	cp "$scriptAbsoluteFolder"/agpl-*.txt "$safeTmp"/package/ > /dev/null 2>&1
+	cp "$scriptAbsoluteFolder"/agpl-3.0.txt "$safeTmp"/package/ > /dev/null 2>&1
+	
+	cp "$scriptAbsoluteFolder"/license.txt "$safeTmp"/package/ > /dev/null 2>&1
+	cp "$scriptAbsoluteFolder"/license*.txt "$safeTmp"/package/ > /dev/null 2>&1
+	
 	#scriptBasename=$(basename "$scriptAbsoluteLocation")
 	#cp -a "$scriptAbsoluteLocation" "$safeTmp"/package/"$scriptBasename"
 	cp -a "$scriptAbsoluteLocation" "$safeTmp"/package/
 	cp -a "$scriptAbsoluteFolder"/ops "$safeTmp"/package/
 	cp -a "$scriptAbsoluteFolder"/ops.sh "$safeTmp"/package/
+	
+	cp "$scriptAbsoluteFolder"/_* "$safeTmp"/package/
+	cp "$scriptAbsoluteFolder"/*.sh "$safeTmp"/package/
+	
+	cp -a "$scriptLocal"/ops "$safeTmp"/package/
+	cp -a "$scriptLocal"/ops.sh "$safeTmp"/package/
 	
 	#cp -a "$scriptAbsoluteFolder"/_bin "$safeTmp"
 	#cp -a "$scriptAbsoluteFolder"/_config "$safeTmp"
@@ -7948,12 +9330,39 @@ _package() {
 	cp -a "$scriptAbsoluteFolder"/README.md "$safeTmp"/package/
 	cp -a "$scriptAbsoluteFolder"/USAGE.html "$safeTmp"/package/
 	
+	if [[ "$ubPackage_enable_ubcp" == 'true' ]]
+	then
+		_package_ubcp_copy "$@"
+	fi
+	
 	cd "$safeTmp"/package/
-	tar -czvf "$scriptAbsoluteFolder"/package.tar.gz .
+	_package_subdir
+	
+	! [[ "$ubPackage_enable_ubcp" == 'true' ]] && tar -czvf "$scriptAbsoluteFolder"/package.tar.gz .
+	[[ "$ubPackage_enable_ubcp" == 'true' ]] && tar -czvf "$scriptAbsoluteFolder"/package_ubcp.tar.gz .
+	
+	if [[ "$ubPackage_enable_ubcp" == 'true' ]]
+	then
+		_messagePlain_request 'request: review contents of _local/ubcp/cygwin/home and similar directories'
+	fi
 	
 	cd "$outerPWD"
 	_stop
 }
+
+_package() {
+	export ubPackage_enable_ubcp='false'
+	"$scriptAbsoluteLocation" _package_procedure "$@"
+	
+	export ubPackage_enable_ubcp='true'
+	"$scriptAbsoluteLocation" _package_procedure "$@"
+}
+
+
+
+
+
+
 
 #####Program
 
@@ -8029,53 +9438,58 @@ then
 	trap 'excode=$?; trap "" EXIT; _stop_emergency $excode; echo $excode' INT TERM	# ignore
 fi
 
-#Override functions with external definitions from a separate file if available.
-#if [[ -e "./ops" ]]
-#then
-#	. ./ops
-#fi
+# DANGER: NEVER intended to be set in an end user shell for ANY reason.
+# DANGER: Implemented to prevent 'compile.sh' from attempting to run functions from 'ops.sh'. No other valid use currently known or anticipated!
+if [[ "$ub_ops_disable" != 'true' ]]
+then
+	#Override functions with external definitions from a separate file if available.
+	#if [[ -e "./ops" ]]
+	#then
+	#	. ./ops
+	#fi
 
-#Override functions with external definitions from a separate file if available.
-# CAUTION: Recommend only "ops" or "ops.sh" . Using both can cause confusion.
-# ATTENTION: Recommend "ops.sh" only when unusually long. Specifically intended for "CoreAutoSSH" .
-if [[ -e "$objectDir"/ops ]]
-then
-	. "$objectDir"/ops
-fi
-if [[ -e "$objectDir"/ops.sh ]]
-then
-	. "$objectDir"/ops.sh
-fi
-if [[ -e "$scriptLocal"/ops ]]
-then
-	. "$scriptLocal"/ops
-fi
-if [[ -e "$scriptLocal"/ops.sh ]]
-then
-	. "$scriptLocal"/ops.sh
-fi
-if [[ -e "$scriptLocal"/ssh/ops ]]
-then
-	. "$scriptLocal"/ssh/ops
-fi
-if [[ -e "$scriptLocal"/ssh/ops.sh ]]
-then
-	. "$scriptLocal"/ssh/ops.sh
-fi
+	#Override functions with external definitions from a separate file if available.
+	# CAUTION: Recommend only "ops" or "ops.sh" . Using both can cause confusion.
+	# ATTENTION: Recommend "ops.sh" only when unusually long. Specifically intended for "CoreAutoSSH" .
+	if [[ -e "$objectDir"/ops ]]
+	then
+		. "$objectDir"/ops
+	fi
+	if [[ -e "$objectDir"/ops.sh ]]
+	then
+		. "$objectDir"/ops.sh
+	fi
+	if [[ -e "$scriptLocal"/ops ]]
+	then
+		. "$scriptLocal"/ops
+	fi
+	if [[ -e "$scriptLocal"/ops.sh ]]
+	then
+		. "$scriptLocal"/ops.sh
+	fi
+	if [[ -e "$scriptLocal"/ssh/ops ]]
+	then
+		. "$scriptLocal"/ssh/ops
+	fi
+	if [[ -e "$scriptLocal"/ssh/ops.sh ]]
+	then
+		. "$scriptLocal"/ssh/ops.sh
+	fi
 
-#WILL BE OVERWRITTEN FREQUENTLY.
-#Intended for automatically generated shell code identifying usable resources, such as unused network ports. Do NOT use for serialization of internal variables (use $varStore for that).
-if [[ -e "$objectDir"/opsauto ]]
-then
-	. "$objectDir"/opsauto
-fi
-if [[ -e "$scriptLocal"/opsauto ]]
-then
-	. "$scriptLocal"/opsauto
-fi
-if [[ -e "$scriptLocal"/ssh/opsauto ]]
-then
-	. "$scriptLocal"/ssh/opsauto
+	#WILL BE OVERWRITTEN FREQUENTLY.
+	#Intended for automatically generated shell code identifying usable resources, such as unused network ports. Do NOT use for serialization of internal variables (use $varStore for that).
+	if [[ -e "$objectDir"/opsauto ]]
+	then
+		. "$objectDir"/opsauto
+	fi
+	if [[ -e "$scriptLocal"/opsauto ]]
+	then
+		. "$scriptLocal"/opsauto
+	fi
+	if [[ -e "$scriptLocal"/ssh/opsauto ]]
+	then
+		. "$scriptLocal"/ssh/opsauto
+	fi
 fi
 
 #Wrapper function to launch arbitrary commands within the ubiquitous_bash environment, including its PATH with scriptBin.

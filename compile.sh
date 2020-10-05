@@ -138,6 +138,7 @@ else	#FAIL, implies [[ "$ub_import" == "true" ]]
 fi
 
 #Override.
+# DANGER: Recursion hazard. Do not create overrides without checking that alternate exists.
 
 # WARNING: Only partially compatible.
 if ! type md5sum > /dev/null 2>&1 && type md5 > /dev/null 2>&1
@@ -155,6 +156,30 @@ fi
 #		md5sum "$@"
 #	}
 #fi
+
+
+# WARNING: DANGER: Compatibility may not be guaranteed!
+if ! type unionfs-fuse > /dev/null 2>&1 && type unionfs > /dev/null 2>&1 && man unionfs | grep 'unionfs-fuse - A userspace unionfs implementation' > /dev/null 2>&1
+then
+	unionfs-fuse() {
+		unionfs "$@"
+	}
+fi
+
+if ! type qemu-arm-static > /dev/null 2>&1 && type qemu-arm > /dev/null 2>&1
+then
+	qemu-arm-static() {
+		qemu-arm "$@"
+	}
+fi
+
+if ! type qemu-armeb-static > /dev/null 2>&1 && type qemu-armeb > /dev/null 2>&1
+then
+	qemu-armeb-static() {
+		qemu-armeb "$@"
+	}
+fi
+
 
 #Override (Program).
 
@@ -435,7 +460,7 @@ _compat_realpath() {
 	export compat_realpath_bin=/opt/local/libexec/gnubin/realpath
 	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
 	
-	export compat_realpath_bin=$(which realpath)
+	export compat_realpath_bin=$(type -p realpath)
 	[[ -e "$compat_realpath_bin" ]] && [[ "$compat_realpath_bin" != "" ]] && return 0
 	
 	export compat_realpath_bin=/bin/realpath
@@ -675,7 +700,7 @@ _safeRMR() {
 		return 1
 	fi
 	
-	#Blacklist.
+	#Denylist.
 	[[ "$1" == "/home" ]] && return 1
 	[[ "$1" == "/home/" ]] && return 1
 	[[ "$1" == "/home/$USER" ]] && return 1
@@ -689,7 +714,7 @@ _safeRMR() {
 	[[ "$1" == "$HOME" ]] && return 1
 	[[ "$1" == "$HOME/" ]] && return 1
 	
-	#Whitelist.
+	#Allowlist.
 	local safeToRM=false
 	
 	local safeScriptAbsoluteFolder
@@ -758,7 +783,7 @@ _safePath() {
 		return 1
 	fi
 	
-	#Blacklist.
+	#Denylist.
 	[[ "$1" == "/home" ]] && return 1
 	[[ "$1" == "/home/" ]] && return 1
 	[[ "$1" == "/home/$USER" ]] && return 1
@@ -772,7 +797,7 @@ _safePath() {
 	[[ "$1" == "$HOME" ]] && return 1
 	[[ "$1" == "$HOME/" ]] && return 1
 	
-	#Whitelist.
+	#Allowlist.
 	local safeToRM=false
 	
 	local safeScriptAbsoluteFolder
@@ -1331,12 +1356,17 @@ _priority_enumerate_pattern() {
 	rm "$parentListFile"
 }
 
+# DANGER: Best practice is to call as with trailing slashes and source trailing dot .
+# _instance_internal /root/source/. /root/destination/
+# _instance_internal "$1"/. "$actualFakeHome"/"$2"/
+# DANGER: Do not silence output unless specifically required (eg. links, possibly to directories, intended not to overwrite copies).
+# _instance_internal "$globalFakeHome"/. "$actualFakeHome"/ > /dev/null 2>&1
 _instance_internal() {
 	! [[ -e "$1" ]] && return 1
 	! [[ -d "$1" ]] && return 1
 	! [[ -e "$2" ]] && return 1
 	! [[ -d "$2" ]] && return 1
-	rsync -q -ax --exclude "/.cache" --exclude "/.git" "$@"
+	rsync -q -ax --exclude "/.cache" --exclude "/.git" --exclude ".git" "$@"
 }
 
 #echo -n
@@ -1561,6 +1591,45 @@ _messagePlain_probe_cmd() {
 }
 _messageCMD() {
 	_messagePlain_probe_cmd "$@"
+}
+
+#Blue. Diagnostic instrumentation.
+#Prints "$@" with quotes around every parameter.
+_messagePlain_probe_quoteAdd() {
+	
+	#https://stackoverflow.com/questions/1668649/how-to-keep-quotes-in-bash-arguments
+	
+	local currentCommandStringPunctuated
+	local currentCommandStringParameter
+	for currentCommandStringParameter in "$@"; do 
+		currentCommandStringParameter="${currentCommandStringParameter//\\/\\\\}"
+		currentCommandStringPunctuated="$currentCommandStringPunctuated \"${currentCommandStringParameter//\"/\\\"}\""
+	done
+	#_messagePlain_probe "$currentCommandStringPunctuated"
+	
+	echo -e -n '\E[0;34m '
+	
+	_safeEcho "$currentCommandStringPunctuated"
+	
+	echo -e -n ' \E[0m'
+	echo
+	
+	return
+}
+
+#Blue. Diagnostic instrumentation.
+#Prints "$@" and runs "$@".
+# WARNING: Use with care.
+_messagePlain_probe_cmd_quoteAdd() {
+	
+	_messagePlain_probe_quoteAdd "$@"
+	
+	"$@"
+	
+	return
+}
+_messageCMD_quoteAdd() {
+	_messagePlain_probe_cmd_quoteAdd "$@"
 }
 
 #Demarcate major steps.
@@ -2438,17 +2507,30 @@ _preserveLog() {
 	cp "$logTmp"/* "$permaLog"/ > /dev/null 2>&1
 }
 
+_typeShare() {
+	_typeDep "$1" && return 0
+	
+	[[ -e /usr/share/"$1" ]] && ! [[ -d /usr/share/"$1" ]] && return 0
+	[[ -e /usr/local/share/"$1" ]] && ! [[ -d /usr/local/share/"$1" ]] && return 0
+	
+	return 1
+}
+
 _typeDep() {
-	[[ -e /lib/"$1" ]] && return 0
-	[[ -e /lib/x86_64-linux-gnu/"$1" ]] && return 0
-	[[ -e /lib64/"$1" ]] && return 0
-	[[ -e /lib64/x86_64-linux-gnu/"$1" ]] && return 0
-	[[ -e /usr/lib/"$1" ]] && return 0
-	[[ -e /usr/lib/x86_64-linux-gnu/"$1" ]] && return 0
-	[[ -e /usr/local/lib/"$1" ]] && return 0
-	[[ -e /usr/local/lib/x86_64-linux-gnu/"$1" ]] && return 0
-	[[ -e /usr/include/"$1" ]] && return 0
-	[[ -e /usr/local/include/"$1" ]] && return 0
+	
+	# WARNING: Allows specification of entire path from root. *Strongly* prefer use of subpath matching, for increased portability.
+	[[ "$1" == '/'* ]] && [[ -e "$1" ]] && return 0
+	
+	[[ -e /lib/"$1" ]] && ! [[ -d /lib/"$1" ]] && return 0
+	[[ -e /lib/x86_64-linux-gnu/"$1" ]] && ! [[ -d /lib/x86_64-linux-gnu/"$1" ]] && return 0
+	[[ -e /lib64/"$1" ]] && ! [[ -d /lib64/"$1" ]] && return 0
+	[[ -e /lib64/x86_64-linux-gnu/"$1" ]] && ! [[ -d /lib64/x86_64-linux-gnu/"$1" ]] && return 0
+	[[ -e /usr/lib/"$1" ]] && ! [[ -d /usr/lib/"$1" ]] && return 0
+	[[ -e /usr/lib/x86_64-linux-gnu/"$1" ]] && ! [[ -d /usr/lib/x86_64-linux-gnu/"$1" ]] && return 0
+	[[ -e /usr/local/lib/"$1" ]] && ! [[ -d  /usr/local/lib/"$1" ]] && return 0
+	[[ -e /usr/local/lib/x86_64-linux-gnu/"$1" ]] && ! [[ -d /usr/local/lib/x86_64-linux-gnu/"$1" ]] && return 0
+	[[ -e /usr/include/"$1" ]] && ! [[ -d /usr/include/"$1" ]] && return 0
+	[[ -e /usr/local/include/"$1" ]] && ! [[ -d /usr/local/include/"$1" ]] && return 0
 	
 	if ! type "$1" >/dev/null 2>&1
 	then
@@ -2619,6 +2701,7 @@ export scriptLib="$scriptAbsoluteFolder"/_lib
 [[ ! -e "$scriptLib" ]] && export scriptLib="$scriptAbsoluteFolder"
 
 
+# WARNING: Standard relied upon by other standalone scripts (eg. MSW compatible _anchor.bat )
 export scriptLocal="$scriptAbsoluteFolder"/_local
 
 #For system installations (exclusively intended to support _setupUbiquitous and _drop* hooks).
@@ -2753,6 +2836,18 @@ export globalArcTmp="$globalArcDir"/tmp
 export globalBuildDir="$scriptLocal"/b
 export globalBuildFS="$globalBuildDir"/fs
 export globalBuildTmp="$globalBuildDir"/tmp
+
+
+export ub_anchor_specificSoftwareName=""
+export ub_anchor_specificSoftwareName
+
+export ub_anchor_user=""
+export ub_anchor_user
+
+export ub_anchor_autoupgrade=""
+export ub_anchor_autoupgrade
+
+
 
 _deps_metaengine() {
 # 	#_deps_notLean
@@ -2933,9 +3028,19 @@ _deps_blockchain() {
 	export enUb_blockchain="true"
 }
 
+_deps_java() {
+	export enUb_java="true"
+}
+
 _deps_image() {
 	_deps_notLean
 	_deps_machineinfo
+	
+	# DANGER: Required for safety mechanisms which may also be used by some other virtualization backends!
+	# _deps_image
+	# _deps_chroot
+	# _deps_vbox
+	# _deps_qemu
 	export enUb_image="true"
 }
 
@@ -2949,7 +3054,19 @@ _deps_virt_thick() {
 
 _deps_virt() {
 	_deps_machineinfo
+	
+	# WARNING: Includes 'findInfrastructure_virt' which may be a dependency of multiple virtualization backends.
+	# _deps_image
+	# _deps_chroot
+	# _deps_vbox
+	# _deps_qemu
+	# _deps_docker
 	export enUb_virt="true"
+}
+
+# Specifically intended to support shortcuts using file parameter translation.
+_deps_virt_translation() {
+	export enUb_virt_translation="true"
 }
 
 _deps_chroot() {
@@ -3052,6 +3169,13 @@ _deps_stopwatch() {
 	export enUb_stopwatch="true"
 }
 
+# WARNING: Specifically refers to 'Linux', the kernel, and things specific to it, NOT any other UNIX like features.
+# WARNING: Beware Linux shortcut specific dependency programs must not be required, or will break other operating systems!
+# ie. _test_linux must not require Linux-only binaries
+_deps_linux() {
+	export enUb_linux="true"
+}
+
 #placeholder, define under "metaengine/build"
 #_deps_metaengine() {
 #	_deps_notLean
@@ -3085,6 +3209,7 @@ _generate_bash() {
 	_compile_bash_selfHost
 	_compile_bash_selfHost_prog
 	
+	_compile_bash_overrides_disable
 	_compile_bash_overrides
 	
 	_includeScripts "${includeScriptList[@]}"
@@ -3115,6 +3240,7 @@ _generate_compile_bash() {
 	"$scriptAbsoluteFolder"/compile.sh _compile_bash
 	
 	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash lean lean.sh
+	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash ubcore ubcore.sh
 	
 	[[ "$1" != "" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash "$@"
 	
@@ -3142,7 +3268,38 @@ _generate_compile_bash_prog() {
 
 #Default is to include all, or run a specified configuration. For this reason, it will be more typical to override this entire function, rather than append any additional code.
 _compile_bash_deps() {
-	[[ "$1" == "lean" ]] && return 0
+	if [[ "$1" == "lean" ]]
+	then
+		#_deps_git
+		
+		#_deps_virt_translation
+		
+		#_deps_stopwatch
+		
+		return 0
+	fi
+	
+	# Specifically intended to be imported into user profile.
+	if [[ "$1" == "ubcore" ]]
+	then
+		_deps_notLean
+		
+		_deps_git
+		_deps_bup
+		
+		_deps_abstractfs
+		
+		_deps_virt_translation
+		
+		_deps_stopwatch
+		
+		
+		_deps_distro
+		_deps_linux
+		
+		# _compile_bash_deps 'core'
+		return 0
+	fi
 	
 	if [[ "$1" == "cautossh" ]]
 	then
@@ -3158,6 +3315,11 @@ _compile_bash_deps() {
 		_deps_command
 		_deps_synergy
 		
+		# WARNING: Linux *kernel* admin assistance *only*. NOT any other UNIX like features.
+		# WARNING: Beware Linux shortcut specific dependency programs must not be required, or will break other operating systems!
+		# ie. _test_linux must not require Linux-only binaries
+		_deps_linux
+		
 		_deps_stopwatch
 		
 		return 0
@@ -3165,7 +3327,6 @@ _compile_bash_deps() {
 	
 	if [[ "$1" == "processor" ]]
 	then
-		
 		_deps_dev
 		
 		_deps_channel
@@ -3175,7 +3336,7 @@ _compile_bash_deps() {
 		return 0
 	fi
 	
-	if [[ "$1" == "abstract" ]]
+	if [[ "$1" == "abstract" ]] || [[ "$1" == "abstractfs" ]]
 	then
 		_deps_dev
 		
@@ -3183,6 +3344,21 @@ _compile_bash_deps() {
 		
 		_deps_metaengine
 		
+		_deps_abstractfs
+		
+		return 0
+	fi
+	
+	# Beware most uses of fakehome will benefit from full virtualization fallback.
+	if [[ "$1" == "fakehome" ]]
+	then
+		_deps_dev
+		
+		_deps_channel
+		
+		_deps_metaengine
+		
+		_deps_fakehome
 		_deps_abstractfs
 		
 		return 0
@@ -3197,6 +3373,9 @@ _compile_bash_deps() {
 		
 		_deps_notLean
 		_deps_os_x11
+		
+		_deps_java
+		
 		
 		_deps_x11
 		_deps_image
@@ -3236,6 +3415,13 @@ _compile_bash_deps() {
 		#_deps_proxy
 		#_deps_proxy_special
 		
+		# WARNING: Linux *kernel* admin assistance *only*. NOT any other UNIX like features.
+		# WARNING: Beware Linux shortcut specific dependency programs must not be required, or will break other operating systems!
+		# ie. _test_linux must not require Linux-only binaries
+		_deps_linux
+		
+		_deps_stopwatch
+		
 		_deps_build
 		
 		_deps_build_bash
@@ -3253,6 +3439,9 @@ _compile_bash_deps() {
 		
 		_deps_notLean
 		_deps_os_x11
+		
+		_deps_java
+		
 		
 		_deps_x11
 		_deps_image
@@ -3291,6 +3480,10 @@ _compile_bash_deps() {
 		
 		_deps_proxy
 		_deps_proxy_special
+		
+		_deps_stopwatch
+		
+		_deps_linux
 		
 		_deps_build
 		
@@ -3426,7 +3619,17 @@ _compile_bash_utilities() {
 	includeScriptList+=( "special"/uuid.sh )
 	
 	[[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "instrumentation"/bashdb/bashdb.sh )
-	([[ "$enUb_notLean" == "true" ]] || [[ "$enUb_stopwatch" == "true" ]]) && includeScriptList+=( "instrumentation"/profiling/stopwatch.sh )
+	( [[ "$enUb_notLean" == "true" ]] || [[ "$enUb_stopwatch" == "true" ]] ) && includeScriptList+=( "instrumentation"/profiling/stopwatch.sh )
+}
+
+# Specifically intended to support Eclipse as necessary for building existing software .
+# Java is regarded as something similar to, but not, an unusual virtualization backend, due to its perhaps rare combination of portability, ongoing incompatible versions, lack of root or kernelspace requirements, typical operating system wide installation, and overall complexity.
+# Multiple 'jre' and 'jdk' packages or script contained versions may be able to, or required, to satisfy related dependencies.
+# WARNING: This is intended to provide for java *applications*, NOT necessarily browser java 'applets'.
+# WARNING: Do NOT deprecate java versions for 'security' reasons - this is intended ONLY to support applications which already normally require user or root permissions.
+_compile_bash_utilities_java() {
+	[[ "$enUb_java" == "true" ]] && includeScriptList+=( "special/java"/java.sh )
+#	[[ "$enUb_java" == "true" ]] && includeScriptList+=( "special/java"/javac.sh )
 }
 
 _compile_bash_utilities_virtualization() {
@@ -3440,10 +3643,12 @@ _compile_bash_utilities_virtualization() {
 	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/findInfrastructure_virt.sh )
 	
 	# Any script managing MSW from UNIX may need basic file parameter translation without needing complete remapping. Example: "_vncviewer_operations" .
-	( [[ "$enUb_virt" == "true" ]] || [[ "$enUb_proxy" == "true" ]] ) && includeScriptList+=( "virtualization"/osTranslation.sh )
-	[[ "$enUb_virt" == "true" ]] && includeScriptList+=( "virtualization"/localPathTranslation.sh )
+	( [[ "$enUb_virt" == "true" ]] || [[ "$enUb_proxy" == "true" ]] || [[ "$enUb_virt_translation" == "true" ]] ) && includeScriptList+=( "virtualization"/osTranslation.sh )
+	( [[ "$enUb_virt" == "true" ]] || [[ "$enUb_virt_translation" == "true" ]] ) && includeScriptList+=( "virtualization"/localPathTranslation.sh )
 	
 	[[ "$enUb_abstractfs" == "true" ]] && includeScriptList+=( "virtualization/abstractfs"/abstractfs.sh )
+	[[ "$enUb_abstractfs" == "true" ]] && includeScriptList+=( "virtualization/abstractfs"/abstractfs_appdir_specific.sh )
+	[[ "$enUb_abstractfs" == "true" ]] && includeScriptList+=( "virtualization/abstractfs"/abstractfs_appdir.sh )
 	[[ "$enUb_abstractfs" == "true" ]] && includeScriptList+=( "virtualization/abstractfs"/abstractfsvars.sh )
 	
 	[[ "$enUb_fakehome" == "true" ]] && includeScriptList+=( "virtualization/fakehome"/fakehomemake.sh )
@@ -3490,6 +3695,7 @@ _compile_bash_utilities_virtualization() {
 	[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "virtualization/docker"/dockeruser.sh )
 }
 
+# WARNING: Shortcuts must NOT cause _stop/exit failures in _test/_setup procedures!
 _compile_bash_shortcuts() {
 	export includeScriptList
 	
@@ -3499,11 +3705,19 @@ _compile_bash_shortcuts() {
 	
 	includeScriptList+=( "shortcuts/prompt"/visualPrompt.sh )
 	
-	[[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev"/devsearch.sh )
+	#[[ "$enUb_dev_heavy" == "true" ]] && 
+	includeScriptList+=( "shortcuts/dev"/devsearch.sh )
 	
 	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/devemacs.sh )
 	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/devatom.sh )
-	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/deveclipse.sh )
+	
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_java.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_env.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_bin_.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_app.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_example_export.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse_example.sh )
+	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_abstractfs" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app/eclipse"/deveclipse.sh )
 	
 	includeScriptList+=( "shortcuts/dev/query"/devquery.sh )
 	
@@ -3546,6 +3760,13 @@ _compile_bash_shortcuts() {
 	[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockercontainer.sh )
 	
 	[[ "$enUb_image" == "true" ]] && includeScriptList+=( "shortcuts/image"/gparted.sh )
+	
+	
+	[[ "$enUb_linux" == "true" ]] && includeScriptList+=( "shortcuts/linux"/kernelConfig_here.sh )
+	[[ "$enUb_linux" == "true" ]] && includeScriptList+=( "shortcuts/linux"/kernelConfig.sh )
+	[[ "$enUb_linux" == "true" ]] && includeScriptList+=( "shortcuts/linux"/kernelConfig_platform.sh )
+	
+	[[ "$enUb_linux" == "true" ]] && includeScriptList+=( "shortcuts/linux"/bfq.sh )
 }
 
 _compile_bash_shortcuts_setup() {
@@ -3711,6 +3932,13 @@ _compile_bash_overrides() {
 	includeScriptList+=( "structure"/overrides.sh )
 }
 
+_compile_bash_overrides_disable() {
+	export includeScriptList
+	
+	
+	includeScriptList+=( "structure"/overrides_disable.sh )
+}
+
 _compile_bash_entry() {
 	export includeScriptList
 	
@@ -3769,6 +3997,7 @@ _compile_bash() {
 	_compile_bash_essential_utilities_prog
 	_compile_bash_utilities
 	_compile_bash_utilities_prog
+	_compile_bash_utilities_java
 	_compile_bash_utilities_virtualization
 	_compile_bash_utilities_virtualization_prog
 	
@@ -4020,6 +4249,13 @@ _compile_bash_entry_prog() {
 	true
 }
 
+#####Overrides DISABLE
+
+# DANGER: NEVER intended to be set in an end user shell for ANY reason.
+# DANGER: Implemented to prevent 'compile.sh' from attempting to run functions from 'ops.sh'. No other valid use currently known or anticipated!
+export ub_ops_disable='true'
+
+
 #####Overrides
 
 [[ "$isDaemon" == "true" ]] && echo "$$" | _prependDaemonPID
@@ -4065,53 +4301,58 @@ then
 	trap 'excode=$?; trap "" EXIT; _stop_emergency $excode; echo $excode' INT TERM	# ignore
 fi
 
-#Override functions with external definitions from a separate file if available.
-#if [[ -e "./ops" ]]
-#then
-#	. ./ops
-#fi
+# DANGER: NEVER intended to be set in an end user shell for ANY reason.
+# DANGER: Implemented to prevent 'compile.sh' from attempting to run functions from 'ops.sh'. No other valid use currently known or anticipated!
+if [[ "$ub_ops_disable" != 'true' ]]
+then
+	#Override functions with external definitions from a separate file if available.
+	#if [[ -e "./ops" ]]
+	#then
+	#	. ./ops
+	#fi
 
-#Override functions with external definitions from a separate file if available.
-# CAUTION: Recommend only "ops" or "ops.sh" . Using both can cause confusion.
-# ATTENTION: Recommend "ops.sh" only when unusually long. Specifically intended for "CoreAutoSSH" .
-if [[ -e "$objectDir"/ops ]]
-then
-	. "$objectDir"/ops
-fi
-if [[ -e "$objectDir"/ops.sh ]]
-then
-	. "$objectDir"/ops.sh
-fi
-if [[ -e "$scriptLocal"/ops ]]
-then
-	. "$scriptLocal"/ops
-fi
-if [[ -e "$scriptLocal"/ops.sh ]]
-then
-	. "$scriptLocal"/ops.sh
-fi
-if [[ -e "$scriptLocal"/ssh/ops ]]
-then
-	. "$scriptLocal"/ssh/ops
-fi
-if [[ -e "$scriptLocal"/ssh/ops.sh ]]
-then
-	. "$scriptLocal"/ssh/ops.sh
-fi
+	#Override functions with external definitions from a separate file if available.
+	# CAUTION: Recommend only "ops" or "ops.sh" . Using both can cause confusion.
+	# ATTENTION: Recommend "ops.sh" only when unusually long. Specifically intended for "CoreAutoSSH" .
+	if [[ -e "$objectDir"/ops ]]
+	then
+		. "$objectDir"/ops
+	fi
+	if [[ -e "$objectDir"/ops.sh ]]
+	then
+		. "$objectDir"/ops.sh
+	fi
+	if [[ -e "$scriptLocal"/ops ]]
+	then
+		. "$scriptLocal"/ops
+	fi
+	if [[ -e "$scriptLocal"/ops.sh ]]
+	then
+		. "$scriptLocal"/ops.sh
+	fi
+	if [[ -e "$scriptLocal"/ssh/ops ]]
+	then
+		. "$scriptLocal"/ssh/ops
+	fi
+	if [[ -e "$scriptLocal"/ssh/ops.sh ]]
+	then
+		. "$scriptLocal"/ssh/ops.sh
+	fi
 
-#WILL BE OVERWRITTEN FREQUENTLY.
-#Intended for automatically generated shell code identifying usable resources, such as unused network ports. Do NOT use for serialization of internal variables (use $varStore for that).
-if [[ -e "$objectDir"/opsauto ]]
-then
-	. "$objectDir"/opsauto
-fi
-if [[ -e "$scriptLocal"/opsauto ]]
-then
-	. "$scriptLocal"/opsauto
-fi
-if [[ -e "$scriptLocal"/ssh/opsauto ]]
-then
-	. "$scriptLocal"/ssh/opsauto
+	#WILL BE OVERWRITTEN FREQUENTLY.
+	#Intended for automatically generated shell code identifying usable resources, such as unused network ports. Do NOT use for serialization of internal variables (use $varStore for that).
+	if [[ -e "$objectDir"/opsauto ]]
+	then
+		. "$objectDir"/opsauto
+	fi
+	if [[ -e "$scriptLocal"/opsauto ]]
+	then
+		. "$scriptLocal"/opsauto
+	fi
+	if [[ -e "$scriptLocal"/ssh/opsauto ]]
+	then
+		. "$scriptLocal"/ssh/opsauto
+	fi
 fi
 
 #Wrapper function to launch arbitrary commands within the ubiquitous_bash environment, including its PATH with scriptBin.
