@@ -22,7 +22,6 @@ From the x11vnc man page.
 # Gateway Server
 
 #Allows tunneling public ports.
-#GatewayPorts yes
 GatewayPorts clientspecified
 
 #Configuiring a short client timeout is strongly recommended to prevent AutoSSH from encountering collisions with zombie tunnels.
@@ -32,7 +31,6 @@ ClientAliveInterval 3
 ClientAliveCountMax 3
 
 #Tolerant.
-#/etc/ssh/sshd_config
 ClientAliveInterval 6
 ClientAliveCountMax 9
 
