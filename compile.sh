@@ -1,5 +1,61 @@
 #!/usr/bin/env bash
 
+if [[ "$ub_setScriptChecksum" != "" ]]
+then
+	export ub_setScriptChecksum=
+fi
+
+_ub_cksum_special_derivativeScripts_header() {
+	local currentFile_cksum
+	if [[ "$1" == "" ]]
+	then
+		currentFile_cksum="$0"
+	else
+		currentFile_cksum="$1"
+	fi
+	
+	head -n 30 "$currentFile_cksum" | env CMD_ENV=xpg4 cksum | cut -f1 -d\  | tr -dc '0-9'
+}
+_ub_cksum_special_derivativeScripts_contents() {
+	local currentFile_cksum
+	if [[ "$1" == "" ]]
+	then
+		currentFile_cksum="$0"
+	else
+		currentFile_cksum="$1"
+	fi
+	
+	tail -n +45 "$currentFile_cksum" | env CMD_ENV=xpg4 cksum | cut -f1 -d\  | tr -dc '0-9'
+}
+##### CHECKSUM BOUNDARY - 30 lines
+
+#export ub_setScriptChecksum_disable='true'
+[[ -e "$0".nck ]] && export ub_setScriptChecksum_disable='true'
+export ub_setScriptChecksum_header='1891409836'
+export ub_setScriptChecksum_contents='1880970380'
+
+# CAUTION: Symlinks may cause problems. Disable this test for such cases if necessary.
+# WARNING: Performance may be crucial here.
+#[[ -e "$0" ]] && ! [[ -h "$0" ]] && [[ "$ub_setScriptChecksum" != "" ]]
+if [[ -e "$0" ]] && [[ "$ub_setScriptChecksum_header" != "" ]] && [[ "$ub_setScriptChecksum_contents" != "" ]] && [[ "$ub_setScriptChecksum_disable" != 'true' ]]
+then
+	[[ $(_ub_cksum_special_derivativeScripts_header) != "$ub_setScriptChecksum_header" ]] && exit 1
+	[[ $(_ub_cksum_special_derivativeScripts_contents) != "$ub_setScriptChecksum_contents" ]] && exit 1
+fi
+##### CHECKSUM BOUNDARY - 45 lines
+
+_ub_cksum_special_derivativeScripts_write() {
+	local current_ub_setScriptChecksum_header
+	local current_ub_setScriptChecksum_contents
+
+	current_ub_setScriptChecksum_header=$(_ub_cksum_special_derivativeScripts_header "$1")
+	current_ub_setScriptChecksum_contents=$(_ub_cksum_special_derivativeScripts_contents "$1")
+
+	sed -i 's/'#'#'###uk4uPhB663kVcygT0q-UbiquitousBash-ScriptSelfModify-SetScriptChecksumHeader-UbiquitousBash-uk4uPhB663kVcygT0q#####'/'"$current_ub_setScriptChecksum_header"'/' "$1"
+	sed -i 's/'#'#'###uk4uPhB663kVcygT0q-UbiquitousBash-ScriptSelfModify-SetScriptChecksumContents-UbiquitousBash-uk4uPhB663kVcygT0q#####'/'"$current_ub_setScriptChecksum_contents"'/' "$1"
+}
+
+
 #Universal debugging filesystem.
 _user_log-ub() {
 	# DANGER Do NOT create automatically, or reference any existing directory!
@@ -191,9 +247,368 @@ then
 fi
 
 
+
+
+# Only production use is Inter-Process Communication (IPC) loops which may be theoretically impossible to make fully deterministic under Operating Systems which do not have hard-real-time kernels and/or may serve an unlimited number of processes.
+_here_header_bash_or_dash() {
+	if [[ -e /bin/dash ]]
+		then
+		
+cat << 'CZXWXcRMTo8EmM8i4d'
+#!/bin/dash
+
+CZXWXcRMTo8EmM8i4d
+	
+	else
+	
+cat << 'CZXWXcRMTo8EmM8i4d'
+#!/usr/bin/env bash
+
+CZXWXcRMTo8EmM8i4d
+
+	fi
+}
+
+
+
+# Delay to attempt to avoid InterProcess-Communication (IPC) problems caused by typical UNIX/MSW Operating System kernel latency and/or large numbers of processes/threads.
+# Widely deployed Linux compatible hardware and software is able to run with various 'preemption' 'configured'/'patched' kernels. Detecting such kernels may allow reduction of this arbitrary delay.
+# CAUTION: Merely attempts to avoid a problem which may be inherently unavoidably unpredictable.
+_sleep_spinlock() {
+	# CAUTION: Spinlocks on the order of 8s are commonly observed with 'desktop' operating systems. Do NOT reduce this delay without thorough consideration! Theoretically, it may not be possible to determine whether the parent of a process is still running in less than spinlock time, only the existence of the parent process guarantees against PID rollover, and multiple spinlocks may occur between the necessary IPC events to determine any of the above.
+	# ATTENTION: Consider setting this to the worst-case acceptable latency for a system still considered 'responsive' (ie. a number of seconds greater than that which would cause a user or other 'watchdog' to forcibly reboot the system).
+	local currentWaitSpinlock
+	let currentWaitSpinlock="$RANDOM"%4
+	#let currentWaitSpinlock="$currentWaitSpinlock"+12
+	let currentWaitSpinlock="$currentWaitSpinlock"+10
+	sleep "$currentWaitSpinlock"
+}
+
+
+_____special_live_hibernate_rmmod_remainder-vbox_procedure() {
+	local currentLine
+	sudo -n lsmod | grep '^vbox.*$' | cut -f1 -d\  | while read currentLine
+	do
+		#echo "$currentLine"
+		sudo -n rmmod "$currentLine"
+	done
+}
+
+_____special_live_hibernate_rmmod_remainder-vbox() {
+	local currentIterations
+	currentIterations=0
+	while [[ "$currentIterations" -lt 2 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		_____special_live_hibernate_rmmod_remainder-vbox_procedure "$@" > /dev/null 2>&1
+	done
+	
+	_____special_live_hibernate_rmmod_remainder-vbox_procedure "$@"
+}
+
+# CAUTION: Do not alow similarity of this function name to other commonly used function names . Unintended tab completion could significantly and substantially impede user , particularly if 'disk' hibernation is not properly available .
+_____special_live_hibernate() {
+	! _mustGetSudo && exit 1
+	
+	_messageNormal 'init: _____special_live_hibernate'
+	
+	local currentIterations
+	
+	_messagePlain_nominal 'attempt: swapon'
+	sudo -n swapon /dev/disk/by-uuid/469457fc-293f-46ec-92da-27b5d0c36b17
+	free -m
+	
+	_messagePlain_nominal 'detect: vboxguest'
+	sudo -n lsmod | grep vboxguest > /dev/null 2>&1 && export ub_current_special_live_consider_vbox='true'
+	[[ "$ub_current_special_live_consider_vbox" == 'true' ]] && _messagePlain_good 'good: detected: vboxguest'
+	
+	if [[ "$ub_current_special_live_consider_vbox" == 'true' ]]
+	then
+		_messagePlain_nominal 'attempt: terminate: VBoxService , VBoxClient'
+		sudo -n pkill VBoxService
+		sudo -n pkill VBoxClient
+		
+		pgrep ^VBox && sleep 0.1 && pgrep ^VBox && sleep 0.3 && pgrep ^VBox && sleep 1
+		sudo -n pkill -KILL VBoxService
+		sudo -n pkill -KILL VBoxClient
+		
+		
+		pgrep ^VBox && sleep 0.3
+		_messagePlain_nominal 'attempt: rmmod (vbox)'
+		sleep 0.05
+		sudo -n rmmod vboxsf
+		sudo -n rmmod vboxvideo
+		sudo -n rmmod vboxguest
+		_____special_live_hibernate_rmmod_remainder-vbox
+		
+		sleep 0.02
+		sudo -n rmmod vboxsf
+		sudo -n rmmod vboxvideo
+		sudo -n rmmod vboxguest
+		_____special_live_hibernate_rmmod_remainder-vbox
+	fi
+	
+	_messagePlain_nominal 'attempt: HIBERNATE'
+	sudo journalctl --rotate
+	sudo journalctl --vacuum-time=1s
+	sudo -n systemctl hibernate
+	
+	
+	# ~1.0s
+	sleep 1.1
+	currentIterations=0
+	while [[ "$currentIterations" -lt 3 ]]
+	do
+		sudo -n systemctl status hibernate.target | tail -n2 | head -n1 | grep ' Reached ' > /dev/null 2>&1 && _messagePlain_probe 'Reached'
+		sudo -n systemctl status hibernate.target | tail -n1 | grep ' Stopped ' > /dev/null 2>&1 && _messagePlain_probe 'Stopped'
+		sudo -n systemctl status hibernate.target | grep 'inactive (dead)' > /dev/null 2>&1 && _messagePlain_probe 'inactive'
+		
+		
+		sudo -n systemctl status hibernate.target | tail -n2 | head -n1 | grep ' Reached ' > /dev/null 2>&1 &&
+		sudo -n systemctl status hibernate.target | tail -n1 | grep ' Stopped ' > /dev/null 2>&1 &&
+		sudo -n systemctl status hibernate.target | grep 'inactive (dead)' > /dev/null 2>&1 &&
+		break
+		
+		_messagePlain_good 'delay: resume'
+		
+		let currentIterations="$currentIterations + 1"
+		sleep 0.3
+	done
+	
+	_messagePlain_nominal 'delay: spinlock (optimistic)'
+	# Expected to result in longer delay if system is not idle.
+	# ~2s
+	currentIterations=0
+	while [[ "$currentIterations" -lt 6 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		sleep 0.3
+	done
+	# 0.5s
+	currentIterations=0
+	while [[ "$currentIterations" -lt 5 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		sleep 0.1
+	done
+	# 0.15s
+	currentIterations=0
+	while [[ "$currentIterations" -lt 15 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		sleep 0.01
+	done
+	
+	#_messagePlain_nominal 'delay: spinlock (arbitrary)'
+	#sleep 1
+	
+	#_messagePlain_nominal 'delay: spinlock (pessimistic)'
+	#_sleep_spinlock
+	
+	
+	if [[ "$ub_current_special_live_consider_vbox" == 'true' ]]
+	then
+		_messagePlain_nominal 'attempt: modprobe (vbox)'
+		sudo -n modprobe vboxsf
+		sudo -n modprobe vboxvideo
+		sudo -n modprobe vboxguest
+		
+		
+		sleep 0.1
+		_messagePlain_nominal 'attempt: VBoxService'
+		sudo -n VBoxService --pidfile /var/run/vboxadd-service.sh
+		
+		# 0.3s
+		currentIterations=0
+		while [[ "$currentIterations" -lt 3 ]]
+		do
+			let currentIterations="$currentIterations + 1"
+			sleep 0.1
+		done
+		_messagePlain_nominal 'attempt: VBoxClient'
+		#sudo -n VBoxClient --vmsvga
+		#sudo -n VBoxClient --seamless
+		#sudo -n VBoxClient --draganddrop
+		#sudo -n VBoxClient --clipboard
+		sudo -n VBoxClient-all
+	fi
+	
+	disown -a -h -r
+	disown -a -r
+	
+	_messageNormal 'done: _____special_live_hibernate'
+	return 0
+}
+
+_____special_live_bulk_rw() {
+	! _mustGetSudo && exit 1
+	_messageNormal 'init: _____special_live_bulk_rw'
+	
+	sudo -n mkdir -p /mnt/bulk
+	_messagePlain_nominal 'detect: mount: bulk'
+	if ! mountpoint /mnt/bulk
+	then
+		_messagePlain_nominal 'mount: rw: bulk'
+		sudo -n mount -o rw /dev/disk/by-uuid/f1edb7fb-13b1-4c97-91d2-baf50e6d65d8 /mnt/bulk
+	fi
+	
+	! mountpoint /mnt/bulk && _messagePlain_bad 'fail: detect: mount: bulk' && exit 1
+	
+	_messagePlain_nominal 'remount: rw: bulk'
+	sudo -n mount -o remount,rw /mnt/bulk
+	
+	_messageNormal 'done: _____special_live_bulk_rw'
+	return 0
+}
+
+# No production use. Not expected to be desirable. Any readonly files could be added, compressed, to the 'live' 'root' .
+_____special_live_bulk_ro() {
+	! _mustGetSudo && exit 1
+	_messageNormal 'init: _____special_live_bulk_ro'
+	
+	sudo -n mkdir -p /mnt/bulk
+	_messagePlain_nominal 'detect: mount: bulk'
+	if ! mountpoint /mnt/bulk
+	then
+		_messagePlain_nominal 'mount: ro: bulk'
+		sudo -n mount -o ro /dev/disk/by-uuid/f1edb7fb-13b1-4c97-91d2-baf50e6d65d8 /mnt/bulk
+	fi
+	
+	! mountpoint /mnt/bulk && _messagePlain_bad 'fail: detect: mount: bulk' && exit 1
+	
+	_messagePlain_nominal 'remount: ro: bulk'
+	sudo -n mount -o remount,ro /mnt/bulk
+	
+	_messageNormal 'done: _____special_live_bulk_ro'
+	return 0
+}
+
+
+# DANGER: Simultaneous use of any 'rw' mounted filesystem with any 'restored' hibernation file/partition is expected to result in extreme filesystem corruption! Take extra precautions to avoid this mistake!
+# CAUTION: Do not alow similarity of this function name to other commonly used function names . Unintended tab completion could significantly and substantially impede user.
+_____special_live_dent_backup() {
+	! _mustGetSudo && exit 1
+	_messageNormal 'init: _____special_live_dent_backup'
+	
+	_messagePlain_nominal 'attempt: mount: dent'
+	sudo -n mkdir -p /mnt/dent
+	! mountpoint /mnt/dent && sudo -n mount -o ro /dev/disk/by-uuid/d82e3d89-3156-4484-bde2-ccc534ca440b /mnt/dent
+	! mountpoint /mnt/dent && exit 1
+	
+	sudo -n mount -o remount,rw /mnt/dent
+	
+	_messagePlain_nominal 'attempt: copy: hint'
+	if type -p 'pigz' > /dev/null 2>&1
+	then
+		sudo -n dd if=/dev/disk/by-uuid/469457fc-293f-46ec-92da-27b5d0c36b17 bs=1M | pigz --fast | sudo -n tee /mnt/dent/hint_bak.gz > /dev/null
+	elif type -p 'gzip' > /dev/null 2>&1
+	then
+		sudo -n dd if=/dev/disk/by-uuid/469457fc-293f-46ec-92da-27b5d0c36b17 bs=1M | gzip --fast | sudo -n tee /mnt/dent/hint_bak.gz > /dev/null
+	else
+		sudo -n dd if=/dev/disk/by-uuid/469457fc-293f-46ec-92da-27b5d0c36b17 bs=1M | sudo -n tee /mnt/dent/hint_bak > /dev/null
+	fi
+	sync
+	
+	_messagePlain_nominal 'attempt: mount: ro: bulk'
+	sudo -n mkdir -p /mnt/bulk
+	! mountpoint /mnt/bulk && sudo -n mount -o ro /dev/disk/by-uuid/f1edb7fb-13b1-4c97-91d2-baf50e6d65d8 /mnt/bulk
+	! mountpoint /mnt/bulk && exit 1
+	
+	
+	_messagePlain_nominal 'attempt: copy: bulk'
+	sudo -n mkdir -p /mnt/dent/bulk_bak
+	[[ ! -e /mnt/dent/bulk_bak ]] && exit 1
+	[[ ! -d /mnt/dent/bulk_bak ]] && exit 1
+	
+	sudo -n rsync -ax --delete /mnt/bulk/. /mnt/dent/bulk_bak/.
+	
+	
+	
+	_messagePlain_nominal 'attempt: umount: dent'
+	sudo -n mount -o remount,ro /mnt/dent
+	sync
+	
+	sudo -n umount /mnt/dent
+	sync
+	
+	_messageNormal 'done: _____special_live_dent_backup'
+	return 0
+}
+
+
+# DANGER: Simultaneous use of any 'rw' mounted filesystem with any 'restored' hibernation file/partition is expected to result in extreme filesystem corruption! Take extra precautions to avoid this mistake!
+# CAUTION: Do not alow similarity of this function name to other commonly used function names . Unintended tab completion could significantly and substantially impede user.
+# WARNING: By default does not restore contents of '/mnt/bulk' assuming simultaneous use of persistent storage and hibernation backup is sufficiently unlikely and risky that a request to the user is preferable.
+_____special_live_dent_restore() {
+	! _mustGetSudo && exit 1
+	_messageNormal 'init: _____special_live_dent_restore'
+	
+	_messagePlain_nominal 'attempt: mount: dent'
+	sudo -n mkdir -p /mnt/dent
+	! mountpoint /mnt/dent && sudo -n mount -o ro /dev/disk/by-uuid/d82e3d89-3156-4484-bde2-ccc534ca440b /mnt/dent
+	! mountpoint /mnt/dent && exit 1
+	#sudo -n mount -o remount,ro /mnt/dent
+	
+	
+	_messagePlain_nominal 'attempt: copy: hint'
+	#sudo -n dd if=/dev/zero of=/dev/disk/by-uuid/469457fc-293f-46ec-92da-27b5d0c36b17 bs=1M
+	if type -p 'pigz' > /dev/null 2>&1 || type -p 'gzip' > /dev/null 2>&1
+	then
+		sudo -n gzip -d -c /mnt/dent/hint_bak.gz | sudo -n dd of=/dev/disk/by-uuid/469457fc-293f-46ec-92da-27b5d0c36b17 bs=1M
+	else
+		sudo cat /mnt/dent/hint_bak | sudo -n dd of=/dev/disk/by-uuid/469457fc-293f-46ec-92da-27b5d0c36b17 bs=1M
+	fi
+	sync
+	
+	
+	
+	
+	#_messagePlain_nominal 'attempt: mount: rw: bulk'
+	#sudo -n mkdir -p /mnt/bulk
+	#! mountpoint /mnt/bulk && sudo -n mount -o ro /dev/disk/by-uuid/f1edb7fb-13b1-4c97-91d2-baf50e6d65d8 /mnt/bulk
+	#! mountpoint /mnt/bulk && exit 1
+	#sudo -n mount -o remount,rw /mnt/bulk
+	
+	#_messagePlain_nominal 'attempt: copy: bulk'
+	#sudo -n mkdir -p /mnt/dent/bulk_bak
+	#[[ ! -e /mnt/dent/bulk_bak ]] && exit 1
+	#[[ ! -d /mnt/dent/bulk_bak ]] && exit 1
+	
+	#sudo -n rsync -ax --delete /mnt/dent/bulk_bak/. /mnt/bulk/.
+	
+	
+	
+	_messagePlain_nominal 'attempt: umount: dent'
+	sudo -n mount -o remount,ro /mnt/dent
+	sync
+	sudo -n umount /mnt/dent
+	sync
+	
+	_messagePlain_request 'request: consider restoring /mnt/bulk (not overwritten by default)'
+	
+	_messageNormal 'done: _____special_live_dent_restore'
+	return 0
+}
+
+
+
+
+
+
+
+
 #Override (Program).
 
 #Override, cygwin.
+
+# WARNING: Multiple reasons to instead consider direct detection by other commands -  ' uname -a | grep -i cygwin > /dev/null 2>&1 ' , ' [[ -e '/cygdrive' ]] ' , etc .
+_if_cygwin() {
+	if uname -a | grep -i cygwin > /dev/null 2>&1
+	then
+		return 0
+	fi
+	return 1
+}
 
 # ATTENTION: Workaround - Cygwin Portable - change directory to current directory as detected by 'ubcp.cmd' .
 if [[ "$CWD" != "" ]] && [[ "$cygwin_CWD_onceOnly_done" != 'true' ]] && uname -a | grep -i cygwin > /dev/null 2>&1
@@ -589,7 +1004,8 @@ _package_procedure-cygwinOnly() {
 	_package_subdir
 	
 	# ATTENTION: Unusual. Expected to result in a package containing only 'ubcp' directory in the root.
-	cd "$safeTmp"/package/"$objectName"/_local
+	# WARNING: Having these subdirectories opened in MSW 'explorer' (file manager) may cause this directory to not exist.
+	! cd "$safeTmp"/package/"$objectName"/_local && _stop 1
 	
 	tar -czvf "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.gz .
 	
@@ -1184,6 +1600,17 @@ _safeRMR() {
 	[[ "$tmpSelf" != "$safeScriptAbsoluteFolder" ]] && [[ "$sessionid" != "" ]] && [[ "$1" == *$(echo "$sessionid" | head -c 16)* ]] && safeToRM="true"
 	#[[ "$tmpSelf" != "$safeScriptAbsoluteFolder" ]] && [[ "$1" == "$tmpSelf"* ]] && safeToRM="true"
 	
+	# ATTENTION: CAUTION: Unusual Cygwin override to accommodate MSW network drive ( at least when provided by '_userVBox' ) !
+	# ATTENTION: Search for verbatim warning to find related workarounds!
+	if [[ "$scriptAbsoluteFolder" == '/cygdrive/'* ]] && [[ -e /cygdrive ]] && uname -a | grep -i cygwin > /dev/null 2>&1 && [[ "$scriptAbsoluteFolder" != '/cygdrive/c'* ]] && [[ "$scriptAbsoluteFolder" != '/cygdrive/C'* ]]
+	then
+		if [[ "$tmpSelf" != "$safeScriptAbsoluteFolder" ]] && [[ "$tmpSelf" != "" ]] && [[ "$tmpSelf" == "/cygdrive/"* ]] && [[ "$tmpSelf" == "$tmpMSW"* ]]
+		then
+			safeToRM="true"
+		fi
+	fi
+	
+	
 	[[ "$safeToRM" == "false" ]] && return 1
 	
 	#Safeguards/
@@ -1268,6 +1695,18 @@ _safePath() {
 	[[ "$sessionid" != "" ]] && [[ "$1" == *"$sessionid"* ]] && safeToRM="true"
 	[[ "$tmpSelf" != "$safeScriptAbsoluteFolder" ]] && [[ "$sessionid" != "" ]] && [[ "$1" == *$(echo "$sessionid" | head -c 16)* ]] && safeToRM="true"
 	#[[ "$tmpSelf" != "$safeScriptAbsoluteFolder" ]] && [[ "$1" == "$tmpSelf"* ]] && safeToRM="true"
+	
+	
+	# ATTENTION: CAUTION: Unusual Cygwin override to accommodate MSW network drive ( at least when provided by '_userVBox' ) !
+	# ATTENTION: Search for verbatim warning to find related workarounds!
+	if [[ "$scriptAbsoluteFolder" == '/cygdrive/'* ]] && [[ -e /cygdrive ]] && uname -a | grep -i cygwin > /dev/null 2>&1 && [[ "$scriptAbsoluteFolder" != '/cygdrive/c'* ]] && [[ "$scriptAbsoluteFolder" != '/cygdrive/C'* ]]
+	then
+		if [[ "$tmpSelf" != "$safeScriptAbsoluteFolder" ]] && [[ "$tmpSelf" != "" ]] && [[ "$tmpSelf" == "/cygdrive/"* ]] && [[ "$tmpSelf" == "$tmpMSW"* ]]
+		then
+			safeToRM="true"
+		fi
+	fi
+	
 	
 	[[ "$safeToRM" == "false" ]] && return 1
 	
@@ -1376,6 +1815,45 @@ _command_safeBackup() {
 	return 0
 }
 
+
+
+
+# Equivalent to 'mv -n' with an error exit status if file cannot be overwritten.
+# https://unix.stackexchange.com/questions/248544/mv-move-file-only-if-destination-does-not-exist
+_moveconfirm() {
+	local currentExitStatusText
+	currentExitStatusText=$(mv -vn "$1" "$2" 2>/dev/null)
+	[[ "$currentExitStatusText" == "" ]] && return 1
+	return 0
+}
+
+
+_test_moveconfirm_procedure() {
+	echo > "$safeTmp"/mv_src
+	echo > "$safeTmp"/mv_dst
+	
+	_moveconfirm "$safeTmp"/mv_src "$safeTmp"/mv_dst && return 1
+	
+	rm -f "$safeTmp"/mv_dst
+	! _moveconfirm "$safeTmp"/mv_src "$safeTmp"/mv_dst && return 1
+	
+	return 0
+}
+
+_test_moveconfirm_sequence() {
+	_start
+	
+	if ! _test_moveconfirm_procedure "$@"
+	then
+		_stop 1
+	fi
+	
+	_stop
+}
+
+_test_moveconfirm() {
+	"$scriptAbsoluteLocation" _test_moveconfirm_sequence "$@"
+}
 
 
 _all_exist() {
@@ -1488,12 +1966,27 @@ _condition_lines_zero() {
 #Generates random alphanumeric characters, default length 18.
 _uid() {
 	local curentLengthUID
+	local currentIteration
+	currentIteration=0
 
 	currentLengthUID="18"
 	! [[ -z "$uidLengthPrefix" ]] && ! [[ "$uidLengthPrefix" -lt "18" ]] && currentLengthUID="$uidLengthPrefix"
 	! [[ -z "$1" ]] && currentLengthUID="$1"
 
-	cat /dev/urandom 2> /dev/null | base64 2> /dev/null | tr -dc 'a-zA-Z0-9' 2> /dev/null | head -c "$currentLengthUID" 2> /dev/null
+	if [[ -z "$uidLengthPrefix" ]] && [[ -z "$1" ]]
+	then
+		# https://stackoverflow.com/questions/32484504/using-random-to-generate-a-random-string-in-bash
+		# https://www.cyberciti.biz/faq/unix-linux-iterate-over-a-variable-range-of-numbers-in-bash/
+		chars=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
+		#for currentIteration in {1..$currentLengthUID} ; do
+		for (( currentIteration=1; currentIteration<="$currentLengthUID"; currentIteration++ )) ; do
+		echo -n "${chars:RANDOM%${#chars}:1}"
+		done
+		echo
+	else
+		cat /dev/urandom 2> /dev/null | base64 2> /dev/null | tr -dc 'a-zA-Z0-9' 2> /dev/null | head -c "$currentLengthUID" 2> /dev/null
+	fi
+	return 0
 }
 
 _compat_stat_c_run() {
@@ -2138,12 +2631,18 @@ _messageFAIL() {
 	_messageError "FAIL"
 	#echo " FAIL "
 	_stop 1
+	return 0
 }
 
 _messageWARN() {
 	echo
 	echo "$@"
 	return 0
+}
+
+# Demarcate *any* delay performed to allow 'InterProcess-Communication' connections (perhaps including at least some network or serial port servers).
+_messageDELAYipc() {
+	echo -e '\E[1;33;47m ''delay: InterProcess-Communication'' \E[0m'
 }
 
 
@@ -2297,7 +2796,8 @@ _discoverResource() {
 _rmlink() {
 	[[ "$1" == "/dev/null" ]] && return 1
 	
-	[[ -h "$1" ]] && rm -f "$1" && return 0
+	#[[ -h "$1" ]] && rm -f "$1" && return 0
+	[[ -h "$1" ]] && rm -f "$1" > /dev/null 2>&1
 	
 	! [[ -e "$1" ]] && return 0
 	
@@ -3087,7 +3587,22 @@ _wantSudo() {
 
 #Returns a UUID in the form of xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 _getUUID() {
-	cat /proc/sys/kernel/random/uuid
+	if [[ -e /proc/sys/kernel/random/uuid ]]
+	then
+		cat /proc/sys/kernel/random/uuid
+		return 0
+	fi
+	
+	
+	if type -p uuidgen > /dev/null 2>&1
+	then
+		uuidgen
+		return 0
+	fi
+	
+	# Failure. Intentionally adds extra characters to cause any tests of uuid output to fail.
+	_uid 40
+	return 1
 }
 alias getUUID=_getUUID
 
@@ -3116,12 +3631,12 @@ then
 	export scriptAbsoluteFolder="$profileScriptFolder"
 	export sessionid=$(_uid)
 	_messagePlain_probe_expr 'profile: scriptAbsoluteLocation= '"$scriptAbsoluteLocation"'\n ''profile: scriptAbsoluteFolder= '"$scriptAbsoluteFolder"'\n ''profile: sessionid= '"$sessionid" | _user_log-ub
-elif ([[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--embed" ]] || [[ "$ub_import_param" == "--return" ]] || [[ "$ub_import_param" == "--devenv" ]])  && [[ "$scriptAbsoluteLocation" != "" ]] && [[ "$scriptAbsoluteFolder" != "" ]] && [[ "$sessionid" != "" ]]
+elif ( [[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--embed" ]] || [[ "$ub_import_param" == "--return" ]] || [[ "$ub_import_param" == "--devenv" ]] ) && [[ "$scriptAbsoluteLocation" != "" ]] && [[ "$scriptAbsoluteFolder" != "" ]] && [[ "$sessionid" != "" ]]
 then
 	ub_import=true
 	true #Do not override.
 	_messagePlain_probe_expr 'parent: scriptAbsoluteLocation= '"$scriptAbsoluteLocation"'\n ''parent: scriptAbsoluteFolder= '"$scriptAbsoluteFolder"'\n ''parent: sessionid= '"$sessionid" | _user_log-ub
-elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || ([[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]])
+elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || ( [[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]] )
 then
 	ub_import=true
 	export scriptAbsoluteLocation="$importScriptLocation"
@@ -3145,8 +3660,6 @@ fi
 [[ ! -e "$scriptAbsoluteLocation" ]] && _messagePlain_bad 'missing: scriptAbsoluteLocation= '"$scriptAbsoluteLocation" | _user_log-ub && exit 1
 [[ "$sessionid" == "" ]] && _messagePlain_bad 'missing: sessionid' | _user_log-ub && exit 1
 
-export lowsessionid=$(echo -n "$sessionid" | tr A-Z a-z )
-
 #Current directory for preservation.
 export outerPWD=$(_getAbsoluteLocation "$PWD")
 
@@ -3154,7 +3667,19 @@ export initPWD="$PWD"
 intInitPWD="$PWD"
 
 
+# DANGER: CAUTION: Undefined removal of (at least temporary) directories may be possible. Do NOT use without thorough consideration!
+# Only known use is setting the temporary directory of a subsequent background process through "$scriptAbsoluteLocation" .
+# EXAMPLE: _interactive_pipe() { ... }
+if [[ "$ub_force_sessionid" != "" ]]
+then
+	sessionid="$ub_force_sessionid"
+	[[ "$ub_force_sessionid_repeat" != 'true' ]] && export ub_force_sessionid=""
+fi
 
+
+_get_ub_globalVars_sessionDerived() {
+
+export lowsessionid=$(echo -n "$sessionid" | tr A-Z a-z )
 
 # ATTENTION: CAUTION: Unusual Cygwin override to accommodate MSW network drive ( at least when provided by '_userVBox' ) !
 if [[ "$scriptAbsoluteFolder" == '/cygdrive/'* ]] && [[ -e /cygdrive ]] && uname -a | grep -i cygwin > /dev/null 2>&1 && [[ "$scriptAbsoluteFolder" != '/cygdrive/c'* ]] && [[ "$scriptAbsoluteFolder" != '/cygdrive/C'* ]]
@@ -3195,6 +3720,14 @@ export logTmp="$safeTmp"/log
 #Solely for misbehaved applications called upon.
 export shortTmp=/tmp/w_"$sessionid"
 [[ "$tmpMSW" != "" ]] && export shortTmp="$tmpMSW"/w_"$sessionid"
+
+}
+_get_ub_globalVars_sessionDerived "$@"
+
+
+
+
+
 
 export scriptBin="$scriptAbsoluteFolder"/_bin
 export scriptBundle="$scriptAbsoluteFolder"/_bundle
@@ -3355,6 +3888,97 @@ export ub_anchor_autoupgrade=""
 export ub_anchor_autoupgrade
 
 
+
+# WARNING: In practice, at least some of 'queue' may be considered 'lean' functionality, to be included regardless of whether '_deps_queue' has been called through 'compile.sh' .
+_deps_queue() {
+	#_deps_notLean
+	#_deps_dev
+	
+	# Message queue - 'broadcastPipe' , etc , underlying functions , '_read_page' , etc .
+	export enUb_queue="true"
+	
+	# Packet - any noise-tolerant 'format' .
+	# RESERVED variable name - synonymous with 'enUb_queue' .
+	#export enUb_packet="true"
+	
+	# Portal - a 'filter program' to make arrangements between embedded devices of various unique identities and/or devices (eg. 'xAxis400stepsMM' . )
+	# RESERVED variable name - synonymous with 'enUb_queue' .
+	#export enUb_portal="true"
+}
+
+_compile_bash_queue() {
+	export includeScriptList
+	
+	#includeScriptList+=( "queue"/undefined.sh )
+}
+
+_compile_bash_vars_queue() {
+	export includeScriptList
+	
+	#[[ "$enUb_queue" == "true" ]] && 
+	#[[ "$enUb_packet" == "true" ]] && 
+	#[[ "$enUb_portal" == "true" ]] && 
+	
+	includeScriptList+=( "queue"/queue_vars.sh )
+	includeScriptList+=( "queue"/queue_vars_default.sh )
+	
+	includeScriptList+=( "queue"/queue.sh )
+	
+	
+	
+	includeScriptList+=( "queue/tripleBuffer"/page_read.sh )
+	includeScriptList+=( "queue/tripleBuffer"/page_read_single.sh )
+	
+	includeScriptList+=( "queue/tripleBuffer"/page_write.sh )
+	includeScriptList+=( "queue/tripleBuffer"/page_write_single.sh )
+	
+	
+	includeScriptList+=( "queue/tripleBuffer"/broadcastPipe_page_here.sh )
+	includeScriptList+=( "queue/tripleBuffer"/broadcastPipe_page.sh )
+	
+	includeScriptList+=( "queue/tripleBuffer"/demand_broadcastPipe_page.sh )
+	
+	
+	#[[ "$enUb_queue" == "true" ]] && includeScriptList+=( "queue/tripleBuffer"/benchmark_page.sh )
+	includeScriptList+=( "queue/tripleBuffer"/benchmark_page.sh )
+	
+	
+	includeScriptList+=( "queue/tripleBuffer"/test_broadcastPipe_page.sh )
+	includeScriptList+=( "queue/tripleBuffer"/benchmark_broadcastPipe_page.sh )
+	
+	
+	
+	includeScriptList+=( "queue/aggregator"/fifo_aggregator.sh )
+	
+	includeScriptList+=( "queue/aggregator"/aggregator_read.sh )
+	includeScriptList+=( "queue/aggregator"/aggregator_write.sh )
+	
+	includeScriptList+=( "queue/aggregator/static"/broadcastPipe_aggregatorStatic.sh )
+	includeScriptList+=( "queue/aggregator/static"/demand_broadcastPipe_aggregatorStatic.sh )
+	
+	includeScriptList+=( "queue/aggregator/static"/test_broadcastPipe_aggregatorStatic.sh )
+	includeScriptList+=( "queue/aggregator/static"/benchmark_broadcastPipe_aggregatorStatic.sh )
+	
+	[[ "$enUb_dev" == "true" ]] && includeScriptList+=( "queue/aggregator/static"/test_scope_aggregatorStatic.sh )
+	
+	
+	includeScriptList+=( "queue/zSocket"/page_socket_tcp.sh )
+	includeScriptList+=( "queue/zSocket"/page_socket_unix.sh )
+	includeScriptList+=( "queue/zSocket"/aggregatorStatic_socket_tcp.sh )
+	includeScriptList+=( "queue/zSocket"/aggregatorStatic_socket_unix.sh )
+	
+	
+	
+	
+	
+	includeScriptList+=( "queue/zDatabase"/database.sh )
+	
+	
+	includeScriptList+=( "queue/zInteractive"/interactive.sh )
+	
+	
+	
+}
 
 _deps_metaengine() {
 # 	#_deps_notLean
@@ -3683,6 +4307,20 @@ _deps_linux() {
 	export enUb_linux="true"
 }
 
+#placeholder, define under "queue/build"
+# _deps_queue() {
+# 	# Message queue - 'broadcastPipe' , etc , underlying functions , '_read_page' , etc .
+# 	export enUb_queue="true"
+# 	
+# 	# Packet - any noise-tolerant 'format' .
+# 	# RESERVED variable name - synonymous with 'enUb_queue' .
+# 	#export enUb_packet="true"
+# 	
+# 	# Portal - a 'filter program' to make arrangements between embedded devices of various unique identities and/or devices (eg. 'xAxis400stepsMM' . )
+# 	# RESERVED variable name - synonymous with 'enUb_queue' .
+# 	#export enUb_portal="true"
+# }
+
 #placeholder, define under "metaengine/build"
 #_deps_metaengine() {
 #	_deps_notLean
@@ -3727,6 +4365,9 @@ _generate_bash() {
 	echo 'exit 0' >> "$progScript"
 	
 	chmod u+x "$progScript"
+	
+	
+	_tryExecFull _ub_cksum_special_derivativeScripts_write "$progScript"
 	
 	# DANGER Do NOT remove.
 	exit 0
@@ -3804,6 +4445,8 @@ _compile_bash_deps() {
 		_deps_distro
 		_deps_linux
 		
+		_deps_queue
+		
 		# _compile_bash_deps 'core'
 		return 0
 	fi
@@ -3838,6 +4481,7 @@ _compile_bash_deps() {
 		
 		_deps_channel
 		
+		_deps_queue
 		_deps_metaengine
 		
 		return 0
@@ -3849,6 +4493,7 @@ _compile_bash_deps() {
 		
 		_deps_channel
 		
+		_deps_queue
 		_deps_metaengine
 		
 		_deps_abstractfs
@@ -3863,6 +4508,7 @@ _compile_bash_deps() {
 		
 		_deps_channel
 		
+		_deps_queue
 		_deps_metaengine
 		
 		_deps_fakehome
@@ -3902,6 +4548,7 @@ _compile_bash_deps() {
 		
 		_deps_channel
 		
+		_deps_queue
 		_deps_metaengine
 		
 		_deps_git
@@ -3968,6 +4615,7 @@ _compile_bash_deps() {
 		
 		_deps_channel
 		
+		_deps_queue
 		_deps_metaengine
 		
 		_deps_git
@@ -4038,6 +4686,7 @@ _compile_bash_essential_utilities() {
 	includeScriptList+=( "labels"/utilitiesLabel.sh )
 	includeScriptList+=( "generic/filesystem"/absolutepaths.sh )
 	includeScriptList+=( "generic/filesystem"/safedelete.sh )
+	includeScriptList+=( "generic/filesystem"/moveconfirm.sh )
 	includeScriptList+=( "generic/filesystem"/allLogic.sh )
 	includeScriptList+=( "generic/process"/timeout.sh )
 	includeScriptList+=( "generic/process"/terminate.sh )
@@ -4457,9 +5106,22 @@ _compile_bash_entry() {
 _compile_bash_extension() {
 	export includeScriptList
 	
-	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "metaengine/build"/deps_meta.sh )
-	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "metaengine/build"/compile_meta.sh )
+	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "queue/__build"/deps_queue.sh )
+	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "queue/__build"/compile_queue.sh )
+	
+	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "metaengine/__build"/deps_meta.sh )
+	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "metaengine/__build"/compile_meta.sh )
 }
+
+#placehoder, define under "queue/build"
+#_compile_bash_queue() {
+#	true
+#}
+
+#placeholder, define under "queue/build"
+#_compile_bash_vars_queue() {
+#	true
+#}
 
 #placehoder, define under "metaengine/build"
 #_compile_bash_metaengine() {
@@ -4525,7 +5187,11 @@ _compile_bash() {
 	
 	_compile_bash_hardware
 	
+	
+	_tryExec _compile_bash_queue
+	
 	_tryExec _compile_bash_metaengine
+	
 	
 	_compile_bash_vars_basic
 	_compile_bash_vars_basic_prog
@@ -4542,7 +5208,11 @@ _compile_bash() {
 	_compile_bash_vars_bundled
 	_compile_bash_vars_bundled_prog
 	
+	
+	_tryExec _compile_bash_vars_queue
+	
 	_tryExec _compile_bash_vars_metaengine
+	
 	
 	_compile_bash_buildin
 	_compile_bash_buildin_prog
@@ -4577,6 +5247,9 @@ _compile_bash() {
 	_includeScripts "${includeScriptList[@]}"
 	
 	chmod u+x "$progScript"
+	
+	
+	_tryExecFull _ub_cksum_special_derivativeScripts_write "$progScript"
 	
 	#if "$progScript" _test > ./compile.log 2>&1
 	#then
@@ -4805,8 +5478,15 @@ then
 	trap 'excode=$?; _stop $excode; trap - EXIT; echo $excode' EXIT HUP QUIT PIPE 	# reset
 	trap 'excode=$?; trap "" EXIT; _stop $excode; echo $excode' EXIT HUP QUIT PIPE 	# ignore
 	
-	trap 'excode=$?; _stop_emergency $excode; trap - EXIT; echo $excode' INT TERM	# reset
-	trap 'excode=$?; trap "" EXIT; _stop_emergency $excode; echo $excode' INT TERM	# ignore
+	# DANGER: Mechanism of workaround 'ub_trapSet_stop_emergency' is not fully understood, and was added undesirably late in development, with unknown effects. Nevertheless, a need for such functionality is expected to be encountered only rarely.
+	# At least '_closeChRoot' , '_userChRoot' , '_userVBox' do not seem to have lost functionality.
+	# DANGER: Any shell command matching ' _timeout.*&$ ' (backgrounding of _timeout) will probably be unable to reach '_stop' correctly, and may not remove temporary directories, etc.
+	if [[ "$ub_trapSet_stop_emergency" != 'true' ]]
+	then
+		trap 'excode=$?; _stop_emergency $excode; trap - EXIT; echo $excode' INT TERM	# reset
+		trap 'excode=$?; trap "" EXIT; _stop_emergency $excode; echo $excode' INT TERM	# ignore
+		export ub_trapSet_stop_emergency='true'
+	fi
 fi
 
 # DANGER: NEVER intended to be set in an end user shell for ANY reason.
@@ -4867,6 +5547,10 @@ fi
 _bin() {
 	"$@"
 }
+#Mostly intended to launch bash prompt for MSW/Cygwin users.
+_bash() {
+	bash "$@"
+}
 
 #Launch internal functions as commands, and other commands, as root.
 _sudo() {
@@ -4874,6 +5558,9 @@ _sudo() {
 }
 
 _true() {
+	#"$scriptAbsoluteLocation" _false && return 1
+	#! "$scriptAbsoluteLocation" _bin true && return 1
+	#"$scriptAbsoluteLocation" _bin false && return 1
 	true
 }
 _false() {
