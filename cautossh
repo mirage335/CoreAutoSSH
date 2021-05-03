@@ -32,7 +32,7 @@ _ub_cksum_special_derivativeScripts_contents() {
 #export ub_setScriptChecksum_disable='true'
 ( [[ -e "$0".nck ]] || [[ "${BASH_SOURCE[0]}" != "${0}" ]] || [[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]] || [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] ) && export ub_setScriptChecksum_disable='true'
 export ub_setScriptChecksum_header='1891409836'
-export ub_setScriptChecksum_contents='175773389'
+export ub_setScriptChecksum_contents='1751040881'
 
 # CAUTION: Symlinks may cause problems. Disable this test for such cases if necessary.
 # WARNING: Performance may be crucial here.
@@ -5919,7 +5919,7 @@ _vncviewer_operations() {
 	_messagePlain_nominal 'Detecting and launching vncviewer.'
 	
 	#Cygwin, Overriden to Native TigerVNC
-	if [[ "$override_cygwin_vncviewer" == 'true' ]] && (( type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1 ) || ( type '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1 ))
+	if [[ "$override_cygwin_vncviewer" == 'true' ]] && ( ( type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1 ) || ( type '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1 ) )
 	then
 		_messagePlain_good 'found: vncviewer (MSW)'
 		
@@ -6286,6 +6286,49 @@ _find_route_ip() {
 
 
 
+#clog
+
+
+_clog_interface() {
+	# Upstream 'wondershaper' version beyond that from Debian (ie. 'stable') 10 .
+	#./wondershaper -a "$1" -u 10000 -d 10000
+	
+	# Debian (ie. 'stable') 10 .
+	#wondershaper [ interface ] [ downlink ] [ uplink ]
+	
+	sudo -n tc qdisc add dev "$1" root tbf rate 10mbit burst 256kbit latency 133ms
+}
+
+# ATTENTION: Override with 'core.sh' , 'netvars.sh' , or similar .
+# ATTENTION: Ideally should attempt to 'clog' all 'external' (ie. 'WiFi' or 'Ethernet') interfaces to some low value like 10Mbits/s or 2Mbits/s , to avoid unexpected bandwidth exhaustion or costs.
+# List interfaces with ' sudo -n ip addr show ' .
+# https://github.com/magnific0/wondershaper
+# https://netbeez.net/blog/how-to-use-the-linux-traffic-control/
+_clog() {
+	true
+	
+	_clog_interface eth0
+	_clog_interface eth1
+	_clog_interface eth2
+	_clog_interface eth3
+	
+	_clog_interface enp0s0
+	_clog_interface enp1s0
+	_clog_interface enp2s0
+	_clog_interface enp3s0
+}
+
+_clog_crontab() {
+	_mustGetSudo
+	echo '@reboot '"$scriptAbsoluteLocation"' _clog' | sudo -n crontab -
+}
+
+
+_test_clog() {
+	_getDep tc
+	_getDep wondershaper
+}
+
 #Run command and output to terminal with colorful formatting. Controlled variant of "bash -v".
 _showCommand() {
 	echo -e '\E[1;32;46m $ '"$1"' \E[0m'
@@ -6464,6 +6507,34 @@ _typeShare() {
 	[[ -e /usr/share/"$1" ]] && ! [[ -d /usr/share/"$1" ]] && return 0
 	[[ -e /usr/local/share/"$1" ]] && ! [[ -d /usr/local/share/"$1" ]] && return 0
 	
+	[[ -d /usr/share/"$1" ]] && return 2
+	[[ -d /usr/local/share/"$1" ]] && return 2
+	
+	[[ "$1" == '/'* ]] && [[ -e "$1"* ]] && return 3
+	ls /usr/share/"$1"* > /dev/null 2>&1 && return 3
+	ls /usr/local/share/"$1"* > /dev/null 2>&1 && return 3
+	
+	return 1
+}
+
+_typeShare_dir_wildcard() {
+	local currentFunctionReturn
+	_typeShare "$@"
+	currentFunctionReturn="$?"
+	
+	[[ "$currentFunctionReturn" == '0' ]] && return 0
+	[[ "$currentFunctionReturn" == '2' ]] && return 0
+	[[ "$currentFunctionReturn" == '3' ]] && return 0
+	return 1
+}
+
+_typeShare_dir() {
+	local currentFunctionReturn
+	_typeShare "$@"
+	currentFunctionReturn="$?"
+	
+	[[ "$currentFunctionReturn" == '0' ]] && return 0
+	[[ "$currentFunctionReturn" == '2' ]] && return 0
 	return 1
 }
 
@@ -6481,7 +6552,9 @@ _typeDep() {
 	[[ -e /usr/local/lib/"$1" ]] && ! [[ -d  /usr/local/lib/"$1" ]] && return 0
 	[[ -e /usr/local/lib/x86_64-linux-gnu/"$1" ]] && ! [[ -d /usr/local/lib/x86_64-linux-gnu/"$1" ]] && return 0
 	[[ -e /usr/include/"$1" ]] && ! [[ -d /usr/include/"$1" ]] && return 0
+	[[ -e /usr/include/x86_64-linux-gnu/"$1" ]] && ! [[ -d /usr/include/x86_64-linux-gnu/"$1" ]] && return 0
 	[[ -e /usr/local/include/"$1" ]] && ! [[ -d /usr/local/include/"$1" ]] && return 0
+	[[ -e /usr/local/include/x86_64-linux-gnu/"$1" ]] && ! [[ -d /usr/local/include/x86_64-linux-gnu/"$1" ]] && return 0
 	
 	if ! type "$1" >/dev/null 2>&1
 	then
@@ -6532,6 +6605,805 @@ _getDep() {
 	_fetchDep_distro "$@"
 	
 	_mustGetDep "$@"
+}
+
+_apt-file_sequence() {
+	_start
+	
+	_mustGetSudo
+	#_mustGetDep su
+	
+	! _wantDep apt-file && sudo -n apt-get install --install-recommends -y apt-file
+	_checkDep apt-file
+	
+	sudo -n apt-file "$@" > "$safeTmp"/pkgsOut 2> "$safeTmp"/pkgsErr
+	sudo -n apt-file search bash > "$safeTmp"/checkOut 2> "$safeTmp"/checkErr
+	
+	while ! [[ -s "$safeTmp"/checkOut ]] || cat "$safeTmp"/pkgsErr | grep 'cache is empty' > /dev/null 2>&1
+	do
+		sudo -n apt-file update > "$safeTmp"/updateOut 2> "$safeTmp"/updateErr
+		sudo -n apt-file "$@" > "$safeTmp"/pkgsOut 2> "$safeTmp"/pkgsErr
+		sudo -n apt-file search bash > "$safeTmp"/checkOut 2> "$safeTmp"/checkErr
+	done
+	
+	cat "$safeTmp"/pkgsOut
+	#cat "$safeTmp"/pkgsErr >&2
+	_stop
+}
+
+_apt-file() {
+	_timeout 750 "$scriptAbsoluteLocation" _apt-file_sequence "$@"
+}
+
+
+
+
+
+
+
+
+
+
+_fetchDep_debianStretch_special() {
+	sudo -n apt-get -y update
+	
+# 	if [[ "$1" == *"java"* ]]
+# 	then
+# 		sudo -n apt-get install --install-recommends -y default-jdk default-jre
+# 		return 0
+# 	fi
+	
+	if [[ "$1" == *"wine"* ]] && ! dpkg --print-foreign-architectures | grep i386 > /dev/null 2>&1
+	then
+		sudo -n dpkg --add-architecture i386
+		sudo -n apt-get -y update
+		sudo -n apt-get install --install-recommends -y wine wine32 wine64 libwine libwine:i386 fonts-wine
+		return 0
+	fi
+	
+	if [[ "$1" == "realpath" ]] || [[ "$1" == "readlink" ]] || [[ "$1" == "dirname" ]] || [[ "$1" == "basename" ]] || [[ "$1" == "sha512sum" ]] || [[ "$1" == "sha256sum" ]] || [[ "$1" == "head" ]] || [[ "$1" == "tail" ]] || [[ "$1" == "sleep" ]] || [[ "$1" == "env" ]] || [[ "$1" == "cat" ]] || [[ "$1" == "mkdir" ]] || [[ "$1" == "dd" ]] || [[ "$1" == "rm" ]] || [[ "$1" == "ln" ]] || [[ "$1" == "ls" ]] || [[ "$1" == "test" ]] || [[ "$1" == "true" ]] || [[ "$1" == "false" ]]
+	then
+		sudo -n apt-get install --install-recommends -y coreutils
+		return 0
+	fi
+	
+	if [[ "$1" == "mount" ]] || [[ "$1" == "umount" ]] || [[ "$1" == "losetup" ]]
+	then
+		sudo -n apt-get install --install-recommends -y mount
+		return 0
+	fi
+	
+	if [[ "$1" == "mountpoint" ]] || [[ "$1" == "mkfs" ]]
+	then
+		sudo -n apt-get install --install-recommends -y util-linux
+		return 0
+	fi
+	
+	if [[ "$1" == "mkfs.ext4" ]]
+	then
+		sudo -n apt-get install --install-recommends -y e2fsprogs
+		return 0
+	fi
+	
+	if [[ "$1" == "parted" ]] || [[ "$1" == "partprobe" ]]
+	then
+		sudo -n apt-get install --install-recommends -y parted
+		return 0
+	fi
+	
+	if [[ "$1" == "qemu-arm-static" ]] || [[ "$1" == "qemu-armeb-static" ]]
+	then
+		sudo -n apt-get install --install-recommends -y qemu qemu-user-static binfmt-support
+		#update-binfmts --display
+		return 0
+	fi
+	
+	if [[ "$1" == "qemu-system-x86_64" ]]
+	then
+		sudo -n apt-get install --install-recommends -y qemu-system-x86
+		return 0
+	fi
+	
+	if [[ "$1" == "qemu-img" ]]
+	then
+		sudo -n apt-get install --install-recommends -y qemu-utils
+		return 0
+	fi
+	
+	if [[ "$1" == "VirtualBox" ]] || [[ "$1" == "VBoxSDL" ]] || [[ "$1" == "VBoxManage" ]] || [[ "$1" == "VBoxHeadless" ]]
+	then
+		sudo -n mkdir -p /etc/apt/sources.list.d
+		echo 'deb http://download.virtualbox.org/virtualbox/debian stretch contrib' | sudo -n tee /etc/apt/sources.list.d/vbox.list > /dev/null 2>&1
+		
+		"$scriptAbsoluteLocation" _getDep wget
+		! _wantDep wget && return 1
+		
+		# TODO Check key fingerprints match "B9F8 D658 297A F3EF C18D  5CDF A2F6 83C5 2980 AECF" and "7B0F AB3A 13B9 0743 5925  D9C9 5442 2A4B 98AB 5139" respectively.
+		wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo -n apt-key add -
+		wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo -n apt-key add -
+		
+		sudo -n apt-get -y update
+		sudo -n apt-get install --install-recommends -y dkms virtualbox-6.1
+		
+		echo "WARNING: Recommend manual system configuration after install. See https://www.virtualbox.org/wiki/Downloads ."
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "gpg" ]]
+	then
+		sudo -n apt-get install --install-recommends -y gnupg
+		return 0
+	fi
+	
+	#Unlikely scenario for hosts.
+	if [[ "$1" == "grub-install" ]]
+	then
+		sudo -n apt-get install --install-recommends -y grub2
+		#sudo -n apt-get install --install-recommends -y grub-legacy
+		return 0
+	fi
+	
+	if [[ "$1" == "MAKEDEV" ]]
+	then
+		sudo -n apt-get install --install-recommends -y makedev
+		return 0
+	fi
+	
+	if [[ "$1" == "fgrep" ]]
+	then
+		sudo -n apt-get install --install-recommends -y grep
+		return 0
+	fi
+	
+	if [[ "$1" == "fgrep" ]]
+	then
+		sudo -n apt-get install --install-recommends -y grep
+		return 0
+	fi
+	
+	if [[ "$1" == "awk" ]]
+	then
+		sudo -n apt-get install --install-recommends -y mawk
+		return 0
+	fi
+	
+	if [[ "$1" == "kill" ]] || [[ "$1" == "ps" ]]
+	then
+		sudo -n apt-get install --install-recommends -y procps
+		return 0
+	fi
+	
+	if [[ "$1" == "find" ]]
+	then
+		sudo -n apt-get install --install-recommends -y findutils
+		return 0
+	fi
+	
+	if [[ "$1" == "docker" ]]
+	then
+		sudo -n apt-get install --install-recommends -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
+		
+		"$scriptAbsoluteLocation" _getDep curl
+		! _wantDep curl && return 1
+		
+		curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | sudo -n apt-key add -
+		local aptKeyFingerprint
+		aptKeyFingerprint=$(sudo -n apt-key fingerprint 0EBFCD88 2> /dev/null)
+		[[ "$aptKeyFingerprint" == "" ]] && return 1
+		
+		sudo -n add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") $(lsb_release -cs) stable"
+		
+		sudo -n apt-get -y update
+		
+		sudo -n apt-get remove -y docker docker-engine docker.io docker-ce docker
+		sudo -n apt-get install --install-recommends -y docker-ce
+		
+		sudo -n usermod -a -G docker "$USER"
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "smbd" ]]
+	then
+		sudo -n apt-get install --install-recommends -y samba
+		return 0
+	fi
+	
+	if [[ "$1" == "atom" ]]
+	then
+		curl -L https://packagecloud.io/AtomEditor/atom/gpgkey | sudo -n apt-key add -
+		sudo -n sh -c 'echo "deb [arch=amd64] https://packagecloud.io/AtomEditor/atom/any/ any main" > /etc/apt/sources.list.d/atom.list'
+		
+		sudo -n apt-get -y update
+		
+		sudo -n apt-get install --install-recommends -y atom
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "GL/gl.h" ]] || [[ "$1" == "GL/glext.h" ]] || [[ "$1" == "GL/glx.h" ]] || [[ "$1" == "GL/glxext.h" ]] || [[ "$1" == "GL/dri_interface.h" ]] || [[ "$1" == "x86_64-linux-gnu/pkgconfig/dri.pc" ]]
+	then
+		sudo -n apt-get install --install-recommends -y mesa-common-dev
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "go" ]]
+	then
+		sudo -n apt-get install --install-recommends -y golang-go
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "php" ]]
+	then
+		sudo -n apt-get install --no-install-recommends -y php
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "cura-lulzbot" ]]
+	then
+		#Testing/Sid only as of Stretch release cycle.
+		#sudo -n apt-get install --install-recommends -y rustc cargo
+		
+		echo "Requires manual installation. See https://www.lulzbot.com/learn/tutorials/cura-lulzbot-edition-installation-debian ."
+cat << 'CZXWXcRMTo8EmM8i4d'
+wget -qO - https://download.alephobjects.com/ao/aodeb/aokey.pub | sudo -n apt-key add -
+sudo -n cp /etc/apt/sources.list /etc/apt/sources.list.bak && sudo -n sed -i '$a deb http://download.alephobjects.com/ao/aodeb jessie main' /etc/apt/sources.list && sudo -n apt-get -y update && sudo -n apt-get install cura-lulzbot
+CZXWXcRMTo8EmM8i4d
+		echo "(typical)"
+		_stop 1
+	fi
+	
+	if [[ "$1" =~ "FlashPrint" ]]
+	then
+		#Testing/Sid only as of Stretch release cycle.
+		#sudo -n apt-get install --install-recommends -y rustc cargo
+		
+		echo "Requires manual installation. See http://www.flashforge.com/support-center/flashprint-support/ ."
+		_stop 1
+	fi
+	
+	if [[ "$1" == "cargo" ]] || [[ "$1" == "rustc" ]]
+	then
+		#Testing/Sid only as of Stretch release cycle.
+		#sudo -n apt-get install --install-recommends -y rustc cargo
+		
+		echo "Requires manual installation."
+cat << 'CZXWXcRMTo8EmM8i4d'
+curl https://sh.rustup.rs -sSf | sh
+echo '[[ -e "$HOME"/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
+CZXWXcRMTo8EmM8i4d
+		echo "(typical)"
+		_stop 1
+	fi
+	
+	if [[ "$1" == "firejail" ]]
+	then
+		echo "WARNING: Recommend manual system configuration after install. See https://firejail.wordpress.com/download-2/ ."
+		echo "WARNING: Desktop override symlinks may cause problems, especially preventing proxy host jumping by CoreAutoSSH!"
+		return 1
+	fi
+	
+	
+	return 1
+}
+
+_fetchDep_debianStretch_sequence() {
+	_start
+	
+	_mustGetSudo
+	
+	_wantDep "$1" && _stop 0
+	
+	_fetchDep_debianStretch_special "$@" && _wantDep "$1" && _stop 0
+	
+	sudo -n apt-get install --install-recommends -y "$1" && _wantDep "$1" && _stop 0
+	
+	_apt-file search "$1" > "$safeTmp"/pkgsOut 2> "$safeTmp"/pkgsErr
+	
+	local sysPathAll
+	sysPathAll=$(sudo -n bash -c "echo \$PATH")
+	sysPathAll="$PATH":"$sysPathAll"
+	local sysPathArray
+	IFS=':' read -r -a sysPathArray <<< "$sysPathAll"
+	
+	local currentSysPath
+	local matchingPackageFile
+	local matchingPackagePattern
+	local matchingPackage
+	for currentSysPath in "${sysPathArray[@]}"
+	do
+		matchingPackageFile=""
+		matchingPackagePath=""
+		matchingPackage=""
+		matchingPackagePattern="$currentSysPath"/"$1"
+		matchingPackageFile=$(grep ': '$matchingPackagePattern'$' "$safeTmp"/pkgsOut | cut -f2- -d' ')
+		matchingPackage=$(grep ': '$matchingPackagePattern'$' "$safeTmp"/pkgsOut | cut -f1 -d':')
+		if [[ "$matchingPackage" != "" ]]
+		then
+			sudo -n apt-get install --install-recommends -y "$matchingPackage"
+			_wantDep "$1" && _stop 0
+		fi
+	done
+	matchingPackage=""
+	matchingPackage=$(head -n 1 "$safeTmp"/pkgsOut | cut -f1 -d':')
+	sudo -n apt-get install --install-recommends -y "$matchingPackage"
+	_wantDep "$1" && _stop 0
+	
+	_stop 1
+}
+
+_fetchDep_debianStretch() {
+	#Run up to 2 times. On rare occasion, cache will become unusable again by apt-find before an installation can be completed. Overall, apt-find is the single weakest link in the system.
+	"$scriptAbsoluteLocation" _fetchDep_debianStretch_sequence "$@"
+	"$scriptAbsoluteLocation" _fetchDep_debianStretch_sequence "$@"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+_fetchDep_debianBuster_special() {
+	sudo -n apt-get -y update
+	
+# 	if [[ "$1" == *"java"* ]]
+# 	then
+# 		sudo -n apt-get install --install-recommends -y default-jdk default-jre
+# 		return 0
+# 	fi
+	
+	if [[ "$1" == *"wine"* ]] && ! dpkg --print-foreign-architectures | grep i386 > /dev/null 2>&1
+	then
+		sudo -n dpkg --add-architecture i386
+		sudo -n apt-get -y update
+		sudo -n apt-get install --install-recommends -y wine wine32 wine64 libwine libwine:i386 fonts-wine
+		return 0
+	fi
+	
+	if [[ "$1" == "realpath" ]] || [[ "$1" == "readlink" ]] || [[ "$1" == "dirname" ]] || [[ "$1" == "basename" ]] || [[ "$1" == "sha512sum" ]] || [[ "$1" == "sha256sum" ]] || [[ "$1" == "head" ]] || [[ "$1" == "tail" ]] || [[ "$1" == "sleep" ]] || [[ "$1" == "env" ]] || [[ "$1" == "cat" ]] || [[ "$1" == "mkdir" ]] || [[ "$1" == "dd" ]] || [[ "$1" == "rm" ]] || [[ "$1" == "ln" ]] || [[ "$1" == "ls" ]] || [[ "$1" == "test" ]] || [[ "$1" == "true" ]] || [[ "$1" == "false" ]]
+	then
+		sudo -n apt-get install --install-recommends -y coreutils
+		return 0
+	fi
+	
+	if [[ "$1" == "mount" ]] || [[ "$1" == "umount" ]] || [[ "$1" == "losetup" ]]
+	then
+		sudo -n apt-get install --install-recommends -y mount
+		return 0
+	fi
+	
+	if [[ "$1" == "mountpoint" ]] || [[ "$1" == "mkfs" ]]
+	then
+		sudo -n apt-get install --install-recommends -y util-linux
+		return 0
+	fi
+	
+	if [[ "$1" == "mkfs.ext4" ]]
+	then
+		sudo -n apt-get install --install-recommends -y e2fsprogs
+		return 0
+	fi
+	
+	if [[ "$1" == "parted" ]] || [[ "$1" == "partprobe" ]]
+	then
+		sudo -n apt-get install --install-recommends -y parted
+		return 0
+	fi
+	
+	if [[ "$1" == "qemu-arm-static" ]] || [[ "$1" == "qemu-armeb-static" ]]
+	then
+		sudo -n apt-get install --install-recommends -y qemu qemu-user-static binfmt-support
+		#update-binfmts --display
+		return 0
+	fi
+	
+	if [[ "$1" == "qemu-system-x86_64" ]]
+	then
+		sudo -n apt-get install --install-recommends -y qemu-system-x86
+		return 0
+	fi
+	
+	if [[ "$1" == "qemu-img" ]]
+	then
+		sudo -n apt-get install --install-recommends -y qemu-utils
+		return 0
+	fi
+	
+	if [[ "$1" == "VirtualBox" ]] || [[ "$1" == "VBoxSDL" ]] || [[ "$1" == "VBoxManage" ]] || [[ "$1" == "VBoxHeadless" ]]
+	then
+		sudo -n mkdir -p /etc/apt/sources.list.d
+		echo 'deb http://download.virtualbox.org/virtualbox/debian buster contrib' | sudo -n tee /etc/apt/sources.list.d/vbox.list > /dev/null 2>&1
+		
+		"$scriptAbsoluteLocation" _getDep wget
+		! _wantDep wget && return 1
+		
+		# TODO Check key fingerprints match "B9F8 D658 297A F3EF C18D  5CDF A2F6 83C5 2980 AECF" and "7B0F AB3A 13B9 0743 5925  D9C9 5442 2A4B 98AB 5139" respectively.
+		wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo -n apt-key add -
+		wget -q https://www.virtualbox.org/download/oracle_vbox.asc -O- | sudo -n apt-key add -
+		
+		sudo -n apt-get -y update
+		sudo -n apt-get install --install-recommends -y dkms virtualbox-6.1
+		
+		echo "WARNING: Recommend manual system configuration after install. See https://www.virtualbox.org/wiki/Downloads ."
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "gpg" ]]
+	then
+		sudo -n apt-get install --install-recommends -y gnupg
+		return 0
+	fi
+	
+	#Unlikely scenario for hosts.
+	if [[ "$1" == "grub-install" ]]
+	then
+		sudo -n apt-get install --install-recommends -y grub2
+		#sudo -n apt-get install --install-recommends -y grub-legacy
+		return 0
+	fi
+	
+	if [[ "$1" == "MAKEDEV" ]]
+	then
+		sudo -n apt-get install --install-recommends -y makedev
+		return 0
+	fi
+	
+	if [[ "$1" == "fgrep" ]]
+	then
+		sudo -n apt-get install --install-recommends -y grep
+		return 0
+	fi
+	
+	if [[ "$1" == "fgrep" ]]
+	then
+		sudo -n apt-get install --install-recommends -y grep
+		return 0
+	fi
+	
+	if [[ "$1" == "awk" ]]
+	then
+		sudo -n apt-get install --install-recommends -y mawk
+		return 0
+	fi
+	
+	if [[ "$1" == "kill" ]] || [[ "$1" == "ps" ]]
+	then
+		sudo -n apt-get install --install-recommends -y procps
+		return 0
+	fi
+	
+	if [[ "$1" == "find" ]]
+	then
+		sudo -n apt-get install --install-recommends -y findutils
+		return 0
+	fi
+	
+	if [[ "$1" == "docker" ]]
+	then
+		sudo -n update-alternatives --set iptables /usr/sbin/iptables-legacy
+		sudo -n update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+		#sudo -n systemctl restart docker
+		
+		sudo -n apt-get install --install-recommends -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
+		
+		"$scriptAbsoluteLocation" _getDep curl
+		! _wantDep curl && return 1
+		
+		curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | sudo -n apt-key add -
+		local aptKeyFingerprint
+		aptKeyFingerprint=$(sudo -n apt-key fingerprint 0EBFCD88 2> /dev/null)
+		[[ "$aptKeyFingerprint" == "" ]] && return 1
+		
+		sudo -n add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") $(lsb_release -cs) stable"
+		
+		sudo -n apt-get -y update
+		
+		sudo -n apt-get remove -y docker docker-engine docker.io docker-ce docker
+		sudo -n apt-get install --install-recommends -y docker-ce
+		
+		sudo -n usermod -a -G docker "$USER"
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "smbd" ]]
+	then
+		sudo -n apt-get install --install-recommends -y samba
+		return 0
+	fi
+	
+	if [[ "$1" == "atom" ]]
+	then
+		curl -L https://packagecloud.io/AtomEditor/atom/gpgkey | sudo -n apt-key add -
+		sudo -n sh -c 'echo "deb [arch=amd64] https://packagecloud.io/AtomEditor/atom/any/ any main" > /etc/apt/sources.list.d/atom.list'
+		
+		sudo -n apt-get -y update
+		
+		sudo -n apt-get install --install-recommends -y atom
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "GL/gl.h" ]] || [[ "$1" == "GL/glext.h" ]] || [[ "$1" == "GL/glx.h" ]] || [[ "$1" == "GL/glxext.h" ]] || [[ "$1" == "GL/dri_interface.h" ]] || [[ "$1" == "x86_64-linux-gnu/pkgconfig/dri.pc" ]]
+	then
+		sudo -n apt-get install --install-recommends -y mesa-common-dev
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "go" ]]
+	then
+		sudo -n apt-get install --install-recommends -y golang-go
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "php" ]]
+	then
+		sudo -n apt-get install --no-install-recommends -y php
+		
+		return 0
+	fi
+	
+	if [[ "$1" == "cura-lulzbot" ]]
+	then
+		#Testing/Sid only as of Stretch release cycle.
+		#sudo -n apt-get install --install-recommends -y rustc cargo
+		
+		echo "Requires manual installation. See https://www.lulzbot.com/learn/tutorials/cura-lulzbot-edition-installation-debian ."
+cat << 'CZXWXcRMTo8EmM8i4d'
+wget -qO - https://download.alephobjects.com/ao/aodeb/aokey.pub | sudo -n apt-key add -
+sudo -n cp /etc/apt/sources.list /etc/apt/sources.list.bak && sudo -n sed -i '$a deb http://download.alephobjects.com/ao/aodeb jessie main' /etc/apt/sources.list && sudo -n apt-get -y update && sudo -n apt-get install cura-lulzbot
+CZXWXcRMTo8EmM8i4d
+		echo "(typical)"
+		_stop 1
+	fi
+	
+	if [[ "$1" =~ "FlashPrint" ]]
+	then
+		#Testing/Sid only as of Stretch release cycle.
+		#sudo -n apt-get install --install-recommends -y rustc cargo
+		
+		echo "Requires manual installation. See http://www.flashforge.com/support-center/flashprint-support/ ."
+		_stop 1
+	fi
+	
+	if [[ "$1" == "cargo" ]] || [[ "$1" == "rustc" ]]
+	then
+		#Testing/Sid only as of Stretch release cycle.
+		#sudo -n apt-get install --install-recommends -y rustc cargo
+		
+		echo "Requires manual installation."
+cat << 'CZXWXcRMTo8EmM8i4d'
+curl https://sh.rustup.rs -sSf | sh
+echo '[[ -e "$HOME"/.cargo/bin ]] && export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc
+CZXWXcRMTo8EmM8i4d
+		echo "(typical)"
+		_stop 1
+	fi
+	
+	if [[ "$1" == "firejail" ]]
+	then
+		echo "WARNING: Recommend manual system configuration after install. See https://firejail.wordpress.com/download-2/ ."
+		echo "WARNING: Desktop override symlinks may cause problems, especially preventing proxy host jumping by CoreAutoSSH!"
+		return 1
+	fi
+	
+	
+	if [[ "$1" == "rclone" ]]
+	then
+		_tryExec '_test_rclone_upstream'
+		#_tryExec '_test_rclone_upstream_beta'
+	fi
+	
+	
+	return 1
+}
+
+_fetchDep_debianBuster_sequence() {
+	_start
+	
+	_mustGetSudo
+	
+	_wantDep "$1" && _stop 0
+	
+	_fetchDep_debianBuster_special "$@" && _wantDep "$1" && _stop 0
+	
+	sudo -n apt-get install --install-recommends -y "$1" && _wantDep "$1" && _stop 0
+	
+	_apt-file search "$1" > "$safeTmp"/pkgsOut 2> "$safeTmp"/pkgsErr
+	
+	local sysPathAll
+	sysPathAll=$(sudo -n bash -c "echo \$PATH")
+	sysPathAll="$PATH":"$sysPathAll"
+	local sysPathArray
+	IFS=':' read -r -a sysPathArray <<< "$sysPathAll"
+	
+	local currentSysPath
+	local matchingPackageFile
+	local matchingPackagePattern
+	local matchingPackage
+	for currentSysPath in "${sysPathArray[@]}"
+	do
+		matchingPackageFile=""
+		matchingPackagePath=""
+		matchingPackage=""
+		matchingPackagePattern="$currentSysPath"/"$1"
+		matchingPackageFile=$(grep ': '$matchingPackagePattern'$' "$safeTmp"/pkgsOut | cut -f2- -d' ')
+		matchingPackage=$(grep ': '$matchingPackagePattern'$' "$safeTmp"/pkgsOut | cut -f1 -d':')
+		if [[ "$matchingPackage" != "" ]]
+		then
+			sudo -n apt-get install --install-recommends -y "$matchingPackage"
+			_wantDep "$1" && _stop 0
+		fi
+	done
+	matchingPackage=""
+	matchingPackage=$(head -n 1 "$safeTmp"/pkgsOut | cut -f1 -d':')
+	sudo -n apt-get install --install-recommends -y "$matchingPackage"
+	_wantDep "$1" && _stop 0
+	
+	_stop 1
+}
+
+_fetchDep_debianBuster() {
+	#Run up to 2 times. On rare occasion, cache will become unusable again by apt-find before an installation can be completed. Overall, apt-find is the single weakest link in the system.
+	"$scriptAbsoluteLocation" _fetchDep_debianBuster_sequence "$@"
+	"$scriptAbsoluteLocation" _fetchDep_debianBuster_sequence "$@"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+_fetchDep_debian() {
+	
+	# WARNING: Obsolete. Declining support. Eventual removal expected approximately one year after two Debian stable releases.
+	if [[ -e /etc/debian_version ]] && cat /etc/debian_version | head -c 1 | grep 9 > /dev/null 2>&1
+	then
+		_fetchDep_debianStretch "$@"
+		return
+	fi
+	
+	if [[ -e /etc/debian_version ]] && cat /etc/debian_version | head -c 2 | grep 10 > /dev/null 2>&1
+	then
+		_fetchDep_debianBuster "$@"
+		return
+	fi
+	
+	return 1
+}
+
+#https://unix.stackexchange.com/questions/39226/how-to-run-a-script-with-systemd-right-before-shutdown
+# In theory, 'sleep 1892160000' should create a process that will run for at least 60 years, with 'sleep' binaries that support 'floating point' numbers of seconds, which should be tested for by timetest. This should not be depended upon unless necessary however.
+
+_here_systemd_shutdown_action() {
+
+cat << 'CZXWXcRMTo8EmM8i4d'
+[Unit]
+CZXWXcRMTo8EmM8i4d
+
+
+echo Description=$sessionid
+
+cat << 'CZXWXcRMTo8EmM8i4d'
+
+[Service]
+ExecStart=/bin/true
+CZXWXcRMTo8EmM8i4d
+
+echo ExecStop=\""$scriptAbsoluteLocation"\" "$@"
+
+cat << 'CZXWXcRMTo8EmM8i4d'
+Type=oneshot
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+
+CZXWXcRMTo8EmM8i4d
+
+}
+
+_here_systemd_shutdown() {
+
+cat << 'CZXWXcRMTo8EmM8i4d'
+[Unit]
+CZXWXcRMTo8EmM8i4d
+
+
+echo Description=$sessionid
+
+cat << 'CZXWXcRMTo8EmM8i4d'
+
+[Service]
+ExecStart=/bin/true
+CZXWXcRMTo8EmM8i4d
+
+echo ExecStop=\""$scriptAbsoluteLocation"\" "$@"
+
+cat << 'CZXWXcRMTo8EmM8i4d'
+Type=oneshot
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+
+CZXWXcRMTo8EmM8i4d
+
+}
+
+_hook_systemd_shutdown() {
+	[[ -e /etc/systemd/system/"$sessionid".service ]] && return 0
+	
+	! _wantSudo && return 1
+	
+	! [[ -e /etc/systemd/system ]] && return 0
+	
+	_here_systemd_shutdown | sudo -n tee /etc/systemd/system/"$sessionid".service > /dev/null
+	sudo -n systemctl enable "$sessionid".service 2>&1 | sudo -n tee -a "$permaLog"/gsysd.log > /dev/null 2>&1
+	sudo -n systemctl start "$sessionid".service 2>&1 | sudo -n tee -a "$permaLog"/gsysd.log > /dev/null 2>&1
+}
+
+_hook_systemd_shutdown_action() {
+	[[ -e /etc/systemd/system/"$sessionid".service ]] && return 0
+	
+	! _wantSudo && return 1
+	
+	! [[ -e /etc/systemd/system ]] && return 0
+	
+	_here_systemd_shutdown_action "$@" | sudo -n tee /etc/systemd/system/"$sessionid".service > /dev/null
+	sudo -n systemctl enable "$sessionid".service 2>&1 | sudo -n tee -a "$permaLog"/gsysd.log > /dev/null 2>&1
+	sudo -n systemctl start "$sessionid".service 2>&1 | sudo -n tee -a "$permaLog"/gsysd.log > /dev/null 2>&1
+	
+}
+
+#"$1" == sessionid (optional override for cleaning up stale systemd files)
+_unhook_systemd_shutdown() {
+	local hookSessionid
+	hookSessionid="$sessionid"
+	[[ "$1" != "" ]] && hookSessionid="$1"
+	
+	[[ ! -e /etc/systemd/system/"$hookSessionid".service ]] && return 0
+	
+	! _wantSudo && return 1
+	
+	! [[ -e /etc/systemd/system ]] && return 0
+	
+	[[ "$SYSTEMCTLDISABLE" == "true" ]] && echo SYSTEMCTLDISABLE | sudo -n tee -a "$permaLog"/gsysd.log > /dev/null 2>&1 && return 0
+	export SYSTEMCTLDISABLE=true
+	
+	sudo -n systemctl disable "$hookSessionid".service 2>&1 | sudo -n tee -a "$permaLog"/gsysd.log > /dev/null 2>&1
+	sudo -n rm -f /etc/systemd/system/"$hookSessionid".service 2>&1 | sudo -n tee -a "$permaLog"/gsysd.log > /dev/null 2>&1
 }
 
 #Determines if user is root. If yes, then continue. If not, exits after printing error message.
@@ -6606,6 +7478,194 @@ _stopwatch() {
 }
 
 
+_start_virt_instance() {
+	
+	mkdir -p "$instancedVirtDir" || return 1
+	mkdir -p "$instancedVirtFS" || return 1
+	mkdir -p "$instancedVirtTmp" || return 1
+	
+	mkdir -p "$instancedVirtHome" || return 1
+	###mkdir -p "$instancedVirtHomeRef" || return 1
+	
+	mkdir -p "$sharedHostProjectDir" > /dev/null 2>&1
+	mkdir -p "$instancedProjectDir" || return 1
+	
+}
+
+_start_virt_all() {
+	
+	_start_virt_instance
+	
+	mkdir -p "$globalVirtDir" || return 1
+	mkdir -p "$globalVirtFS" || return 1
+	mkdir -p "$globalVirtTmp" || return 1
+	
+	
+	return 0
+}
+
+_stop_virt_instance() {
+	
+	_wait_umount "$instancedProjectDir"
+	sudo -n rmdir "$instancedProjectDir"
+	
+	_wait_umount "$instancedVirtHome"
+	sudo -n rmdir "$instancedVirtHome"
+	###_wait_umount "$instancedVirtHomeRef"
+	###sudo -n rmdir "$instancedVirtHomeRef"
+	sudo -n rmdir "$instancedVirtFS"/home
+	
+	_wait_umount "$instancedVirtFS"
+	sudo -n rmdir "$instancedVirtFS"
+	_wait_umount "$instancedVirtTmp"
+	sudo -n rmdir "$instancedVirtTmp"
+	_wait_umount "$instancedVirtDir"
+	sudo -n rmdir "$instancedVirtDir"
+	
+	
+	
+	return 0
+	
+}
+
+_stop_virt_all() {
+	
+	_stop_virt_instance || return 1
+	
+	_wait_umount "$globalVirtFS" || return 1
+	_wait_umount "$globalVirtTmp" || return 1
+	_wait_umount "$globalVirtDir" || return 1
+	
+	
+	
+}
+
+
+#Triggers before "user" and "edit" virtualization commands, to allow a single installation of a virtual machine to be used by multiple ubiquitous labs.
+#Does NOT trigger for all non-user commands (eg. open, docker conversion), as these are intended for developers with awareness of associated files under "$scriptLocal".
+
+# WARNING
+# DISABLED by default. Must be explicitly enabled by setting "$ubVirtImageLocal" to "false" in "ops".
+
+#toImage
+
+#_closeChRoot
+
+#_closeVBoxRaw
+
+#_editQemu
+#_editVBox
+
+#_userChRoot
+#_userQemu
+#_userVBox
+
+#_userDocker
+
+#_dockerCommit
+#_dockerLaunch
+#_dockerAttach
+#_dockerOn
+#_dockerOff
+
+_findInfrastructure_virtImage() {
+	[[ "$ubVirtImageLocal" != "false" ]] && return 0
+	
+	[[ -e "$scriptLocal"/vm.img ]] && export ubVirtImageLocal="true" && return 0
+	[[ -e "$scriptLocal"/vm.vdi ]] && export ubVirtImageLocal="true" && return 0
+	[[ -e "$scriptLocal"/vmvdiraw.vmdi ]] && export ubVirtImageLocal="true" && return 0
+	
+	# WARNING: Override implies local image.
+	[[ "$ubVirtImageIsRootPartition" != "" ]] && export ubVirtImageLocal="true" && return 0
+	[[ "$ubVirtImageIsDevice" != "" ]] && export ubVirtImageLocal="true" && return 0
+	[[ "$ubVirtImageOverride" != "" ]] && export ubVirtImageLocal="true" && return 0
+	[[ "$ubVirtDeviceOverride" != "" ]] && export ubVirtImageLocal="true" && return 0
+	#[[ "$ubVirtPlatformOverride" != "" ]] && export ubVirtImageLocal="true" && return 0
+	
+	# WARNING: Symlink implies local image (even if non-existent destination).
+	[[ -h "$scriptLocal"/vm.img ]] && export ubVirtImageLocal="true" && return 0
+	[[ -h "$scriptLocal"/vm.vdi ]] && export ubVirtImageLocal="true" && return 0
+	[[ -h "$scriptLocal"/vmvdiraw.vmdi ]] && export ubVirtImageLocal="true" && return 0
+	
+	_checkSpecialLocks && export ubVirtImageLocal="true" && return 0
+	
+	# DANGER: Recursion hazard.
+	_findInfrastructure_virtImage_script "$@"
+}
+
+# WARNING
+#Overloading with "ops" is recommended.
+_findInfrastructure_virtImage_script() {
+	local infrastructureName=$(basename "$scriptAbsoluteFolder")
+	
+	local recursionExec
+	local recursionExecList
+	local currentRecursionExec
+	
+	recursionExecList+=("$scriptAbsoluteFolder"/../core/infrastructure/vm/"$infrastructureName"/ubiquitous_bash.sh)
+	#recursionExecList+=("$scriptAbsoluteFolder"/../core/lab/"$infrastructureName"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$scriptAbsoluteFolder"/../../core/infrastructure/vm/"$infrastructureName"/ubiquitous_bash.sh)
+	#recursionExecList+=("$scriptAbsoluteFolder"/../../core/lab/"$infrastructureName"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../core/infrastructure/vm/"$infrastructureName"/ubiquitous_bash.sh)
+	#recursionExecList+=("$scriptAbsoluteFolder"/../../../core/lab/"$infrastructureName"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../core/infrastructure/vm/"$infrastructureName"/ubiquitous_bash.sh)
+	#recursionExecList+=("$scriptAbsoluteFolder"/../../../../core/lab/"$infrastructureName"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../../core/infrastructure/vm/"$infrastructureName"/ubiquitous_bash.sh)
+	#recursionExecList+=("$scriptAbsoluteFolder"/../../../../../core/lab/"$infrastructureName"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../../../core/infrastructure/vm/"$infrastructureName"/ubiquitous_bash.sh)
+	#recursionExecList+=("$scriptAbsoluteFolder"/../../../../../../core/lab/"$infrastructureName"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../../../../core/infrastructure/vm/"$infrastructureName"/ubiquitous_bash.sh)
+	#recursionExecList+=("$scriptAbsoluteFolder"/../../../../../../../core/lab/"$infrastructureName"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$HOME"/core/infrastructure/vm/"$infrastructureName"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$HOME"/core/extra/infrastructure/vm/"$infrastructureName"/ubiquitous_bash.sh)
+	
+	local whichExeVM
+	whichExeVM=nixexevm
+	[[ "$virtOStype" == 'MSW'* ]] && whichExeVM=winexevm
+	[[ "$virtOStype" == 'Windows'* ]] && whichExeVM=winexevm
+	[[ "$vboxOStype" == 'Windows'* ]] && whichExeVM=winexevm
+	
+	
+	recursionExecList+=("$scriptAbsoluteFolder"/../core/infrastructure/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../core/infrastructure/vm/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../core/infrastructure/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../core/infrastructure/vm/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../core/infrastructure/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../core/infrastructure/vm/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../core/infrastructure/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../core/infrastructure/vm/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../../core/infrastructure/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../../core/infrastructure/vm/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../../../core/infrastructure/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../../../core/infrastructure/vm/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../../../../core/infrastructure/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$scriptAbsoluteFolder"/../../../../../../../core/infrastructure/vm/"$whichExeVM"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$HOME"/core/infrastructure/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$HOME"/core/extra/infrastructure/"$whichExeVM"/ubiquitous_bash.sh)
+	
+	recursionExecList+=("$HOME"/core/infrastructure/vm/"$whichExeVM"/ubiquitous_bash.sh)
+	recursionExecList+=("$HOME"/core/extra/infrastructure/vm/"$whichExeVM"/ubiquitous_bash.sh)
+	
+	for currentRecursionExec in "${recursionExecList[@]}"
+	do
+		if _recursion_guard "$currentRecursionExec"
+		then
+			"$currentRecursionExec" "$@"
+			return
+		fi
+	done
+}
+
+
 #Removes 'file://' often used by browsers.
 _removeFilePrefix() {
 	local translatedFileParam
@@ -6634,6 +7694,806 @@ _nixToMSW() {
 	_slashBackToForward "$intermediateStepOne"
 }
 
+_test_localpath() {
+	_getDep realpath
+}
+
+
+#Determines whether test parameter is in the path of base parameter.
+#"$1" == testParameter
+#"$2" == baseParameter
+_pathPartOf() {
+	local testParameter
+	testParameter="IAUjqyPF2s3gqjC0t1"
+	local baseParameter
+	baseParameter="JQRBqIoOVoDJuzc7k9"
+	
+	[[ -e "$1" ]] && testParameter=$(_getAbsoluteLocation "$1")
+	[[ -e "$2" ]] && baseParameter=$(_getAbsoluteLocation "$2")
+	
+	[[ "$testParameter" != "$baseParameter"* ]] && return 1
+	return 0
+}
+
+#Checks if file/directory exists on local filesystem, and meets other criteria. Intended to be called within the virtualization platform, through _checkBaseDirRemote . Often maintained merely for the sake of example.
+_checkBaseDirLocal() {
+	/bin/bash -c '[[ -e "'"$1"'" ]] && ! [[ -d "'"$1"'" ]] && [[ "'"$1"'" != "." ]] && [[ "'"$1"'" != ".." ]] && [[ "'"$1"'" != "./" ]] && [[ "'"$1"'" != "../" ]]'
+}
+
+_checkBaseDirRemote_app_localOnly() {
+	false
+}
+
+_checkBaseDirRemote_app_remoteOnly() {
+	[[ "$1" == "/bin/bash" ]] && return 0
+}
+
+# WARNING Strongly recommend not sharing root with guest, but this can be overridden by "ops".
+_checkBaseDirRemote_common_localOnly() {
+	[[ "$1" == "." ]] && return 0
+	[[ "$1" == "./" ]] && return 0
+	[[ "$1" == ".." ]] && return 0
+	[[ "$1" == "../" ]] && return 0
+	
+	[[ "$1" == "/" ]] && return 0
+	
+	return 1
+}
+
+_checkBaseDirRemote_common_remoteOnly() {
+	[[ "$1" == "/bin"* ]] && return 0
+	[[ "$1" == "/lib"* ]] && return 0
+	[[ "$1" == "/lib64"* ]] && return 0
+	[[ "$1" == "/opt"* ]] && return 0
+	[[ "$1" == "/usr"* ]] && return 0
+	
+	[[ "$1" == "/bin/bash" ]] && return 0
+	
+	#type "$1" > /dev/null 2>&1 && return 0
+	
+	#! [[ "$1" == "/"* ]] && return 0
+	
+	return 1
+}
+
+#Checks if file/directory exists on remote system. Overload this function with implementation specific to the container/virtualization solution in use (ie. docker run).
+_checkBaseDirRemote() {
+	_checkBaseDirRemote_common_localOnly "$1" && return 0
+	_checkBaseDirRemote_common_remoteOnly "$1" && return 1
+	
+	_checkBaseDirRemote_app_localOnly "$1" && return 0
+	_checkBaseDirRemote_app_remoteOnly "$1" && return 1
+	
+	[[ "$checkBaseDirRemote" == "" ]] && checkBaseDirRemote="false"
+	"$checkBaseDirRemote" "$1" || return 1
+	return 0
+}
+
+#Reports the highest-level directory containing all files in given parameter set.
+#"$@" == parameters to search
+#$checkBaseDirRemote == function to check if file/directory exists on remote system
+_searchBaseDir() {
+	local baseDir
+	local newDir
+	
+	baseDir=""
+	
+	local processedArgs
+	local currentArg
+	local currentResult
+	
+	#Do not translate if exists on remote filesystem. Dummy check by default unless overloaded, by $checkBaseDirRemote value.
+	#Intended to prevent "/bin/true" and similar from being translated, so execution of remote programs can be requested.
+	for currentArg in "$@"
+	do
+		if _checkBaseDirRemote "$currentArg"
+		then
+			continue
+		fi
+		
+		currentResult="$currentArg"
+		processedArgs+=("$currentResult")
+	done
+	
+	for currentArg in "${processedArgs[@]}"
+	do
+		
+		if [[ ! -e "$currentArg" ]]
+		then
+			continue
+		fi
+		
+		if [[ "$baseDir" == "" ]]
+		then
+			baseDir=$(_findDir "$currentArg")
+		fi
+		
+		for subArg in "${processedArgs[@]}"
+		do
+			if [[ ! -e "$subArg" ]]
+			then
+				continue
+			fi
+			
+			newDir=$(_findDir "$subArg")
+			
+			# Trailing slash added to comparison to prevent partial matching of directory names.
+			# https://stackoverflow.com/questions/12340846/bash-shell-script-to-find-the-closest-parent-directory-of-several-files
+			# https://stackoverflow.com/questions/9018723/what-is-the-simplest-way-to-remove-a-trailing-slash-from-each-parameter
+			while [[ "${newDir%/}/" != "${baseDir%/}/"* ]]
+			do
+				baseDir=$(_findDir "$baseDir"/..)
+				
+				if [[ "$baseDir" == "/" ]]
+				then
+					break
+				fi
+			done
+			
+		done
+		
+		
+		
+		
+	done
+	
+	_safeEcho_newline "$baseDir"
+}
+
+#Converts to relative path, if provided a file parameter.
+#"$1" == parameter to search
+#"$2" == sharedHostProjectDir
+#"$3" == sharedGuestProjectDir (optional)
+_localDir() {
+	if _checkBaseDirRemote "$1"
+	then
+		_safeEcho_newline "$1"
+		return
+	fi
+	
+	if [[ ! -e "$2" ]]
+	then
+		_safeEcho_newline "$1"
+		return
+	fi
+	
+	if [[ ! -e "$1" ]] || ! _pathPartOf "$1" "$2"
+	then
+		_safeEcho_newline "$1"
+		return
+	fi
+	
+	[[ "$3" != "" ]] && _safeEcho "$3" && [[ "$3" != "/" ]] && _safeEcho "/"
+	realpath -L -s --relative-to="$2" "$1"
+	
+}
+
+
+#Takes a list of parameters, idenfities file parameters, finds a common path, and translates all parameters to that path. Essentially provides shared folder and file parameter translation for application virtualization solutions.
+#Keep in mind this function has a relatively complex set of inputs and outputs, serving a critically wide variety of edgy use cases across platforms.
+#"$@" == input parameters
+
+#"$sharedHostProjectDir" == if already set, overrides the directory that will be shared, rarely used to share entire root
+#"$sharedGuestProjectDir" == script default is /home/ubvrtusr/project, can be overridden, "X:" typical for MSW guests
+#Setting sharedGuestProjectDir to a drive letter designation will also enable UNIX/MSW parameter translation mechanisms.
+
+# export sharedHostProjectDir == common directory to bind mount
+# export processedArgs == translated arguments to be used in place of "$@"
+
+# WARNING Consider specified syntax for portability.
+# _runExec "${processedArgs[@]}"
+_virtUser() {
+	export sharedHostProjectDir="$sharedHostProjectDir"
+	export processedArgs
+	
+	[[ "$virtUserPWD" == "" ]] && export virtUserPWD="$outerPWD"
+	
+	if [[ -e /tmp/.X11-unix ]] && [[ "$DISPLAY" != "" ]] && type xauth > /dev/null 2>&1
+	then
+		export XSOCK=/tmp/.X11-unix
+		export XAUTH=/tmp/.virtuser.xauth."$sessionid"
+		touch $XAUTH
+		xauth nlist $DISPLAY | sed -e 's/^..../ffff/' | xauth -f $XAUTH nmerge -
+	fi
+	
+	if [[ "$sharedHostProjectDir" == "" ]]
+	then
+		sharedHostProjectDir=$(_searchBaseDir "$@" "$virtUserPWD")
+		#sharedHostProjectDir="$safeTmp"/shared
+		mkdir -p "$sharedHostProjectDir"
+	fi
+	
+	export localPWD=$(_localDir "$virtUserPWD" "$sharedHostProjectDir" "$sharedGuestProjectDir")
+	export virtUserPWD=
+	
+	#If $sharedGuestProjectDir matches MSW drive letter format, enable translation of other non-UNIX file parameter differences.
+	local enableMSWtranslation
+	enableMSWtranslation=false
+	_safeEcho_newline "$sharedGuestProjectDir" | grep '^[[:alpha:]]\:\|^[[:alnum:]][[:alnum:]]\:\|^[[:alnum:]][[:alnum:]][[:alnum:]]\:' > /dev/null 2>&1 && enableMSWtranslation=true
+	
+	#http://stackoverflow.com/questions/15420790/create-array-in-loop-from-number-of-arguments
+	#local processedArgs
+	local currentArg
+	local currentResult
+	processedArgs=()
+	for currentArg in "$@"
+	do
+		currentResult=$(_localDir "$currentArg" "$sharedHostProjectDir" "$sharedGuestProjectDir")
+		[[ "$enableMSWtranslation" == "true" ]] && currentResult=$(_slashBackToForward "$currentResult")
+		processedArgs+=("$currentResult")
+	done
+}
+
+_stop_virtLocal() {
+	[[ "$XAUTH" == "" ]] && return
+	[[ ! -e "$XAUTH" ]] && return
+	
+	rm -f "$XAUTH" > /dev/null 2>&1
+}
+
+_test_virtLocal_X11() {
+	! _wantGetDep xauth && echo warn: missing: xauth && return 1
+	return 0
+}
+
+# TODO: Expansion needed.
+_vector_virtUser() {
+	export sharedHostProjectDir=
+	export sharedGuestProjectDir=/home/user/project
+	_virtUser /tmp
+	#_safeEcho_newline "${processedArgs[0]}"
+	[[ "${processedArgs[0]}" != '/home/user/project/tmp' ]] && echo 'fail: _vector_virtUser' && _messageFAIL
+	
+	export sharedHostProjectDir=/
+	export sharedGuestProjectDir='Z:'
+	_virtUser /tmp
+	#_safeEcho_newline "${processedArgs[0]}"
+	[[ "${processedArgs[0]}" != 'Z:\tmp' ]] && echo 'fail: _vector_virtUser' && _messageFAIL
+	
+	export sharedHostProjectDir=/tmp
+	export sharedGuestProjectDir='/home/user/project/tmp'
+	_virtUser /tmp
+	#_safeEcho_newline "${processedArgs[0]}"
+	[[ "${processedArgs[0]}" != '/home/user/project/tmp/.' ]] && echo 'fail: _vector_virtUser' && _messageFAIL
+	
+	export virtUserPWD='/tmp'
+	export sharedHostProjectDir=/tmp
+	export sharedGuestProjectDir='/home/user/project/tmp'
+	_virtUser /tmp
+	#_safeEcho_newline "${processedArgs[0]}"
+	#_safeEcho_newline "$localPWD"
+	[[ "$localPWD" != '/home/user/project/tmp/.' ]] && echo 'fail: _vector_virtUser' && _messageFAIL
+	
+	export virtUserPWD='/tmp'
+	export sharedHostProjectDir=/tmp
+	export sharedGuestProjectDir='/home/user/project/tmp'
+	_virtUser -e /tmp
+	#_safeEcho_newline "${processedArgs[0]}"
+	[[ "${processedArgs[0]}" != '-e' ]] && echo 'fail: _vector_virtUser' && _messageFAIL
+	
+	
+	return 0
+}
+
+
+
+
+
+
+_makeFakeHome_extra_layer0() {
+	_relink "$1"/.bashrc "$2"/.bashrc
+	_relink "$1"/.ubcore "$2"/.ubcore
+	
+	_relink "$1"/.Xauthority "$2"/.Xauthority
+	
+	_relink "$1"/.ssh "$2"/.ssh
+	_relink "$1"/.gitconfig "$2"/.gitconfig
+	
+	mkdir -p "$2"/.config
+}
+
+_makeFakeHome_extra_layer1() {
+	true
+}
+
+#"$1" == sourceHome
+#"$2" == destinationHome
+_makeFakeHome() {
+	[[ "$1" == "" ]] && return 1
+	! [[ -d "$1" ]] && return 1
+	
+	[[ "$2" == "" ]] && return 1
+	[[ "$2" == "/home/""$USER" ]] && return 1
+	! [[ -d "$2" ]] && return 1
+	
+	_relink "$1" "$2"/realHome
+	
+	_relink "$1"/Downloads "$2"/Downloads
+	
+	_relink "$1"/Desktop "$2"/Desktop
+	_relink "$1"/Documents "$2"/Documents
+	_relink "$1"/Music "$2"/Music
+	_relink "$1"/Pictures "$2"/Pictures
+	_relink "$1"/Public "$2"/Public
+	_relink "$1"/Templates "$2"/Templates
+	_relink "$1"/Videos "$2"/Videos
+	
+	_relink "$1"/bin "$2"/bin
+	
+	_relink "$1"/core "$2"/core
+	_relink "$1"/project "$2"/project
+	_relink "$1"/projects "$2"/projects
+	
+	
+	
+	_makeFakeHome_extra_layer0 "$@"
+	_makeFakeHome_extra_layer1 "$@"
+}
+
+_unmakeFakeHome_extra_layer0() {
+	_rmlink "$1"/.bashrc
+	_rmlink "$1"/.ubcore
+	
+	_rmlink "$1"/.Xauthority
+	
+	_rmlink "$1"/.ssh
+	_rmlink "$1"/.gitconfig
+	
+	rmdir "$1"/.config
+}
+
+_unmakeFakeHome_extra_layer1() {
+	true
+}
+
+#"$1" == destinationHome
+_unmakeFakeHome() {
+	[[ "$1" == "" ]] && return 1
+	[[ "$1" == "/home/""$USER" ]] && return 1
+	! [[ -d "$1" ]] && return 1
+	
+	_rmlink "$1"/realHome
+	
+	_rmlink "$1"/Downloads
+	
+	_rmlink "$1"/Desktop
+	_rmlink "$1"/Documents
+	_rmlink "$1"/Music
+	_rmlink "$1"/Pictures
+	_rmlink "$1"/Public
+	_rmlink "$1"/Templates
+	_rmlink "$1"/Videos
+	
+	_rmlink "$1"/bin
+	
+	_rmlink "$1"/core
+	_rmlink "$1"/project
+	_rmlink "$1"/projects
+	
+	
+	
+	_unmakeFakeHome_extra_layer0 "$@"
+	_unmakeFakeHome_extra_layer1 "$@"
+}
+
+_test_fakehome() {
+	_getDep mount
+	_getDep mountpoint
+	
+	_getDep rsync
+	
+	_wantGetDep dbus-run-session
+}
+
+#Example. Run similar code under "core.sh" before calling "_fakeHome", "_install_fakeHome", or similar, to set a specific type/location for fakeHome environment - global, instanced, or otherwise.
+_arbitrary_fakeHome_app() {
+	export actualFakeHome="$instancedFakeHome"
+	#export actualFakeHome="$shortFakeHome"
+	
+	#export actualFakeHome="$globalFakeHome"
+	#export actualFakeHome=""$arbitraryFakeHome"/arbitrary"
+}
+
+#"$1" == lib source path (eg. "$scriptLib"/app/.app)
+#"$2" == home destination path (eg. ".app")
+# WARNING: Locking mechanism not intended to be relied on.
+# WARNING: Return status success may not reflect successful link/copy.
+_link_fakeHome() {
+	mkdir -p "$1" > /dev/null 2>&1
+	mkdir -p "$actualFakeHome" > /dev/null 2>&1
+	mkdir -p "$globalFakeHome" > /dev/null 2>&1
+	
+	#If globalFakeHome symlinks are obsolete, subsequent _instance_internal operation may overwrite valid links with them. See _install_fakeHome .
+	rmdir "$globalFakeHome"/"$2" > /dev/null 2>&1
+	_relink "$1" "$globalFakeHome"/"$2"
+	
+	if [[ "$actualFakeHome" == "$globalFakeHome" ]] || [[ "$fakeHomeEditLib" == "true" ]]
+	then
+		rmdir "$actualFakeHome"/"$2" > /dev/null 2>&1
+		_relink "$1" "$actualFakeHome"/"$2"
+		return 0
+	fi
+	
+	#Actual files/directories will not be overwritten by symlinks when "$globalFakeHome" is copied to "$actualFakeHome". Remainder of this function dedicated to creating copies, before and instead of, symlinks.
+	
+	#rmdir "$actualFakeHome"/"$2" > /dev/null 2>&1
+	_rmlink "$actualFakeHome"/"$2"
+	
+	#Waits if copy is in progress, delaying program launch.
+	local lockWaitTimer
+	for (( lockWaitTimer = 0 ; lockWaitTimer <= 90 ; lockWaitTimer++ )); do
+		! [[ -e "$actualFakeHome"/"$2".lck ]] && break
+		sleep 0.3
+	done
+	
+	#Checks if copy has already been made.
+	[[ -e "$actualFakeHome"/"$2" ]] && return 0
+	
+	mkdir -p "$actualFakeHome"/"$2"
+	
+	#Copy file.
+	if ! [[ -d "$1" ]] && [[ -e "$1" ]]
+	then
+		rmdir "$actualFakeHome"/"$2" > /dev/null 2>&1
+		
+		echo > "$actualFakeHome"/"$2".lck
+		cp "$1" "$actualFakeHome"/"$2"
+		rm "$actualFakeHome"/"$2".lck
+		return 0
+	fi
+	
+	#Copy directory.
+	echo > "$actualFakeHome"/"$2".lck
+	_instance_internal "$1"/. "$actualFakeHome"/"$2"/
+	rm "$actualFakeHome"/"$2".lck
+	return 0
+}
+
+#Example. Override with "core.sh". Allows specific application configuration directories to reside outside of globalFakeHome, for organization, testing, and distribution.
+_install_fakeHome_app() {
+	#_link_fakeHome "$scriptLib"/app/.app ".app"
+	
+	true
+}
+
+#actualFakeHome
+_install_fakeHome() {
+	_install_fakeHome_app
+	
+	#Asterisk used where multiple global home folders are needed, following convention "$scriptLocal"/h_* . Used by webClient for _firefox_esr .
+	[[ "$actualFakeHome" == "$globalFakeHome"* ]] && return 0
+	
+	#Any globalFakeHome links created by "_link_fakeHome" are not to overwrite copies made to instancedFakeHome directories. Related errors emitted by "rsync" are normal, and therefore, silenced.
+	_instance_internal "$globalFakeHome"/. "$actualFakeHome"/ > /dev/null 2>&1
+}
+
+#Run before _fakeHome to use a ramdisk as home directory. Wrap within "_wantSudo" and ">/dev/null 2>&1" to use optionally. Especially helpful to limit SSD wear when dealing with moderately large (ie. ~2GB) fakeHome environments which must be instanced.
+_mountRAM_fakeHome() {
+	_mustGetSudo
+	mkdir -p "$actualFakeHome"
+	sudo -n mount -t ramfs ramfs "$actualFakeHome"
+	sudo -n chown "$USER":"$USER" "$actualFakeHome"
+	! mountpoint "$actualFakeHome" > /dev/null 2>&1 && _stop 1
+	return 0
+}
+
+_umountRAM_fakeHome() {
+	mkdir -p "$actualFakeHome"
+	sudo -n umount "$actualFakeHome"
+	mountpoint "$actualFakeHome" > /dev/null 2>&1 && _stop 1
+	return 0
+}
+
+_begin_fakeHome() {
+	# WARNING: Recursive fakeHome prohibited. Instead, start new script session, with new sessionid, and keepFakeHome=false. Do not workaround without a clear understanding why this may endanger your application.
+	_resetFakeHomeEnv
+	[[ "$setFakeHome" == "true" ]] && return 1
+	#_resetFakeHomeEnv_nokeep
+	
+	[[ "$realHome" == "" ]] && export realHome="$HOME"
+	
+	export HOME="$actualFakeHome"
+	export setFakeHome=true
+	
+	_prepareFakeHome > /dev/null 2>&1
+	
+	_install_fakeHome
+	
+	_makeFakeHome "$realHome" "$actualFakeHome"
+	
+	export fakeHomeEditLib="false"
+	
+	export realScriptAbsoluteLocation="$scriptAbsoluteLocation"
+	export realScriptAbsoluteFolder="$scriptAbsoluteFolder"
+	export realSessionID="$sessionid"
+}
+
+#actualFakeHome
+	#default: "$instancedFakeHome"
+	#"$globalFakeHome" || "$instancedFakeHome" || "$shortFakeHome" || "$arbitraryFakeHome"/arbitrary
+#keepFakeHome
+	#default: true
+	#"true" || "false"
+# ATTENTION: WARNING: Do not remove or modify functionality of GUI workarounds without extensive testing!
+_fakeHome() {
+	_begin_fakeHome "$@"
+	local fakeHomeExitStatus
+	
+	if ! _safeEcho_newline "$_JAVA_OPTIONS" | grep "$HOME" > /dev/null 2>&1
+	then
+		export _JAVA_OPTIONS=-Duser.home="$HOME"' '"$_JAVA_OPTIONS"
+	fi
+	
+	# WARNING: Obviously less reliable than directly stating variable assignments.
+	local fakeHomeENVvars
+	
+	fakeHomeENVvars+=(DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP="$XDG_SESSION_DESKTOP" XDG_CURRENT_DESKTOP="$XDG_SESSION_DESKTOP")
+	fakeHomeENVvars+=(realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome")
+	fakeHomeENVvars+=(TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}")
+	[[ "$ub_fakeHome_dropPWD" != 'true' ]] && fakeHomeENVvars+=(PWD="$PWD")
+	fakeHomeENVvars+=(_JAVA_OPTIONS="${_JAVA_OPTIONS}")
+	fakeHomeENVvars+=(scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder")
+	fakeHomeENVvars+=(sessionid="$sessionid" realSessionID="$realSessionID" )
+	
+	fakeHomeENVvars+=(LD_PRELOAD="$LD_PRELOAD")
+	
+	# https://github.com/prusa3d/PrusaSlicer/issues/3969
+	fakeHomeENVvars+=(USER="$USER")
+	
+	if type dbus-run-session > /dev/null 2>&1
+	then
+		fakeHomeENVvars+=(dbus-run-session)
+	fi
+	
+	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" sessionid="$sessionid" scriptAbsoluteFolder="$scriptAbsoluteFolder" realSessionID="$realSessionID" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder" dbus-run-session "$@"
+	##env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" dbus-run-session "$@"
+	##dbus-run-session "$@"
+	##"$@"
+	##. "$@"
+	#env -i "${fakeHomeENVvars[@]}" "$@"
+	#fakeHomeExitStatus=$?
+	
+	
+	
+	if [[ "$appImageExecutable" == "" ]]
+	then
+		[[ "$1" == *'.APPIMAGE' ]] && export appImageExecutable="$1"
+		[[ "$1" == *'.appimage' ]] && export appImageExecutable="$1"
+		[[ "$1" == *'.AppImage' ]] && export appImageExecutable="$1"
+	fi
+	if [[ "$appImageExecutable" != "" ]]
+	then
+		#mkdir -p "$appImageExecutable".home
+		#mkdir -p "$appImageExecutable".config
+		#"$appImageExecutable" --appimage-portable-home > /dev/null 2>&1
+		#"$appImageExecutable" --appimage-portable-config > /dev/null 2>&1
+		
+		export appImageExecutable_basename=$(basename "$appImageExecutable")
+		export appImageExecutable_actualFakeHome="$actualFakeHome"/"$appImageExecutable_basename"
+		
+		chmod u+rx "$appImageExecutable"
+		
+		#cp -r -L --preserve=all "$appImageExecutable" "$actualFakeHome"/
+		rsync -rLptgoD "$appImageExecutable" "$actualFakeHome"/
+		
+		chmod u+rx "$appImageExecutable_actualFakeHome"
+		
+		if [[ ! -d "$appImageExecutable_actualFakeHome".home ]] || [[ ! -d "$appImageExecutable_actualFakeHome".config ]]
+		then
+			mkdir -p "$appImageExecutable_actualFakeHome".home
+			mkdir -p "$appImageExecutable_actualFakeHome".config
+			"$appImageExecutable_actualFakeHome" --appimage-portable-home > /dev/null 2>&1
+			"$appImageExecutable_actualFakeHome" --appimage-portable-config > /dev/null 2>&1
+		fi
+		
+		
+		shift
+		
+		#_fakeHome "$appImageExecutable_actualFakeHome" "$@"
+		
+		if [[ "$1" != '--norunFakeHome' ]]
+		then
+			env -i "${fakeHomeENVvars[@]}" "$appImageExecutable_actualFakeHome" "$@"
+			fakeHomeExitStatus=$?
+		else
+			fakeHomeExitStatus='0'
+		fi
+	elif false
+	then
+		true
+	else
+		env -i "${fakeHomeENVvars[@]}" "$@"
+		fakeHomeExitStatus=$?
+	fi
+	
+	
+	#_unmakeFakeHome > /dev/null 2>&1
+	
+	_resetFakeHomeEnv_nokeep
+	
+	return "$fakeHomeExitStatus"
+}
+
+#Do NOT keep parent session under fakeHome environment. Do NOT regain parent session if "~/.ubcore/.ubcorerc" is imported (typically upon shell launch).
+# ATTENTION: WARNING: Do not remove or modify functionality of GUI workarounds without extensive testing!
+_fakeHome_specific() {
+	_begin_fakeHome "$@"
+	local fakeHomeExitStatus
+	
+	if ! _safeEcho_newline "$_JAVA_OPTIONS" | grep "$HOME" > /dev/null 2>&1
+	then
+		export _JAVA_OPTIONS=-Duser.home="$HOME"' '"$_JAVA_OPTIONS"
+	fi
+	
+	# WARNING: Obviously less reliable than directly stating variable assignments.
+	local fakeHomeENVvars
+	
+	fakeHomeENVvars+=(DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP="$XDG_SESSION_DESKTOP" XDG_CURRENT_DESKTOP="$XDG_SESSION_DESKTOP")
+	fakeHomeENVvars+=(realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome")
+	fakeHomeENVvars+=(TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}")
+	[[ "$ub_fakeHome_dropPWD" != 'true' ]] && fakeHomeENVvars+=(PWD="$PWD")
+	fakeHomeENVvars+=(_JAVA_OPTIONS="${_JAVA_OPTIONS}")
+	#fakeHomeENVvars+=(scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder"realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder")
+	#fakeHomeENVvars+=(sessionid="$sessionid" realSessionID="$realSessionID" )
+	
+	if type dbus-run-session > /dev/null 2>&1
+	then
+		fakeHomeENVvars+=(dbus-run-session)
+	fi
+	
+	##env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder" dbus-run-session "$@"
+	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}dbus-run-session "$@"
+	##dbus-run-session "$@"
+	##"$@"
+	##. "$@"
+	env -i "${fakeHomeENVvars[@]}" "$@"
+	fakeHomeExitStatus=$?
+	
+	#_unmakeFakeHome > /dev/null 2>&1
+	
+	_resetFakeHomeEnv_nokeep
+	
+	return "$fakeHomeExitStatus"
+}
+
+#No workarounds, run in current shell.
+# WARNING: Not recommended. No production use. Do not launch GUI applications.
+_fakeHome_embedded() {
+	_begin_fakeHome "$@"
+	local fakeHomeExitStatus
+	
+	if ! _safeEcho_newline "$_JAVA_OPTIONS" | grep "$HOME" > /dev/null 2>&1
+	then
+		export _JAVA_OPTIONS=-Duser.home="$HOME"' '"$_JAVA_OPTIONS"
+	fi
+	
+	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" realScriptAbsoluteLocation="$realScriptAbsoluteLocation" realScriptAbsoluteFolder="$realScriptAbsoluteFolder" dbus-run-session "$@"
+	#env -i DISPLAY="$DISPLAY" XAUTH="$XAUTH" XAUTHORITY="$XAUTHORITY" XSOCK="$XSOCK" XDG_SESSION_DESKTOP='KDE' XDG_CURRENT_DESKTOP='KDE' realHome="$realHome" keepFakeHome="$keepFakeHome" HOME="$HOME" setFakeHome="$setFakeHome" TERM="${TERM}" SHELL="${SHELL}" PATH="${PATH}" _JAVA_OPTIONS=${_JAVA_OPTIONS}scriptAbsoluteLocation="$scriptAbsoluteLocation" scriptAbsoluteFolder="$scriptAbsoluteFolder" dbus-run-session "$@"
+	#dbus-run-session "$@"
+	#"$@"
+	. "$@"
+	fakeHomeExitStatus=$?
+	
+	#_unmakeFakeHome > /dev/null 2>&1
+	
+	_resetFakeHomeEnv_nokeep
+	
+	return "$fakeHomeExitStatus"
+}
+
+_fakeHome_() {
+	_fakeHome_embedded "$@"
+}
+
+
+
+
+
+_userFakeHome_procedure() {
+	export actualFakeHome="$instancedFakeHome"
+	export fakeHomeEditLib="false"
+	_fakeHome "$@"
+}
+
+_userFakeHome_sequence() {
+	_start
+	
+	_userFakeHome_procedure "$@"
+	
+	_stop $?
+}
+
+_userFakeHome() {
+	"$scriptAbsoluteLocation" _userFakeHome_sequence "$@"
+}
+
+_editFakeHome_procedure() {
+	export actualFakeHome="$globalFakeHome"
+	export fakeHomeEditLib="false"
+	_fakeHome "$@"
+}
+
+_editFakeHome_sequence() {
+	_start
+	
+	_editFakeHome_procedure "$@"
+	
+	_stop $?
+}
+
+_editFakeHome() {
+	"$scriptAbsoluteLocation" _editFakeHome_sequence "$@"
+}
+
+_userShortHome_procedure() {
+	export actualFakeHome="$shortFakeHome"
+	export fakeHomeEditLib="false"
+	_fakeHome "$@"
+}
+
+_userShortHome_sequence() {
+	_start
+	
+	_userShortHome_procedure "$@"
+	
+	_stop $?
+}
+
+_userShortHome() {
+	"$scriptAbsoluteLocation" _userShortHome_sequence "$@"
+}
+
+_editShortHome_procedure() {
+	export actualFakeHome="$shortFakeHome"
+	export fakeHomeEditLib="true"
+	_fakeHome "$@"
+}
+
+_editShortHome_sequence() {
+	_start
+	
+	_editShortHome_procedure "$@"
+	
+	_stop $?
+}
+
+# WARNING: Only allows persistent modifications to directories which have been linked by "_link_fakeHome" or similar.
+_editShortHome() {
+	"$scriptAbsoluteLocation" _editShortHome_sequence "$@"
+}
+
+_shortHome() {
+	_userShortHome "$@"
+}
+
+_memFakeHome_procedure() {
+	export actualFakeHome="$instancedFakeHome"
+	export fakeHomeEditLib="false"
+	
+	_mountRAM_fakeHome
+	
+	local fakeHomeExitStatus
+	
+	_fakeHome "$@"
+	fakeHomeExitStatus=$?
+	
+	_umountRAM_fakeHome
+	
+	return "$fakeHomeExitStatus"
+}
+
+_memFakeHome_sequence() {
+	_start
+	
+	_memFakeHome_procedure "$@"
+	
+	_stop $?
+}
+
+_memFakeHome() {
+	"$scriptAbsoluteLocation" _memFakeHome_sequence "$@"
+}
+
 _resetFakeHomeEnv_extra() {
 	true
 }
@@ -6658,18 +8518,19 @@ _resetFakeHomeEnv() {
 
 #####Shortcuts
 
+# https://unix.stackexchange.com/questions/434409/make-a-bash-ps1-that-counts-streak-of-correct-commands
 _visualPrompt_promptCommand() {
-[[ "$PS1_lineNumber" == "" ]] && PS1_lineNumber='0'
-#echo "$PS1_lineNumber"
-let PS1_lineNumber="$PS1_lineNumber"+1
-#export PS1_lineNumber
+	[[ "$PS1_lineNumber" == "" ]] && PS1_lineNumber='0'
+	#echo "$PS1_lineNumber"
+	let PS1_lineNumber="$PS1_lineNumber"+1
+	#export PS1_lineNumber
 
-PS1_lineNumberText="$PS1_lineNumber"
-if [[ "$PS1_lineNumber" == '1' ]]
-then
-	# https://unix.stackexchange.com/questions/266921/is-it-possible-to-use-ansi-color-escape-codes-in-bash-here-documents
-	PS1_lineNumberText=$(echo -e -n '\E[1;36m'1'\E[0m')
-fi
+	PS1_lineNumberText="$PS1_lineNumber"
+	if [[ "$PS1_lineNumber" == '1' ]]
+	then
+		# https://unix.stackexchange.com/questions/266921/is-it-possible-to-use-ansi-color-escape-codes-in-bash-here-documents
+		PS1_lineNumberText=$(echo -e -n '\E[1;36m'1'\E[0m')
+	fi
 }
 
 _visualPrompt() {
@@ -6685,9 +8546,15 @@ _visualPrompt() {
 	#Truncated, 40 columns.
 	#export PS1='\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])\[\033[01;36m\]\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\.%d)\[\033[01;34m\])\[\033[01;36m\]|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]\[\033[01;34m\]|\#) \[\033[36m\]>\[\033[00m\] '
 	
+	
 	# https://unix.stackexchange.com/questions/434409/make-a-bash-ps1-that-counts-streak-of-correct-commands
 	
+	#export PROMPT_COMMAND=$(declare -f _visualPrompt_promptCommand)' ; _visualPrompt_promptCommand'
+	#export PROMPT_COMMAND='_visualPrompt_promptCommand () { [[ "$PS1_lineNumber" == "" ]] && PS1_lineNumber="0"; let PS1_lineNumber="$PS1_lineNumber"+1; PS1_lineNumberText="$PS1_lineNumber"; if [[ "$PS1_lineNumber" == "1" ]]; then PS1_lineNumberText=$(echo -e -n "'"\E[1;36m"'"1"'"\E[0m"'"); fi } ; _visualPrompt_promptCommand'
+	
+	export -f _visualPrompt_promptCommand
 	export PROMPT_COMMAND=_visualPrompt_promptCommand
+	
 	export PS1='\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])\[\033[01;36m\]\[\033[01;34m\]-(\[\033[01;35m\]$(date +%H:%M:%S\.%d)\[\033[01;34m\])\[\033[01;36m\]|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]\[\033[01;34m\]|$PS1_lineNumberText\[\033[01;34m\]) \[\033[36m\]>\[\033[00m\] '
 }
 
@@ -7107,6 +8974,2066 @@ _bupRetrieve() {
 	fi
 	[[ "$1" != "" ]] && bup join "$@" | tar --one-file-system --xattrs --acls -xf -
 }
+
+
+#"$1" == src (file/dir)
+#"$2" == dst (torrentName).torrent
+#"$3" == CSV Tracker URL List (full announce URL list comma delimited) (' <url>[,<url>]* ')
+#"$4" == CSV Web Seed URL List
+# ./ubiquitous_bash.sh _mktorrent ./ubiquitous_bash.sh torrentName 'https://example.com/tracker,https://example1.com/tracker' 'https://example.com/ubiquitous_bash.sh,https://example1.com/ubiquitous_bash.sh'
+_mktorrent_webseed() {
+	if [[ "$1" == "" ]]
+	then
+		_messagePlain_request '"$1" == src (file/dir)'
+		_messagePlain_request '"$2" == dst (torrentName).torrent'
+		_messagePlain_request '"$3" == CSV Tracker URL List (full announce URL list comma delimited) ('\'' <url>[,<url>]* '\'')'
+		_messagePlain_request '"$4" == CSV Web Seed URL List'
+		return 1
+	fi
+	
+	local currentSrc
+	currentSrc="$1"
+	local currentDst
+	currentDst="$2"
+	local currentTrackerCSV
+	currentTrackerCSV="$3"
+	local currentWebSeedCSV
+	currentWebSeedCSV="$4"
+	shift ; shift ; shift ; shift
+	
+	mktorrent -w "$currentWebSeedCSV" -a "$currentTrackerCSV" -d "$currentSrc" -n "$currentDst" "$@"
+}
+_mktorrent() {
+	_mktorrent_webseed "$@"
+}
+
+
+
+
+
+
+
+_test_mktorrent() {
+	# If not Debian, then simply accept these pacakges may not be available.
+	! [[ -e /etc/issue ]] && cat /etc/issue | grep 'Debian' > /dev/null 2>&1 && return 0
+	
+	_wantGetDep mktorrent
+	
+	#_getDep mktorrent
+}
+
+
+
+
+
+
+#screenscraper-nix
+
+# ATTENTION: Expect new software development will be required. Some relevant capability apparently already exists from OBS, ffmpeg , gstreamer , etc . Due to apparent lack of 'NVIDIA Game Stream' , most likely a GPU-agnostic real-time h264 or similar video codec would also be helpful.
+
+
+
+#screenscraper-msw
+
+# ATTENTION: Expect new software development will be required. MSW particularly has complicated issues with 'UAC' . Developer 'Guy Godin' of 'Virtual Desktop' most likely has source code for all necessary workarounds.
+
+
+
+
+#ubVirt_self
+# WARNING: Not to be confused with 'ubVirtImageLocal' and similar.
+
+# ATTENTION: Intended to rely on 'ubiquitous bash' '_editVBox' , '_editQemu' and similar , with file copy/deduplication , to 'create' a 'server' , as well as to perform relevant 'list' , 'status' , and similar functions.
+
+
+# ATTENTION: Override with 'ops.sh' or similar.
+# WARNING: DANGER: WIP. Untested!
+_ubVirt_self_server_create() {
+	_messageNormal 'init: _ubVirt_self_server_create'
+	
+	export ub_ubVirt_dir="$scriptLocal"/ubVirt
+	export ub_ubVirt_dir_template="$scriptLocal"/ubVirt/template
+	
+	! mkdir -p "$ub_ubVirt_dir_template"/_local && return 1
+	! [[ -e "$ub_ubVirt_dir_template"/_local ]] && return 1
+	! [[ -d "$ub_ubVirt_dir_template"/_local ]] && return 1
+	
+	export ub_ubVirt_server_uid=$(_uid)
+	export ub_ubVirt_server_dir="$ub_ubVirt_dir"/"$ub_ubVirt_server_uid"
+	
+	! mkdir -p "$ub_ubVirt_server_dir" && return 1
+	! [[ -e "$ub_ubVirt_server_dir" ]] && return 1
+	! [[ -d "$ub_ubVirt_server_dir" ]] && return 1
+	
+	if ! [[ -e "$ub_ubVirt_dir"/template/ubiquitous_bash.sh ]]
+	then
+		_messagePlain_nominal '_ubVirt_self_server_create: copy: template'
+		cp -a "$scriptAbsoluteLocation" "$ub_ubVirt_dir_template"/ubiquitous_bash.sh
+		cp -a "$scriptLocal"/ops.sh "$ub_ubVirt_dir_template"/_local/ops.sh
+	fi
+	
+	if ! [[ -e "$ub_ubVirt_dir"/template/_local/vm.img ]] && ! [[ -e "$ub_ubVirt_dir"/template/_local/vm.vdi ]]
+	then
+		_messagePlain_nominal '_ubVirt_self_server_create: build: '"'OS' image"
+		true
+		# Call functions to build 'OS' image .
+		# TODO: Necessarily will not match all steps expected of a 'custom' image, but must include everything a user would expect to be able to customize 'offline' (ie. all typical 'programs' must be installed, etc).
+	fi
+	
+	
+	_ubVirt_self_server_status "$ub_ubVirt_server_uid"
+}
+
+
+_ubVirt_self_server_list() {
+	true
+}
+
+
+_ubVirt_self_server_status() {
+	_messageNormal 'init: _ubVirt_self_server_status'
+	
+	#export ub_ubVirt_server_addr_ipv4
+	#export ub_ubVirt_server_addr_ipv6
+	
+	#export ub_ubVirt_server_ssh_cred
+	#export ub_ubVirt_server_ssh_port
+	
+	#export ub_ubVirt_server_vnc_cred
+	#export ub_ubVirt_server_vnc_port
+	
+	#export ub_ubVirt_server_serial
+	
+	#export ub_ubVirt_server_novnc_cred
+	#export_ub_ubVirt_server_novnc_port
+	#export ub_ubVirt_server_novnc_url_ipv4
+	#export ub_ubVirt_server_novnc_url_ipv6
+	
+	#export ub_ubVirt_server_shellinabox_port
+	#export ub_ubVirt_server_shellinabox_url_ipv4
+	#export ub_ubVirt_server_shellinabox_url_ipv6
+	
+	#export ub_ubVirt_server_remotedesktopwebclient_port
+	#export ub_ubVirt_server_remotedesktopwebclient_url_ipv4
+	#export ub_ubVirt_server_remotedesktopwebclient_url_ipv6
+}
+
+
+
+_test_ubVirt() {
+	# ATTENTION: TODO: A custom 'GUI' frontend and backend may be required to integrate with VR.
+	
+	_testQEMU_x64-x64 "$@"
+	_testVBox "$@"
+	
+	return 0
+}
+
+#phpvirtualbox_self
+
+# WARNING: End-user ONLY. NOT intended to provide VirtualMachines for embedded (eg. '3D printer') or application specific (ie. running a program in a VM with file parameter translation) use cases! Intended SOLELY for use cases where a VM 'in the cloud' would be perfectly usable if not for cost or bandwidth constraints.
+
+# https://www.howtoforge.com/managing-a-headless-virtualbox-installation-with-phpvirtualbox-opensuse-12.2
+# https://wiki.archlinux.org/index.php/PhpVirtualBox
+# https://www.techrepublic.com/article/how-to-install-phpvirtualbox-for-cloud-based-virtualbox-management/
+
+
+# Consider 'phpvirtualbox_self' simply as a means to install 'phpvirtualbox' as the web interface may be usable as-is. API may not be necessary in this case, and may be better dealt with by 'virtualbox_self' .
+# https://www.youtube.com/watch?v=aDRWIN86W1s
+
+
+
+_phpvirtualbox_self_status() {
+	true
+	
+	# Of course, the 'ipv4' address may be disregarded in favor of '127.0.0.1' .
+	#export ub_phpvirtualbox_self_port
+	#export ub_phpvirtualbox_self_url_ipv4
+	#export ub_phpvirtualbox_self_url_ipv6
+}
+
+
+_test_phpvirtualbox_self() {
+	true
+	
+	# WARNING: This will not be perfect. An installation of 'phpvirtualbox' may be detected through network port (which causes a popup dialog if MSW host), or through a standard location (which may as well be required with MSW).
+	
+	# WARNING: While 'VirtualBox' may require a 'native' MSW installation, it is likely 'phpvirtualbox' will require Cygwin .
+	
+	! type _testVBox > /dev/null 2>&1 && _messageFAIL && _stop 1
+	_testVBox "$@"
+	
+	return 0
+}
+
+#virtualbox_self
+
+# WARNING: End-user ONLY. NOT intended to provide VirtualMachines for embedded (eg. '3D printer') or application specific (ie. running a program in a VM with file parameter translation) use cases! Intended SOLELY for use cases where a VM 'in the cloud' would be perfectly usable if not for cost or bandwidth constraints.
+
+# https://www.howtoforge.com/managing-a-headless-virtualbox-installation-with-phpvirtualbox-opensuse-12.2
+# https://wiki.archlinux.org/index.php/PhpVirtualBox
+# https://www.techrepublic.com/article/how-to-install-phpvirtualbox-for-cloud-based-virtualbox-management/
+
+
+# Consider 'rdp' , apparently usable within web browser and used by 'phpVirtualBox' .
+# https://github.com/phpvirtualbox/phpvirtualbox/wiki#virtualbox--40---remote-console-access-note
+# https://github.com/phpvirtualbox/phpvirtualbox/issues/140
+# https://docs.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-web-client-admin
+
+
+
+
+# ATTENTION: CAUTION: Whether 'VBoxLab' or 'global' VirtualBox configuration is used must be configurable with 'ops.sh' or similar!
+
+
+
+_virtualbox_self_server_create() {
+	true
+	
+	
+	_virtualbox_self_server_status
+}
+
+
+_virtualbox_self_server_list() {
+	true
+}
+
+
+_virtualbox_self_server_status() {
+	true
+	
+	# Of course, the 'ipv4' address may be disregarded in favor of '127.0.0.1' .
+	# https://www.virtualbox.org/manual/ch07.html
+	#export ub_virtualbox_self_server_vrde_port
+	#export ub_virtualbox_self_server_vrde_addr_ipv4
+	#export ub_virtualbox_self_server_vrde_addr_ipv6
+	
+	
+	
+	#export ub_virtualbox_server_addr_ipv4
+	#export ub_virtualbox_server_addr_ipv6
+	
+	#export ub_virtualbox_server_ssh_cred
+	#export ub_virtualbox_server_ssh_port
+	
+	#export ub_virtualbox_server_vnc_cred
+	#export ub_virtualbox_server_vnc_port
+	
+	#export ub_virtualbox_server_serial
+	
+	#export ub_virtualbox_server_novnc_cred
+	#export_ub_virtualbox_server_novnc_port
+	#export ub_virtualbox_server_novnc_url_ipv4
+	#export ub_virtualbox_server_novnc_url_ipv6
+	
+	#export ub_virtualbox_server_shellinabox_port
+	#export ub_virtualbox_server_shellinabox_url_ipv4
+	#export ub_virtualbox_server_shellinabox_url_ipv6
+	
+	#export ub_virtualbox_server_remotedesktopwebclient_port
+	#export ub_virtualbox_server_remotedesktopwebclient_url_ipv4
+	#export ub_virtualbox_server_remotedesktopwebclient_url_ipv6
+}
+
+
+
+_test_virtualbox_self() {
+	# ATTENTION: TODO: A custom 'GUI' frontend and backend may be required to integrate with VR.
+	
+	! type _testVBox > /dev/null 2>&1 && _messageFAIL && _stop 1
+	_testVBox "$@"
+	
+	return 0
+}
+
+#libvirt_self
+
+#aws
+
+# ATTENTION: ATTENTION: Cloud VPS API wrapper 'de-facto' reference implementation is 'digitalocean' !
+# Obvious naming conventions and such are to be considered from that source first.
+
+
+# WARNING: DANGER: WIP, Untested .
+
+
+# https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-lifecycle.html
+# https://docs.aws.amazon.com/cli/latest/reference/ec2/run-instances.html
+
+
+
+# ATTENTION: Override with 'ops.sh' or 'core.sh' or similar.
+_aws_cloud_cred() {
+	_aws_set "$@"
+}
+_aws_cloud_cred_reset() {
+	_aws_reset "$@"
+}
+
+
+
+# ATTENTION: Override with 'ops.sh' or 'core.sh' or similar.
+# "$1" == ub_aws_cloud_server_name
+_aws_cloud_server_create() {
+	_messageNormal 'init: _aws_cloud_server_create'
+	
+	_start_cloud_tmp
+	
+	_aws_cloud_cred
+	
+	export ub_aws_cloud_server_name="$1"
+	[[ "$ub_aws_cloud_server_name" == "" ]] && export ub_aws_cloud_server_name=$(_uid)
+	
+	
+	_messagePlain_nominal 'attempt: _aws_cloud_server_create: Cloud Services API Request'
+	local currentIterations
+	currentIterations=0
+	export ub_aws_cloud_server_uid=
+	while [[ "$ub_aws_cloud_server_uid" == "" ]] && [[ "$currentIterations" -lt 3 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		
+		_aws_cloud_server_create_API--us-east_g5-standard-2_debian9 "$ub_aws_cloud_server_name" > "$cloudTmp"/reply
+		export ub_aws_cloud_server_uid=$(cat "$cloudTmp"/reply | grep -v 'PrivateDnsName' |  jq '.'Instances[].InstanceId | tr -dc 'a-zA-Z0-9.:_-')
+		_aws_cloud_server_name_API "$ub_aws_cloud_server_uid" "$ub_aws_cloud_server_name"
+		
+		[[ "$ub_aws_cloud_server_uid" == "" ]] && _messagePlain_warn 'attempt: _aws_cloud_server_create: miss'
+	done
+	[[ "$ub_aws_cloud_server_uid" == "" ]] && _messagePlain_bad 'attempt: _aws_cloud_server_create: fail' && _stop_cloud_tmp && _messageFAIL && _stop 1
+	_messagePlain_good  'attempt: _aws_cloud_server_create: pass'
+	
+	_stop_cloud_tmp
+	
+	
+	
+	_aws_cloud_server_status "$ub_aws_cloud_server_uid"
+	
+	_aws_cloud_cred_reset
+	
+	return 0
+}
+_aws_cloud_server_create_API--image_ami-xxxxxxxx() {
+	# https://docs.aws.amazon.com/cli/latest/userguide/cli-services-ec2-instances.html
+	#aws ec2 run-instances --image-id ami-xxxxxxxx --count 1 --instance-type t2.micro --key-name "$ubiquitiousBashIDshort" --security-group-ids sg-903004f8 --subnet-id subnet-6e7f829e
+	aws ec2 run-instances --image-id ami-xxxxxxxx --count 1 --instance-type t2.micro --key-name "$ubiquitiousBashIDshort" --security-group-ids sg-"$ubiquitiousBashIDshort" --subnet-id subnet-"$ubiquitiousBashIDshort"
+}
+_aws_cloud_server_name_API() {
+	aws ec2 create-tags --resources "$ub_aws_cloud_server_uid" --tags Key=Name,Value="$ub_aws_cloud_server_name"
+}
+
+
+
+# ATTENTION: Consider that Cloud services are STRICTLY intended as end-user functions - manual 'cleanup' of 'expensive' resources MUST be feasible!
+# "$@" == _functionName (must process JSON file - ie. loop through - jq '.data[0].id,.data[0].label' )
+# EXAMPLE: _aws_cloud_self_server_list _aws_cloud_self_server_dispose-filter 'temporaryBuild'
+# EXAMPLE: _aws_cloud_self_server_list _aws_cloud_self_server_status-filter 'workstation'
+_aws_cloud_self_server_list() {
+	_messageNormal 'init: _aws_cloud_self_server_list'
+	
+	_start_cloud_tmp
+	
+	_aws_cloud_cred
+	
+	_messagePlain_nominal 'attempt: _aws_cloud_self_server_list: Cloud Services API Request'
+	local currentIterations
+	currentIterations=0
+	local current_ub_aws_cloud_server_uid
+	current_ub_aws_cloud_server_uid=
+	while [[ "$current_ub_aws_cloud_server_uid" == "" ]] && [[ "$currentIterations" -lt 3 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		
+		# WARNING: WIP, Untested.
+		# https://serverfault.com/questions/578921/how-would-you-go-about-listing-instances-using-aws-cli-in-certain-vpc-with-the-t
+		#aws ec2 describe-instances --no-paginate --filters "Name=instance-type,Values=t2.micro" --query 'Reservations[*].Instances[*].{Instance:InstanceId,Tags[0]}' --output json > "$cloudTmp"/reply
+		#aws ec2 describe-instances --query 'Reservations[].Instances[].[InstanceId,Tags[?Key==`Name`].Value[]]' --output json > "$cloudTmp"/reply
+		aws ec2 describe-instances --no-paginate --query 'Reservations[].Instances[].{InstanceId,Tags[?Key==`Name`].Value[0]}' --output json > "$cloudTmp"/reply
+		current_ub_aws_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.[0].Instance' | tr -dc 'a-zA-Z0-9.:_-')
+		
+		[[ "$current_ub_aws_cloud_server_uid" == "" ]] && _messagePlain_warn 'attempt: _aws_cloud_self_server_list: miss'
+	done
+	[[ "$current_ub_aws_cloud_server_uid" == "" ]] && _messagePlain_bad 'attempt: _aws_cloud_self_server_list: fail' && _stop_cloud_tmp && _messageFAIL && _stop 1
+	_messagePlain_good  'attempt: _aws_cloud_self_server_list: pass'
+	
+	
+	"$@"
+	
+	
+	_messagePlain_request 'request: Please review CloudVM list for unnecessary expense.'
+	cat "$cloudTmp"/reply | jq '.[].Instance,.[].Tags'
+	_stop_cloud_tmp
+	_aws_cloud_cred_reset
+	
+	return 0
+}
+
+
+
+_aws_cloud_self_server_dispose-filter() {
+	_messageNormal 'init: _aws_cloud_self_server_dispose-filter: '"$@"
+	
+	# WARNING: To match 'all' consider '.*' instead of empty.
+	[[ "$1" == "" ]] && return 1
+	
+	
+	_messagePlain_nominal 'loop: _aws_cloud_self_server_dispose-filter'
+	local currentIterations
+	currentIterations=0
+	local currentIterations_inner
+	currentIterations_inner=0
+	export ub_aws_cloud_server_uid="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	export ub_aws_cloud_server_name="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	while [[ "$ub_aws_cloud_server_uid" != "null" ]] && [[ "$ub_aws_cloud_server_name" != "null" ]] && [[ "$ub_aws_cloud_server_uid" != "" ]] && [[ "$ub_aws_cloud_server_name" != "" ]] && [[ "$currentIterations" -lt 999 ]]
+	do
+		if _safeEcho "$ub_aws_cloud_server_name" | grep "$@"
+		then
+			currentIterations_inner=0
+			
+			# WARNING: Significant experimentation may be required.
+			# https://superuser.com/questions/272265/getting-curl-to-output-http-status-code
+			
+			#"$ub_aws_cloud_server_uid"
+			while ! aws ec2 terminate-instances --instance-ids "$ub_aws_cloud_server_uid" > /dev/null 2>&1 && [[ "$currentIterations_inner" -lt 3 ]]
+			do
+				let currentIterations_inner="$currentIterations_inner + 1"
+			done
+		fi
+		
+		export ub_aws_cloud_server_uid=
+		export ub_aws_cloud_server_name=
+		
+		# WARNING: May work as intended without properly filtering for 'Name' 'tag' .
+		ub_aws_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.['"$currentIterations"'].Instance' | tr -dc 'a-zA-Z0-9.:_-')
+		ub_aws_cloud_server_name=$(cat "$cloudTmp"/reply | jq '.['"$currentIterations"'].Tags' | tr -dc 'a-zA-Z0-9.:_-')
+		let currentIterations="$currentIterations + 1"
+		
+		_messagePlain_probe_var ub_aws_cloud_server_uid
+		_messagePlain_probe_var ub_aws_cloud_server_name
+		
+	done
+	_messagePlain_good  'done: _aws_cloud_self_server_dispose-filter'
+	
+	return 0
+}
+
+
+_aws_cloud_self_server_status-filter() {
+	_messageNormal 'init: _aws_cloud_self_server_status-filter: '"$@"
+	
+	# WARNING: To match 'all' consider '.*' instead of empty.
+	[[ "$1" == "" ]] && return 1
+	
+	
+	_messagePlain_nominal 'loop: _aws_cloud_self_server_status-filter'
+	local currentIterations
+	currentIterations=0
+	local currentIterations_inner
+	currentIterations_inner=0
+	export ub_aws_cloud_server_uid="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	export ub_aws_cloud_server_name="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	while [[ "$ub_aws_cloud_server_uid" != "null" ]] && [[ "$ub_aws_cloud_server_name" != "null" ]] && [[ "$ub_aws_cloud_server_uid" != "" ]] && [[ "$ub_aws_cloud_server_name" != "" ]] && [[ "$currentIterations" -lt 999 ]]
+	do
+		if _safeEcho "$ub_aws_cloud_server_name" | grep "$@"
+		then
+			_aws_cloud_self_server_status "$ub_aws_cloud_server_uid"
+		fi
+		
+		export ub_aws_cloud_server_uid=
+		export ub_aws_cloud_server_name=
+		
+		ub_aws_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.data['"$currentIterations"'].id' | tr -dc 'a-zA-Z0-9.:_-')
+		ub_aws_cloud_server_name=$(cat "$cloudTmp"/reply | jq '.data['"$currentIterations"'].label' | tr -dc 'a-zA-Z0-9.:_-')
+		let currentIterations="$currentIterations + 1"
+		
+		_messagePlain_probe_var ub_aws_cloud_server_uid
+		_messagePlain_probe_var ub_aws_cloud_server_name
+		
+	done
+	_messagePlain_good  'done: _aws_cloud_self_server_status-filter'
+	
+	return 0
+}
+
+
+_aws_cloud_self_server_status() {
+	_messageNormal 'init: _aws_cloud_self_server_status'
+	
+	_start_cloud_tmp
+	
+	_aws_cloud_cred
+	
+	# ATTENTION: NOTICE: Possibly an excellent means to obtain sample data for 'describe-instances' .
+	
+	aws ec2 describe-instances --instance-ids "$ub_aws_cloud_server_uid"
+	
+	
+	
+	# WARNING: WIP, Untested.
+	
+	
+	
+	#export ub_aws_cloud_server_addr_ipv4=$(cat "$cloudTmp"/reply_status | jq '.' | tr -dc 'a-zA-Z0-9.:_-')
+	#export ub_aws_cloud_server_addr_ipv6=$(cat "$cloudTmp"/reply_status | jq '.' | tr -dc 'a-zA-Z0-9.:_-')
+	
+	export ub_aws_cloud_server_addr_ipv4=
+	export ub_aws_cloud_server_addr_ipv6=
+	
+	
+	# ATTENTION: Ubiquitous Bash 'queue' 'database' may be an appropriate means to store sane default 'cred' values after '_server_create' . Also consider storing relevant files under "$scriptLocal" .
+	
+	export ub_aws_cloud_server_ssh_cred=
+	export ub_aws_cloud_server_ssh_port=
+	
+	export ub_aws_cloud_server_vnc_cred=
+	export ub_aws_cloud_server_vnc_port=
+	
+	export ub_aws_cloud_server_serial=
+	
+	export ub_aws_cloud_server_novnc_cred=
+	export ub_aws_cloud_server_novnc_port=
+	export ub_aws_cloud_server_novnc_url_ipv4=https://"$ub_aws_cloud_server_addr_ipv4":"$ub_aws_cloud_server_novnc_port"/novnc/
+	export ub_aws_cloud_server_novnc_url_ipv6=https://"$ub_aws_cloud_server_addr_ipv6":"$ub_aws_cloud_server_novnc_port"/novnc/
+	
+	export ub_aws_cloud_server_shellinabox_port=
+	export ub_aws_cloud_server_shellinabox_url_ipv4=https://"$ub_aws_cloud_server_addr_ipv4":"$ub_aws_cloud_server_shellinabox_port"/shellinabox/
+	export ub_aws_cloud_server_shellinabox_url_ipv6=https://"$ub_aws_cloud_server_addr_ipv6":"$ub_aws_cloud_server_shellinabox_port"/shellinabox/
+	
+	export ub_aws_cloud_server_remotedesktopwebclient_port=
+	export ub_aws_cloud_server_remotedesktopwebclient_url_ipv4=https://"$ub_aws_cloud_server_addr_ipv4":"$ub_aws_cloud_server_remotedesktopwebclient_port"/remotedesktopwebclient/
+	export ub_aws_cloud_server_remotedesktopwebclient_url_ipv6=https://"$ub_aws_cloud_server_addr_ipv6":"$ub_aws_cloud_server_remotedesktopwebclient_port"/remotedesktopwebclient/
+	
+	
+	
+	if ! [[ -e "$cloudTmp"/reply ]]
+	then
+		_aws_cloud_cred_reset
+		_stop_cloud_tmp
+	fi
+	
+	return 0
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ATTENTION: Intended to be used by '_index' shortcuts as with 'cautossh' '_setup' .
+_aws() {
+	local currentBin_aws
+	currentBin_aws="$ub_function_override_aws"
+	[[ "$currentBin_aws" == "" ]] && currentBin_aws=$(type -p aws 2> /dev/null)
+	
+	mkdir -p "$scriptLocal"/cloud/aws/.aws
+	[[ ! -e "$scriptLocal"/cloud/aws/.aws ]] && return 1
+	[[ ! -d "$scriptLocal"/cloud/aws/.aws ]] && return 1
+	
+	# WARNING: Not guaranteed.
+	_relink "$HOME"/.ssh "$scriptLocal"/cloud/aws/.ssh
+	
+	# WARNING: Changing '$HOME' may interfere with 'cautossh' , specifically function '_ssh' .
+	
+	env AWS_PROFILE="$netName" AWS_CONFIG_FILE="$scriptLocal"/cloud/aws/.aws/config HOME="$scriptLocal"/cloud/aws "$currentBin_aws" "$@"
+}
+
+_aws_reset() {
+	export ub_function_override_aws=''
+	unset ub_function_override_aws
+	unset aws
+}
+
+# ATTENTION: Intended to be called from '_cloud_set' or similar, in turn called by '_cloud_hook', in turn used by '_index' shortcuts as with 'cautossh' '_setup' .
+_aws_set() {
+	export ub_function_override_aws=$(type -p aws 2> /dev/null)
+	aws() {
+		_aws "$@"
+	}
+}
+
+
+
+_aws_eb() {
+	local currentBin_aws_eb
+	currentBin_aws_eb="$ub_function_override_aws_eb"
+	[[ "$currentBin_aws_eb" == "" ]] && currentBin_aws_eb=$(type -p eb 2> /dev/null)
+	
+	#if [[ "$PATH" != *'.pyenv/versions'* ]]
+	#then
+		local current_python_path_version
+		current_python_path_version=$("$currentBin_aws_eb" --version | sed 's/.*Python\ //g' | tr -dc 'a-zA-Z0-9.')
+		#export PATH="$HOME/.pyenv/versions/$current_python_path_version/bin:$PATH"
+	#fi
+	
+	
+	mkdir -p "$scriptLocal"/cloud/aws/.aws
+	[[ ! -e "$scriptLocal"/cloud/aws/.aws ]] && return 1
+	[[ ! -d "$scriptLocal"/cloud/aws/.aws ]] && return 1
+	
+	# WARNING: Not guaranteed.
+	_relink "$HOME"/.ssh "$scriptLocal"/cloud/aws/.aws
+	
+	# WARNING: Changing '$HOME' may interfere with 'cautossh' , specifically function '_ssh' .
+	
+	# WARNING: Must interpret "$HOME" as is at this point and NOT after any "$HOME" override.
+	env PATH="$HOME/.pyenv/versions/$current_python_path_version/bin:$PATH" AWS_PROFILE="$netName" AWS_CONFIG_FILE="$scriptLocal"/cloud/aws/.aws/config HOME="$scriptLocal"/cloud/aws "$currentBin_aws_eb" "$@"
+}
+_eb() {
+	_aws_eb "$@"
+}
+
+_aws_eb_reset() {
+	export ub_function_override_aws_eb=''
+	unset ub_function_override_aws_eb
+	unset eb
+}
+
+_aws_eb_set() {
+	if [[ "$PATH" != *'.ebcli-virtual-env/executables'* ]]
+	then
+		# WARNING: Must interpret "$HOME" as is at this point and NOT after any "$HOME" override.
+		export PATH="$HOME/.ebcli-virtual-env/executables:$PATH"
+	fi
+	
+	export ub_function_override_aws_eb=$(type -p eb 2> /dev/null)
+	eb() {
+		_eb "$@"
+	}
+}
+
+
+
+
+
+# ATTENTION: Theoretically, it may be useful to merge an 'aws' 'home' directory to a user's actual 'home' directory. However, at best it is not known if this can be done with sufficiently portable programs. Moreover, it is not yet obvious whether this is in any way more desirable than function/path overrides alone, or may cause expensive 'human error' mistakes.
+_aws_hook() {
+	true
+}
+_aws_unhook() {
+	true
+}
+
+
+
+
+
+
+# WARNING: Exceptional. Unlike the vast majority of other programs, 'cloud' API software may require frequent updates, due to the strong possibility of frequent breaking changes to what actually ammounts to an *ABI* (NOT an API) . Due to this severe irregularity, '_test_aws' and similar functions must *always* attempt an upstream update if possible and available .
+	# https://par.nsf.gov/servlets/purl/10073416
+	# ' Navigating the Unexpected Realities of Big Data Transfers in a Cloud-based World '
+		# 'Because many of these tools are relatively new and are evolving rapidly they tend to be rather fragile. Consequently, one cannot assume they will actually work reliably in all situations.'
+
+
+# ###
+
+# https://aws.amazon.com/blogs/machine-learning/running-distributed-tensorflow-training-with-amazon-sagemaker/
+# https://horovod.ai/getting-started/
+
+#horovodrun -np 16 -H server1:4,server2:4,server3:4,server4:4 python train.py
+
+
+# https://nodered.org/docs/getting-started/aws
+#eb create
+
+
+# https://nodered.org/docs/getting-started/aws
+#sudo npm install -g --unsafe-perm pm2
+#pm2 start `which node-red` -- -v
+#pm2 save
+#pm2 startup
+
+
+# https://docs.aws.amazon.com/cli/latest/userguide/cli-services-s3-commands.html#using-s3-commands-managing-buckets-creating
+#aws s3 mb s3://bucket-name
+
+# https://docs.aws.amazon.com/cli/latest/userguide/cli-services-ec2-instances.html
+#aws ec2 run-instances --image-id ami-xxxxxxxx --count 1 --instance-type t2.micro --key-name MyKeyPair --security-group-ids sg-903004f8 --subnet-id subnet-6e7f829e
+
+# https://docs.aws.amazon.com/cli/latest/userguide/cli-services-ec2-keypairs.html
+#aws ec2 create-key-pair --key-name MyKeyPair --query 'KeyMaterial' --output text > MyKeyPair.pe
+
+# https://stackoverflow.com/questions/30809822/how-to-get-aws-command-line-interface-to-work-in-cygwin
+# 'I had the same problem. I got around it by installing a new copy of AWSCLI within Cygwin. You first need to install the "curl" and "python" Cygwin packages, then you can install AWSCLI as follows:'
+#curl -O https://bootstrap.pypa.io/get-pip.py
+#python get-pip.py
+#pip install awscli
+#hash -d aws
+
+# ###
+
+
+# https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2-linux.html#cliv2-linux-install
+# https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html
+# WARNING: Infinite loop risk, do not call '_wantGetDep aws' or similar within this function.
+_test_aws_upstream_sequence() {
+	_start
+	local functionEntryPWD
+	functionEntryPWD="$PWD"
+	cd "$safeTmp"
+	
+	
+	_mustGetSudo
+	! _wantSudo && return 1
+	
+	echo
+	
+	curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+	unzip -q awscliv2.zip
+	sudo -n ./aws/install
+	sudo -n ./aws/install --update
+	
+	echo
+	
+	sudo -n pip install --upgrade pip
+	sudo -n pip install aws-shell
+	
+	echo
+	
+	git clone https://github.com/aws/aws-elastic-beanstalk-cli-setup.git
+	./aws-elastic-beanstalk-cli-setup/scripts/bundled_installer
+	#sudo -n ./aws-elastic-beanstalk-cli-setup/scripts/bundled_installer
+	export safeToDeleteGit="true"
+	_safeRMR "$safeTmp"/aws-elastic-beanstalk-cli-setup
+	export safeToDeleteGit=
+	unset safeToDeleteGit
+	
+	echo
+	
+	# ATTENTION: Theoretically this should install 'nodered' and 'pm2' . Not enabled yet by default.
+	# https://nodered.org/docs/getting-started/aws
+	# https://github.com/nodesource/distributions#debinstall
+	#curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -n -E bash -
+	#sudo -n apt-get install -y nodejs
+	#sudo -n npm install -g --unsafe-perm node-red
+	#sudo -n npm install -g --unsafe-perm pm2
+	
+	#echo
+	
+	cd "$functionEntryPWD"
+	_stop
+}
+
+# ATTENTION: WARNING: Only tested with Debian Stable. May require rewrite to accommodate other distro (ie. Gentoo).
+_test_aws() {
+	# zlib1g-dev
+	_getDep 'zconf.h'
+	_getDep 'zlib.h'
+	_getDep 'pkgconfig/zlib.pc'
+	
+	# libssl-dev
+	_getDep 'openssl/ssl3.h'
+	_getDep 'openssl/aes.h'
+	_getDep 'pkgconfig/openssl.pc'
+	_getDep 'pkgconfig/libssl.pc'
+	_getDep 'pkgconfig/libcrypto.pc'
+	
+	# libncurses-dev
+	_getDep 'ncurses6-config'
+	_getDep 'ncursesw6-config'
+	_getDep 'ncurses5-config'
+	_getDep 'ncursesw5-config'
+	_getDep 'curses.h'
+	_getDep 'pkgconfig/ncurses.pc'
+	_getDep 'pkgconfig/ncursesw.pc'
+	
+	# libffi-dev
+	_getDep 'ffitarget.h'
+	_getDep 'pkgconfig/libffi.pc'
+	
+	# libsqlite3-dev
+	_getDep 'sqlite3.h'
+	_getDep 'sqlite3ext.h'
+	_getDep 'pkgconfig/sqlite3.pc'
+	
+	# libreadline-dev
+	_getDep 'readline/readline.h'
+	_getDep 'libreadline.so'
+	
+	# libbz2-dev
+	_getDep 'bzlib.h'
+	_getDep 'libbz2.so'
+	
+	
+	# python3-pypillowfight
+	_getDep 'python3/dist-packages/pillowfight/__init__.py'
+	
+	# python3-wxgtk4.0
+	_getDep 'python3/dist-packages/wx/__init__.py'
+	
+	# wxglade
+	_getDep 'wxglade'
+	
+	
+	_getDep 'unzip'
+	
+	
+	_getDep 'python3'
+	_getDep 'pip'
+	
+	
+	
+	
+	if [[ "$nonet" != "true" ]] && cat /etc/issue | grep 'Debian' > /dev/null 2>&1
+	then
+		_messagePlain_request 'ignore: upstream progress ->'
+		"$scriptAbsoluteLocation" _test_aws_upstream_sequence "$@"
+		_messagePlain_request 'ignore: <- upstream progress'
+	fi
+	
+	_wantSudo && _wantGetDep aws
+	
+	! _typeDep aws && echo 'warn: missing: aws'
+	! _typeDep aws-shell && echo 'warn: missing: aws-shell'
+	
+	
+	if [[ "$PATH" != *'.ebcli-virtual-env/executables'* ]]
+	then
+		# WARNING: Must interpret "$HOME" as is at this point and NOT after any "$HOME" override.
+		export PATH="$HOME/.ebcli-virtual-env/executables:$PATH"
+	fi
+	
+	
+	! _typeDep eb && echo 'warn: missing: eb'
+	
+	
+	
+	return 0
+}
+
+
+
+
+#google
+
+# ATTENTION: ATTENTION: Cloud VPS API wrapper 'de-facto' reference implementation is 'digitalocean' !
+# Obvious naming conventions and such are to be considered from that source first.
+
+
+# WARNING: DANGER: WIP, Untested .
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+_gcloud() {
+	if [[ "$PATH" != *'.gcloud/google-cloud-sdk'* ]]
+	then
+		. "$HOME"/.gcloud/google-cloud-sdk/completion.bash.inc
+		. "$HOME"/.gcloud/google-cloud-sdk/path.bash.inc
+	fi
+	
+	local currentBin_gcloud
+	currentBin_gcloud="$ub_function_override_gcloud"
+	[[ "$currentBin_gcloud" == "" ]] && currentBin_gcloud=$(type -p gcloud 2> /dev/null)
+	
+	# WARNING: Not guaranteed.
+	_relink "$HOME"/.ssh "$scriptLocal"/cloud/gcloud/.ssh
+	
+	# WARNING: Changing '$HOME' may interfere with 'cautossh' , specifically function '_ssh' .
+	
+	
+	# CAUTION: Highly irregular.
+	
+	# https://cloud.google.com/sdk/docs/configurations
+	
+	[[ "$currentBin_gcloud" == "" ]] && return 1
+	[[ ! -e "$currentBin_gcloud" ]] && return 1
+	
+	_editFakeHome "$currentBin_gcloud" "$@"
+}
+
+_gcloud_reset() {
+	export ub_function_override_gcloud=''
+	unset ub_function_override_gcloud
+	unset gcloud
+}
+
+_gcloud_set() {
+	if [[ "$PATH" != *'.gcloud/google-cloud-sdk'* ]]
+	then
+		. "$HOME"/.gcloud/google-cloud-sdk/completion.bash.inc
+		. "$HOME"/.gcloud/google-cloud-sdk/path.bash.inc
+	fi
+	
+	export ub_function_override_gcloud=$(type -p gcloud 2> /dev/null)
+	gcloud() {
+		_gcloud "$@"
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# WARNING: Exceptional. Unlike the vast majority of other programs, 'cloud' API software may require frequent updates, due to the strong possibility of frequent breaking changes to what actually ammounts to an *ABI* (NOT an API) . Due to this severe irregularity, '_test_gcloud' and similar functions must *always* attempt an upstream update if possible and available .
+	# https://par.nsf.gov/servlets/purl/10073416
+	# ' Navigating the Unexpected Realities of Big Data Transfers in a Cloud-based World '
+		# 'Because many of these tools are relatively new and are evolving rapidly they tend to be rather fragile. Consequently, one cannot assume they will actually work reliably in all situations.'
+
+
+# ###
+
+# https://github.com/tensorflow/cloud#cluster-and-distribution-strategy-configuration
+# https://www.tensorflow.org/api_docs/python/tf/distribute/OneDeviceStrategy
+# https://www.tensorflow.org/guide/distributed_training
+# https://colab.research.google.com/notebooks/intro.ipynb
+
+# https://github.com/tensorflow/cloud#setup-instructions
+
+#which gcloud
+
+#export PROJECT_ID=<your-project-id>
+#gcloud config set project $PROJECT_ID
+
+#export SA_NAME=<your-sa-name>
+#gcloud iam service-accounts create $SA_NAME
+#gcloud projects add-iam-policy-binding $PROJECT_ID --member serviceAccount:$SA_NAME@$PROJECT_ID.iam.gserviceaccount.com --role 'roles/editor'
+#gcloud iam service-accounts keys create ~/key.json --iam-account $SA_NAME@$PROJECT_ID.iam.gserviceaccount.com
+
+#export GOOGLE_APPLICATION_CREDENTIALS=~/key.json
+
+#BUCKET_NAME="your-bucket-name"
+#REGION="us-central1"
+#gcloud auth login
+#gsutil mb -l $REGION gs://$BUCKET_NAME
+
+#gcloud auth configure-docker
+
+
+
+
+
+# https://cloud.google.com/sdk/docs/install
+# https://cloud.google.com/sdk/gcloud/reference/components/update
+
+# ###
+
+
+
+
+
+_test_gcloud_upstream_sequence() {
+	_start
+	local functionEntryPWD
+	functionEntryPWD="$PWD"
+	cd "$safeTmp"
+	
+	
+	_mustGetSudo
+	! _wantSudo && return 1
+	
+	
+	echo
+	
+	_gcloud components update
+	
+	echo
+	
+	cp "$scriptLocal"/upstream/google-cloud-sdk-338.0.0-linux-x86_64.tar.gz ./ > /dev/null 2>&1
+	
+	# ATTENTION: ATTENTION: WARNING: CAUTION: DANGER: High maintenance. Expect to break and manually update frequently!
+	local currentIterations
+	currentIterations=0
+	while [[ $(cksum google-cloud-sdk-338.0.0-linux-x86_64.tar.gz | env CMD_ENV=xpg4 cksum | cut -f1 -d\  | tr -dc '0-9' 2> /dev/null) != '3136626824' ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		! [[ "$currentIterations" -lt 2 ]] && _stop 1
+		curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-338.0.0-linux-x86_64.tar.gz
+	done
+	
+	! tar -xpf google-cloud-sdk-338.0.0-linux-x86_64.tar.gz && _stop 1
+	
+	
+	# WARNING: CAUTION: DANGER: Highly irregular. Replaces entire directory in 'HOME' directory after making a temporary copy for user.
+	
+	
+	! [[ -e "$HOME" ]] && return 1
+	[[ "$HOME" == "" ]] && _stop 1
+	[[ "$HOME" == "/" ]] && _stop 1
+	[[ "$HOME" == "-"* ]] && _stop 1
+	
+	if ! mkdir -p "$HOME"/'.gcloud/google-cloud-sdk'
+	then
+		_stop 1
+	fi
+	
+	if ! _safeBackup "$HOME"/'.gcloud/google-cloud-sdk'
+	then
+		_stop 1
+	fi
+	
+	if ! mkdir -p "$HOME"/'.gcloud/google-cloud-sdk_bak'
+	then
+		_stop 1
+	fi
+	
+	if ! _safeBackup "$HOME"/'.gcloud/google-cloud-sdk_bak'
+	then
+		_stop 1
+	fi
+	
+	if ! _safeBackup "$safeTmp"/'google-cloud-sdk'
+	then
+		_stop 1
+	fi
+	
+	sudo -n rsync -ax --delete "$HOME"/'.gcloud/google-cloud-sdk'/. "$HOME"/'.gcloud/google-cloud-sdk_bak'/.
+	sudo -n rsync -ax --delete "$safeTmp"/'google-cloud-sdk'/. "$HOME"/'.gcloud/google-cloud-sdk'/.
+	
+	
+	cd "$HOME"/'.gcloud'/
+	
+	#export CLOUDSDK_ROOT_DIR="$HOME"/google-cloud-sdk
+	
+	./google-cloud-sdk/install.sh --help
+	
+	./google-cloud-sdk/install.sh --quiet --usage-reporting false --command-completion false --path-update false
+	
+	#./google-cloud-sdk/bin/gcloud init
+	
+	cd "$safeTmp"
+	
+	echo
+	
+	_gcloud config set disable_usage_reporting false
+	
+	echo
+	
+	_gcloud components update
+
+	echo
+	
+	
+	
+	cd "$functionEntryPWD"
+	_stop
+}
+
+
+
+
+
+
+_test_gcloud() {
+	_getDep 'python3'
+	_getDep 'pip'
+	
+	if [[ "$nonet" != "true" ]] && cat /etc/issue | grep 'Debian' > /dev/null 2>&1
+	then
+		_messagePlain_request 'ignore: upstream progress ->'
+		"$scriptAbsoluteLocation" _test_gcloud_upstream_sequence "$@"
+		_messagePlain_request 'ignore: <- upstream progress'
+	fi
+	
+	
+	if [[ "$PATH" != *'.gcloud/google-cloud-sdk'* ]]
+	then
+		. "$HOME"/.gcloud/google-cloud-sdk/completion.bash.inc
+		. "$HOME"/.gcloud/google-cloud-sdk/path.bash.inc
+	fi
+	
+	#_wantSudo && _wantGetDep gcloud
+	
+	
+	! _typeDep gcloud && echo 'warn: missing: gcloud'
+	
+	
+	
+	return 0
+}
+
+
+
+
+
+
+
+
+#ibm
+
+#oracle
+
+#azure
+
+#digitalocean
+
+# ATTENTION: ATTENTION: Cloud VPS API wrapper 'de-facto' reference implementation is 'digitalocean' !
+# Obvious naming conventions and such are to be considered from that source first.
+
+
+# WARNING: DANGER: WIP, Untested .
+
+
+# https://docs.digitalocean.com/reference/api/example-usage/
+# https://developers.digitalocean.com/documentation/v2/#introduction
+
+# https://developers.digitalocean.com/documentation/spaces/
+
+# https://stackoverflow.com/questions/1955505/parsing-json-with-unix-tools
+
+
+
+# ATTENTION: Override with 'ops.sh' or 'core.sh' or similar.
+_digitalocean_cloud_cred() {
+	export ub_digitalocean_TOKEN=''
+}
+_digitalocean_cloud_cred_reset() {
+	export ub_digitalocean_TOKEN=''
+}
+
+
+
+
+# ATTENTION: Override with 'ops.sh' or 'core.sh' or similar.
+# "$1" == ub_digitalocean_cloud_server_name
+_digitalocean_cloud_server_create() {
+	_messageNormal 'init: _digitalocean_cloud_server_create'
+	
+	_start_cloud_tmp
+	
+	_digitalocean_cloud_cred
+	
+	export ub_digitalocean_cloud_server_name="$1"
+	[[ "$ub_digitalocean_cloud_server_name" == "" ]] && export ub_digitalocean_cloud_server_name=$(_uid)
+	
+	
+	_messagePlain_nominal 'attempt: _digitalocean_cloud_server_create: Cloud Services API Request'
+	local currentIterations
+	currentIterations=0
+	export ub_digitalocean_cloud_server_uid=
+	while [[ "$ub_digitalocean_cloud_server_uid" == "" ]] && [[ "$currentIterations" -lt 3 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		
+		_digitalocean_cloud_server_create_API--nyc3_s-1vcpu-1gb_ubuntu-20-04-x64 "$ub_digitalocean_cloud_server_name" > "$cloudTmp"/reply
+		export ub_digitalocean_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.droplet.'id | tr -dc 'a-zA-Z0-9.:_-')
+		
+		[[ "$ub_digitalocean_cloud_server_uid" == "" ]] && _messagePlain_warn 'attempt: _digitalocean_cloud_server_create: miss'
+	done
+	[[ "$ub_digitalocean_cloud_server_uid" == "" ]] && _messagePlain_bad 'attempt: _digitalocean_cloud_server_create: fail' && _stop_cloud_tmp && _messageFAIL && _stop 1
+	_messagePlain_good  'attempt: _digitalocean_cloud_server_create: pass'
+	
+	_stop_cloud_tmp
+	
+	
+	
+	
+	_digitalocean_cloud_server_status "$ub_digitalocean_cloud_server_uid"
+	
+	_digitalocean_cloud_cred_reset
+	
+	return 0
+}
+_digitalocean_cloud_server_create_API--nyc3_s-1vcpu-1gb_ubuntu-20-04-x64() {
+	curl -X POST "https://api.digitalocean.com/v2/droplets" -d '{"name":"'"$ub_digitalocean_cloud_server_name"'","region":"nyc3","size":"s-1vcpu-1gb","image":"ubuntu-20-04-x64"}' -H "Authorization: Bearer $ub_digitalocean_TOKEN" -H "Content-Type: application/json"
+}
+
+
+
+# ATTENTION: Consider that Cloud services are STRICTLY intended as end-user functions - manual 'cleanup' of 'expensive' resources MUST be feasible!
+# "$@" == _functionName (must process JSON file - ie. loop through - jq '.droplets[0].id,.droplets[0].name' )
+# EXAMPLE: _digitalocean_cloud_self_server_list _digitalocean_cloud_self_server_dispose-filter 'temporaryBuild'
+# EXAMPLE: _digitalocean_cloud_self_server_list _digitalocean_cloud_self_server_status-filter 'workstation'
+_digitalocean_cloud_self_server_list() {
+	_messageNormal 'init: _digitalocean_cloud_self_server_list'
+	
+	_start_cloud_tmp
+	
+	_digitalocean_cloud_cred
+	
+	_messagePlain_nominal 'attempt: _digitalocean_cloud_self_server_list: Cloud Services API Request'
+	local currentIterations
+	currentIterations=0
+	local current_ub_digitalocean_cloud_server_uid
+	current_ub_digitalocean_cloud_server_uid=
+	while [[ "$current_ub_digitalocean_cloud_server_uid" == "" ]] && [[ "$currentIterations" -lt 3 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		
+		curl -X GET "https://api.digitalocean.com/v2/droplets" -H "Authorization: Bearer $ub_digitalocean_TOKEN" > "$cloudTmp"/reply
+		current_ub_digitalocean_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.droplets[0].id' | tr -dc 'a-zA-Z0-9.:_-')
+		
+		[[ "$current_ub_digitalocean_cloud_server_uid" == "" ]] && _messagePlain_warn 'attempt: _digitalocean_cloud_self_server_list: miss'
+	done
+	[[ "$current_ub_digitalocean_cloud_server_uid" == "" ]] && _messagePlain_bad 'attempt: _digitalocean_cloud_self_server_list: fail' && _stop_cloud_tmp && _messageFAIL && _stop 1
+	_messagePlain_good  'attempt: _digitalocean_cloud_self_server_list: pass'
+	
+	
+	"$@"
+	
+	
+	_messagePlain_request 'request: Please review CloudVM list for unnecessary expense.'
+	cat "$cloudTmp"/reply | jq '.droplets[].id,.droplets[].name'
+	_stop_cloud_tmp
+	_digitalocean_cloud_cred_reset
+	
+	return 0
+}
+
+
+
+_digitalocean_cloud_self_server_dispose-filter() {
+	_messageNormal 'init: _digitalocean_cloud_self_server_dispose-filter: '"$@"
+	
+	# WARNING: To match 'all' consider '.*' instead of empty.
+	[[ "$1" == "" ]] && return 1
+	
+	
+	_messagePlain_nominal 'loop: _digitalocean_cloud_self_server_dispose-filter'
+	local currentIterations
+	currentIterations=0
+	local currentIterations_inner
+	currentIterations_inner=0
+	export ub_digitalocean_cloud_server_uid="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	export ub_digitalocean_cloud_server_name="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	while [[ "$ub_digitalocean_cloud_server_uid" != "null" ]] && [[ "$ub_digitalocean_cloud_server_name" != "null" ]] && [[ "$ub_digitalocean_cloud_server_uid" != "" ]] && [[ "$ub_digitalocean_cloud_server_name" != "" ]] && [[ "$currentIterations" -lt 999 ]]
+	do
+		if _safeEcho "$ub_digitalocean_cloud_server_name" | grep "$@"
+		then
+			currentIterations_inner=0
+			
+			# WARNING: Significant experimentation may be required.
+			# https://superuser.com/questions/272265/getting-curl-to-output-http-status-code
+			
+			#while ! curl -X DELETE -H "Content-Type: application/json" -H "Authorization: Bearer $ub_digitalocean_TOKEN" "https://api.digitalocean.com/v2/droplets/""$ub_digitalocean_cloud_server_uid" > /dev/null 2>&1 && [[ "$currentIterations_inner" -lt 3 ]]
+			while ! curl -I -X DELETE -H "Content-Type: application/json" -H "Authorization: Bearer $ub_digitalocean_TOKEN" "https://api.digitalocean.com/v2/droplets/""$ub_digitalocean_cloud_server_uid" | grep '204 No Content' > /dev/null 2>&1 && [[ "$currentIterations_inner" -lt 3 ]]
+			do
+				let currentIterations_inner="$currentIterations_inner + 1"
+			done
+		fi
+		
+		export ub_digitalocean_cloud_server_uid=
+		export ub_digitalocean_cloud_server_name=
+		
+		ub_digitalocean_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.droplets['"$currentIterations"'].id' | tr -dc 'a-zA-Z0-9.:_-')
+		ub_digitalocean_cloud_server_name=$(cat "$cloudTmp"/reply | jq '.droplets['"$currentIterations"'].name' | tr -dc 'a-zA-Z0-9.:_-')
+		let currentIterations="$currentIterations + 1"
+		
+		_messagePlain_probe_var ub_digitalocean_cloud_server_uid
+		_messagePlain_probe_var ub_digitalocean_cloud_server_name
+		
+	done
+	_messagePlain_good  'done: _digitalocean_cloud_self_server_dispose-filter'
+	
+	return 0
+}
+
+
+_digitalocean_cloud_self_server_status-filter() {
+	_messageNormal 'init: _digitalocean_cloud_self_server_status-filter: '"$@"
+	
+	# WARNING: To match 'all' consider '.*' instead of empty.
+	[[ "$1" == "" ]] && return 1
+	
+	
+	_messagePlain_nominal 'loop: _digitalocean_cloud_self_server_status-filter'
+	local currentIterations
+	currentIterations=0
+	local currentIterations_inner
+	currentIterations_inner=0
+	export ub_digitalocean_cloud_server_uid="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	export ub_digitalocean_cloud_server_name="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	while [[ "$ub_digitalocean_cloud_server_uid" != "null" ]] && [[ "$ub_digitalocean_cloud_server_name" != "null" ]] && [[ "$ub_digitalocean_cloud_server_uid" != "" ]] && [[ "$ub_digitalocean_cloud_server_name" != "" ]] && [[ "$currentIterations" -lt 999 ]]
+	do
+		if _safeEcho "$ub_digitalocean_cloud_server_name" | grep "$@"
+		then
+			_digitalocean_cloud_self_server_status "$ub_digitalocean_cloud_server_uid"
+		fi
+		
+		export ub_digitalocean_cloud_server_uid=
+		export ub_digitalocean_cloud_server_name=
+		
+		ub_digitalocean_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.droplets['"$currentIterations"'].id' | tr -dc 'a-zA-Z0-9.:_-')
+		ub_digitalocean_cloud_server_name=$(cat "$cloudTmp"/reply | jq '.droplets['"$currentIterations"'].name' | tr -dc 'a-zA-Z0-9.:_-')
+		let currentIterations="$currentIterations + 1"
+		
+		_messagePlain_probe_var ub_digitalocean_cloud_server_uid
+		_messagePlain_probe_var ub_digitalocean_cloud_server_name
+		
+	done
+	_messagePlain_good  'done: _digitalocean_cloud_self_server_status-filter'
+	
+	return 0
+}
+
+
+_digitalocean_cloud_self_server_status() {
+	_messageNormal 'init: _digitalocean_cloud_self_server_status'
+	
+	_start_cloud_tmp
+	
+	_digitalocean_cloud_cred
+	
+	
+	curl -X GET -H "Content-Type: application/json" -H "Authorization: Bearer $ub_digitalocean_TOKEN" "https://api.digitalocean.com/v2/droplets/$ub_digitalocean_cloud_server_uid" > "$cloudTmp"/reply_status
+	
+	
+	
+	
+	export ub_digitalocean_cloud_server_addr_ipv4=$(cat "$cloudTmp"/reply_status | jq '.droplet.networks.v4[0].ip_address' | tr -dc 'a-zA-Z0-9.:_-')
+	export ub_digitalocean_cloud_server_addr_ipv6=$(cat "$cloudTmp"/reply_status | jq '.droplet.networks.v6[0].ip_address' | tr -dc 'a-zA-Z0-9.:_-')
+	
+	
+	# ATTENTION: Ubiquitous Bash 'queue' 'database' may be an appropriate means to store sane default 'cred' values after '_server_create' . Also consider storing relevant files under "$scriptLocal" .
+	
+	export ub_digitalocean_cloud_server_ssh_cred=
+	export ub_digitalocean_cloud_server_ssh_port=
+	
+	export ub_digitalocean_cloud_server_vnc_cred=
+	export ub_digitalocean_cloud_server_vnc_port=
+	
+	export ub_digitalocean_cloud_server_serial=
+	
+	export ub_digitalocean_cloud_server_novnc_cred=
+	export ub_digitalocean_cloud_server_novnc_port=
+	export ub_digitalocean_cloud_server_novnc_url_ipv4=https://"$ub_digitalocean_cloud_server_addr_ipv4":"$ub_digitalocean_cloud_server_novnc_port"/novnc/
+	export ub_digitalocean_cloud_server_novnc_url_ipv6=https://"$ub_digitalocean_cloud_server_addr_ipv6":"$ub_digitalocean_cloud_server_novnc_port"/novnc/
+	
+	export ub_digitalocean_cloud_server_shellinabox_port=
+	export ub_digitalocean_cloud_server_shellinabox_url_ipv4=https://"$ub_digitalocean_cloud_server_addr_ipv4":"$ub_digitalocean_cloud_server_shellinabox_port"/shellinabox/
+	export ub_digitalocean_cloud_server_shellinabox_url_ipv6=https://"$ub_digitalocean_cloud_server_addr_ipv6":"$ub_digitalocean_cloud_server_shellinabox_port"/shellinabox/
+	
+	export ub_digitalocean_cloud_server_remotedesktopwebclient_port=
+	export ub_digitalocean_cloud_server_remotedesktopwebclient_url_ipv4=https://"$ub_digitalocean_cloud_server_addr_ipv4":"$ub_digitalocean_cloud_server_remotedesktopwebclient_port"/remotedesktopwebclient/
+	export ub_digitalocean_cloud_server_remotedesktopwebclient_url_ipv6=https://"$ub_digitalocean_cloud_server_addr_ipv6":"$ub_digitalocean_cloud_server_remotedesktopwebclient_port"/remotedesktopwebclient/
+	
+	
+	if ! [[ -e "$cloudTmp"/reply ]]
+	then
+		_digitalocean_cloud_cred_reset
+		_stop_cloud_tmp
+	fi
+	
+	return 0
+}
+
+
+
+
+
+
+
+
+
+
+_test_digitalocean_cloud() {
+	_getDep curl
+	
+	# https://stackoverflow.com/questions/1955505/parsing-json-with-unix-tools
+	_getDep jq
+}
+
+
+
+#linode
+
+# ATTENTION: ATTENTION: Cloud VPS API wrapper 'de-facto' reference implementation is 'digitalocean' !
+# Obvious naming conventions and such are to be considered from that source first.
+
+
+# WARNING: DANGER: WIP, Untested .
+
+
+
+# ATTENTION: Override with 'ops.sh' or 'core.sh' or similar.
+_linode_cloud_cred() {
+	export ub_linode_TOKEN=''
+}
+_linode_cloud_cred_reset() {
+	export ub_linode_TOKEN=''
+}
+
+
+
+# ATTENTION: Override with 'ops.sh' or 'core.sh' or similar.
+# "$1" == ub_linode_cloud_server_name
+_linode_cloud_server_create() {
+	_messageNormal 'init: _linode_cloud_server_create'
+	
+	_start_cloud_tmp
+	
+	_linode_cloud_cred
+	
+	export ub_linode_cloud_server_name="$1"
+	[[ "$ub_linode_cloud_server_name" == "" ]] && export ub_linode_cloud_server_name=$(_uid)
+	
+	
+	_messagePlain_nominal 'attempt: _linode_cloud_server_create: Cloud Services API Request'
+	local currentIterations
+	currentIterations=0
+	export ub_linode_cloud_server_uid=
+	while [[ "$ub_linode_cloud_server_uid" == "" ]] && [[ "$currentIterations" -lt 3 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		
+		_linode_cloud_server_create_API--us-east_g5-standard-2_debian9 "$ub_linode_cloud_server_name" > "$cloudTmp"/reply
+		export ub_linode_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.'id | tr -dc 'a-zA-Z0-9.:_-')
+		
+		[[ "$ub_linode_cloud_server_uid" == "" ]] && _messagePlain_warn 'attempt: _linode_cloud_server_create: miss'
+	done
+	[[ "$ub_linode_cloud_server_uid" == "" ]] && _messagePlain_bad 'attempt: _linode_cloud_server_create: fail' && _stop_cloud_tmp && _messageFAIL && _stop 1
+	_messagePlain_good  'attempt: _linode_cloud_server_create: pass'
+	
+	_stop_cloud_tmp
+	
+	
+	
+	
+	_linode_cloud_server_status "$ub_linode_cloud_server_uid"
+	
+	_linode_cloud_cred_reset
+	
+	return 0
+}
+_linode_cloud_server_create_API--us-east_g5-standard-2_debian9() {
+	# WARNING: Random 'root' 'password' by default - expect to use SSH instead.
+	curl -X POST "https://api.linode.com/v4/linode/instances" -H "Authorization: Bearer $ub_linode_TOKEN" -H "Content-type: application/json" -d '{"type": "g5-standard-2", "region": "us-east", "image": "linode/debian9", "root_pass": "'$(_uid 18)'", "label": "'"$ub_linode_cloud_server_name"'"}'
+}
+
+
+
+# ATTENTION: Consider that Cloud services are STRICTLY intended as end-user functions - manual 'cleanup' of 'expensive' resources MUST be feasible!
+# "$@" == _functionName (must process JSON file - ie. loop through - jq '.data[0].id,.data[0].label' )
+# EXAMPLE: _linode_cloud_self_server_list _linode_cloud_self_server_dispose-filter 'temporaryBuild'
+# EXAMPLE: _linode_cloud_self_server_list _linode_cloud_self_server_status-filter 'workstation'
+_linode_cloud_self_server_list() {
+	_messageNormal 'init: _linode_cloud_self_server_list'
+	
+	_start_cloud_tmp
+	
+	_linode_cloud_cred
+	
+	_messagePlain_nominal 'attempt: _linode_cloud_self_server_list: Cloud Services API Request'
+	local currentIterations
+	currentIterations=0
+	local current_ub_linode_cloud_server_uid
+	current_ub_linode_cloud_server_uid=
+	while [[ "$current_ub_linode_cloud_server_uid" == "" ]] && [[ "$currentIterations" -lt 3 ]]
+	do
+		let currentIterations="$currentIterations + 1"
+		
+		curl -X GET "https://api.linode.com/v4/linode/instances" -H "Authorization: Bearer $ub_linode_TOKEN" > "$cloudTmp"/reply
+		current_ub_linode_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.data[0].id' | tr -dc 'a-zA-Z0-9.:_-')
+		
+		[[ "$current_ub_linode_cloud_server_uid" == "" ]] && _messagePlain_warn 'attempt: _linode_cloud_self_server_list: miss'
+	done
+	[[ "$current_ub_linode_cloud_server_uid" == "" ]] && _messagePlain_bad 'attempt: _linode_cloud_self_server_list: fail' && _stop_cloud_tmp && _messageFAIL && _stop 1
+	_messagePlain_good  'attempt: _linode_cloud_self_server_list: pass'
+	
+	
+	"$@"
+	
+	
+	_messagePlain_request 'request: Please review CloudVM list for unnecessary expense.'
+	cat "$cloudTmp"/reply | jq '.data[].id,.data[].label'
+	_stop_cloud_tmp
+	_linode_cloud_cred_reset
+	
+	return 0
+}
+
+
+
+_linode_cloud_self_server_dispose-filter() {
+	_messageNormal 'init: _linode_cloud_self_server_dispose-filter: '"$@"
+	
+	# WARNING: To match 'all' consider '.*' instead of empty.
+	[[ "$1" == "" ]] && return 1
+	
+	
+	_messagePlain_nominal 'loop: _linode_cloud_self_server_dispose-filter'
+	local currentIterations
+	currentIterations=0
+	local currentIterations_inner
+	currentIterations_inner=0
+	export ub_linode_cloud_server_uid="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	export ub_linode_cloud_server_name="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	while [[ "$ub_linode_cloud_server_uid" != "null" ]] && [[ "$ub_linode_cloud_server_name" != "null" ]] && [[ "$ub_linode_cloud_server_uid" != "" ]] && [[ "$ub_linode_cloud_server_name" != "" ]] && [[ "$currentIterations" -lt 999 ]]
+	do
+		if _safeEcho "$ub_linode_cloud_server_name" | grep "$@"
+		then
+			currentIterations_inner=0
+			
+			# WARNING: Significant experimentation may be required.
+			# https://superuser.com/questions/272265/getting-curl-to-output-http-status-code
+			
+			while ! curl -I -X DELETE -H "Content-Type: application/json" -H "Authorization: Bearer $ub_linode_TOKEN" "https://api.linode.com/v4/linode/instances/""$ub_linode_cloud_server_uid" > /dev/null 2>&1 && [[ "$currentIterations_inner" -lt 3 ]]
+			do
+				let currentIterations_inner="$currentIterations_inner + 1"
+			done
+		fi
+		
+		export ub_linode_cloud_server_uid=
+		export ub_linode_cloud_server_name=
+		
+		ub_linode_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.data['"$currentIterations"'].id' | tr -dc 'a-zA-Z0-9.:_-')
+		ub_linode_cloud_server_name=$(cat "$cloudTmp"/reply | jq '.data['"$currentIterations"'].label' | tr -dc 'a-zA-Z0-9.:_-')
+		let currentIterations="$currentIterations + 1"
+		
+		_messagePlain_probe_var ub_linode_cloud_server_uid
+		_messagePlain_probe_var ub_linode_cloud_server_name
+		
+	done
+	_messagePlain_good  'done: _linode_cloud_self_server_dispose-filter'
+	
+	return 0
+}
+
+
+_linode_cloud_self_server_status-filter() {
+	_messageNormal 'init: _linode_cloud_self_server_status-filter: '"$@"
+	
+	# WARNING: To match 'all' consider '.*' instead of empty.
+	[[ "$1" == "" ]] && return 1
+	
+	
+	_messagePlain_nominal 'loop: _linode_cloud_self_server_status-filter'
+	local currentIterations
+	currentIterations=0
+	local currentIterations_inner
+	currentIterations_inner=0
+	export ub_linode_cloud_server_uid="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	export ub_linode_cloud_server_name="$ubiquitiousBashIDnano"$(_uid 18)"$ubiquitiousBashIDnano"
+	while [[ "$ub_linode_cloud_server_uid" != "null" ]] && [[ "$ub_linode_cloud_server_name" != "null" ]] && [[ "$ub_linode_cloud_server_uid" != "" ]] && [[ "$ub_linode_cloud_server_name" != "" ]] && [[ "$currentIterations" -lt 999 ]]
+	do
+		if _safeEcho "$ub_linode_cloud_server_name" | grep "$@"
+		then
+			_linode_cloud_self_server_status "$ub_linode_cloud_server_uid"
+		fi
+		
+		export ub_linode_cloud_server_uid=
+		export ub_linode_cloud_server_name=
+		
+		ub_linode_cloud_server_uid=$(cat "$cloudTmp"/reply | jq '.data['"$currentIterations"'].id' | tr -dc 'a-zA-Z0-9.:_-')
+		ub_linode_cloud_server_name=$(cat "$cloudTmp"/reply | jq '.data['"$currentIterations"'].label' | tr -dc 'a-zA-Z0-9.:_-')
+		let currentIterations="$currentIterations + 1"
+		
+		_messagePlain_probe_var ub_linode_cloud_server_uid
+		_messagePlain_probe_var ub_linode_cloud_server_name
+		
+	done
+	_messagePlain_good  'done: _linode_cloud_self_server_status-filter'
+	
+	return 0
+}
+
+
+_linode_cloud_self_server_status() {
+	_messageNormal 'init: _linode_cloud_self_server_status'
+	
+	_start_cloud_tmp
+	
+	_linode_cloud_cred
+	
+	
+	curl -X GET -H "Content-Type: application/json" -H "Authorization: Bearer $ub_linode_TOKEN" "https://api.linode.com/v4/linode/instances/$ub_linode_cloud_server_uid" > "$cloudTmp"/reply_status
+	
+	
+	
+	
+	export ub_linode_cloud_server_addr_ipv4=$(cat "$cloudTmp"/reply_status | jq '.ipv4[0]' | tr -dc 'a-zA-Z0-9.:_-')
+	export ub_linode_cloud_server_addr_ipv6=$(cat "$cloudTmp"/reply_status | jq '.ipv6' | tr -dc 'a-zA-Z0-9.:_-')
+	
+	
+	# ATTENTION: Ubiquitous Bash 'queue' 'database' may be an appropriate means to store sane default 'cred' values after '_server_create' . Also consider storing relevant files under "$scriptLocal" .
+	
+	export ub_linode_cloud_server_ssh_cred=
+	export ub_linode_cloud_server_ssh_port=
+	
+	export ub_linode_cloud_server_vnc_cred=
+	export ub_linode_cloud_server_vnc_port=
+	
+	export ub_linode_cloud_server_serial=
+	
+	export ub_linode_cloud_server_novnc_cred=
+	export ub_linode_cloud_server_novnc_port=
+	export ub_linode_cloud_server_novnc_url_ipv4=https://"$ub_linode_cloud_server_addr_ipv4":"$ub_linode_cloud_server_novnc_port"/novnc/
+	export ub_linode_cloud_server_novnc_url_ipv6=https://"$ub_linode_cloud_server_addr_ipv6":"$ub_linode_cloud_server_novnc_port"/novnc/
+	
+	export ub_linode_cloud_server_shellinabox_port=
+	export ub_linode_cloud_server_shellinabox_url_ipv4=https://"$ub_linode_cloud_server_addr_ipv4":"$ub_linode_cloud_server_shellinabox_port"/shellinabox/
+	export ub_linode_cloud_server_shellinabox_url_ipv6=https://"$ub_linode_cloud_server_addr_ipv6":"$ub_linode_cloud_server_shellinabox_port"/shellinabox/
+	
+	export ub_linode_cloud_server_remotedesktopwebclient_port=
+	export ub_linode_cloud_server_remotedesktopwebclient_url_ipv4=https://"$ub_linode_cloud_server_addr_ipv4":"$ub_linode_cloud_server_remotedesktopwebclient_port"/remotedesktopwebclient/
+	export ub_linode_cloud_server_remotedesktopwebclient_url_ipv6=https://"$ub_linode_cloud_server_addr_ipv6":"$ub_linode_cloud_server_remotedesktopwebclient_port"/remotedesktopwebclient/
+	
+	
+	
+	if ! [[ -e "$cloudTmp"/reply ]]
+	then
+		_linode_cloud_cred_reset
+		_stop_cloud_tmp
+	fi
+	
+	return 0
+}
+
+
+
+
+
+
+
+
+
+
+_test_linode_cloud() {
+	_getDep curl
+	
+	# https://stackoverflow.com/questions/1955505/parsing-json-with-unix-tools
+	_getDep jq
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#aws_s3_compatible
+
+#blackblaze
+
+#apacheLibcloud
+
+# https://www.pixelite.co.nz/article/using-apache-libcloud-provision-cloud-servers/
+
+#nubo
+
+# https://pythonhosted.org/nubo/
+
+#rclone
+
+
+
+
+# ATTENTION: Intended to be used by '_index' shortcuts as with 'cautossh' '_setup' .
+_rclone() {
+	local currentBin_rclone
+	currentBin_rclone="$ub_function_override_rclone"
+	[[ "$currentBin_rclone" == "" ]] && currentBin_rclone=$(type -p rclone 2> /dev/null)
+	
+	mkdir -p "$scriptLocal"/rclone
+	[[ ! -e "$scriptLocal"/rclone ]] && return 1
+	[[ ! -d "$scriptLocal"/rclone ]] && return 1
+	
+	# WARNING: Changing '$HOME' may interfere with 'cautossh' , specifically function '_ssh' .
+	#env XDG_CONFIG_HOME="$scriptLocal"/rclone HOME="$scriptLocal"/rclone rclone --config="$scriptLocal"/rclone/rclone/rclone.conf "$@"
+	#env XDG_CONFIG_HOME="$scriptLocal"/rclone rclone --config="$scriptLocal"/rclone/rclone/rclone.conf "$@"
+	
+	env XDG_CONFIG_HOME="$scriptLocal"/rclone "$currentBin_rclone" --config="$scriptLocal"/rclone/rclone/rclone.conf "$@"
+}
+
+_rclone_reset() {
+	export ub_function_override_rclone=''
+	unset ub_function_override_rclone
+	unset rclone
+}
+
+# ATTENTION: Intended to be called from '_cloud_set' or similar, in turn called by '_cloud_hook', in turn used by '_index' shortcuts as with 'cautossh' '_setup' .
+_rclone_set() {
+	export ub_function_override_rclone=$(type -p rclone 2> /dev/null)
+	rclone() {
+		_rclone "$@"
+	}
+}
+
+
+
+
+
+
+
+
+
+# https://en.wikipedia.org/wiki/Rclone
+# https://par.nsf.gov/servlets/purl/10073416
+# https://www.chpc.utah.edu/documentation/software/rclone.php#eteooop
+
+# https://packages.debian.org/sid/rclone
+# https://rclone.org/downloads/
+
+# https://linuxaria.com/howto/how-to-install-a-single-package-from-debian-sid-or-debian-testing
+# https://askubuntu.com/questions/27362/how-to-only-install-updates-from-a-specific-repository
+
+# WARNING: Exceptional. Unlike the vast majority of other programs, 'cloud' API software may require frequent updates, due to the strong possibility of frequent breaking changes to what actually ammounts to an *ABI* (NOT an API) . Due to this severe irregularity, '_test_rclone' and similar functions must *always* attempt an upstream update if possible and available .
+	# https://par.nsf.gov/servlets/purl/10073416
+	# ' Navigating the Unexpected Realities of Big Data Transfers in a Cloud-based World '
+		# 'Because many of these tools are relatively new and are evolving rapidly they tend to be rather fragile. Consequently, one cannot assume they will actually work reliably in all situations.'
+
+# WARNING: Infinite loop risk, do not call '_wantGetDep rclone' within this function.
+_test_rclone_upstream_beta() {
+	! _wantSudo && return 1
+	
+	echo
+	curl https://rclone.org/install.sh | sudo bash -s beta
+	echo
+}
+
+# WARNING: Infinite loop risk, do not call '_wantGetDep rclone' within this function.
+_test_rclone_upstream() {
+	! _wantSudo && return 1
+	
+	echo
+	curl https://rclone.org/install.sh | sudo bash
+	echo
+}
+
+
+_test_rclone() {
+	if [[ "$nonet" != "true" ]]
+	then
+		_messagePlain_request 'ignore: upstream progress ->'
+		
+		_test_rclone_upstream "$@"
+		#_test_rclone_upstream_beta "$@"
+		
+		_messagePlain_request 'ignore: <- upstream progress'
+	fi
+	
+	_wantSudo && _wantGetDep rclone
+	
+	! _typeDep rclone && echo 'warn: missing: rclone'
+	
+	return 0
+}
+
+
+
+
+
+#paramiko
+
+#cloud
+
+# ATTENTION: Highly irregular means of keeping temporary data from cloud replies to API queries, due to the expected high probability of failures.
+_start_cloud_tmp() {
+	export ub_cloudTmp_id=$(_uid)
+	export ub_cloudTmp="$scriptLocal"/cloud/cloudTmp/"$cloudTmp_id"
+	
+	#mkdir -p "$scriptLocal"/cloud/cloudTmp
+	#! [[ -e "$scriptLocal"/cloud/cloudTmp ]] && _messageFAIL && _stop 1
+	#! [[ -d "$scriptLocal"/cloud/cloudTmp ]] && _messageFAIL && _stop 1
+	
+	mkdir -p "$ub_cloudTmp"
+	! [[ -e "$ub_cloudTmp" ]] && _messageFAIL && _stop 1
+	! [[ -d "$ub_cloudTmp" ]] && _messageFAIL && _stop 1
+	
+	echo '*' > "$scriptLocal"/cloud/cloudTmp/.gitignore
+	
+	return 0
+}
+# WARNING: Do NOT call from '_stop' !
+# WARNING: *Requires* variable "$ub_cloudTmp" to have been exported/set by '_start_cloud_tmp' !
+_stop_cloud_tmp() {
+	[[ "$cloudTmp" == "" ]] && return 1
+	! [[ -e "$cloudTmp" ]] && return 1
+	! [[ -d "$cloudTmp" ]] && return 1
+	
+	_safeRMR "$ub_cloudTmp" > /dev/null 2>&1
+	
+	return 0
+}
+
+
+
+
+_cloud_hook_here() {
+	cat << CZXWXcRMTo8EmM8i4d
+	. "$scriptAbsoluteLocation" --profile _importShortcuts
+	_cloud_set
+	_cloudPrompt
+	
+CZXWXcRMTo8EmM8i4d
+}
+
+
+_cloud_hook() {
+	_messageNormal "init: _cloud_hook"
+	local ubHome
+	ubHome="$HOME"
+	[[ "$1" != "" ]] && ubHome="$1"
+	
+	export ubcoreDir="$ubHome"/.ubcore
+	
+	_cloud_hook_here > "$ubcoreDir"/cloudrc
+	
+	_tryExec '_aws_hook'
+	_tryExec '_google_hook'
+}
+
+# WARNING: End user function. Do NOT call within scripts.
+# ATTENTION: TODO: Needs to be written out with 'declare -f' to '~/bin' and/or similar during '_setup_ssh' '_index' shortcut '_setup' and/or similar.
+_cloud_unhook() {
+	_messageNormal "init: _cloud_unhook"
+	local ubHome
+	ubHome="$HOME"
+	[[ "$1" != "" ]] && ubHome="$1"
+	
+	export ubcoreDir="$ubHome"/.ubcore
+	
+	rm -f "$ubcoreDir"/cloudrc
+	
+	_tryExec '_google_unhook'
+}
+
+_cloud_shell() {
+	#_cloudPrompt
+	
+	# https://unix.stackexchange.com/questions/428175/how-to-export-all-bash-functions-in-a-file-in-one-line
+	#set -a
+	##. "$scriptAbsoluteLocation" --parent _importShortcuts
+	#. "$scriptAbsoluteLocation" --profile _importShortcuts
+	#_cloud_set
+	#_cloudPrompt
+	#set +a
+	
+	# https://serverfault.com/questions/368054/run-an-interactive-bash-subshell-with-initial-commands-without-returning-to-the
+	#/usr/bin/env bash --init-file <(_safeEcho ". "\"$scriptAbsoluteLocation\"" --profile _importShortcuts ; _cloud_set ; _cloudPrompt")
+	/usr/bin/env bash --init-file <(_cloud_hook_here)
+}
+
+
+
+_cloudPrompt() {
+	_visualPrompt
+	
+	#cloud-$netName
+	export PS1='\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[01;31m\]${?}:${debian_chroot:+($debian_chroot)}\[\033[01;33m\]\u\[\033[01;32m\]@\h\[\033[01;36m\]\[\033[01;34m\])\[\033[01;36m\]\[\033[01;34m\]-(cloud-$netName)-(\[\033[01;35m\]$(date +%H:%M:%S\.%d)\[\033[01;34m\])\[\033[01;36m\]|\[\033[00m\]\n\[\033[01;40m\]\[\033[01;36m\]\[\033[01;34m\]|\[\033[37m\][\w]\[\033[00m\]\n\[\033[01;36m\]\[\033[01;34m\]|$PS1_lineNumberText\[\033[01;34m\]) \[\033[36m\]'""'>\[\033[00m\] '
+}
+
+
+_cloud_set() {
+	_rclone_set "$@"
+	
+	_aws_set "$@"
+	_aws_eb_set "$@"
+	
+	_gcloud_set
+	
+	
+	
+	_cloudPrompt "$@"
+}
+
+
+_cloud_reset() {
+	_rclone_reset "$@"
+	
+	_aws_reset "$@"
+	_aws_eb_reset "$@"
+	
+	_gcloud_reset
+	
+	
+	
+	_visualPrompt
+}
+
+
+
+
+
+
+
+_test_cloud() {
+	
+	
+	_tryExec '_test_digitalocean_cloud'
+	_tryExec '_test_linode_cloud'
+	
+	_tryExec '_test_aws'
+	_tryExec '_test_gcloud'
+	
+	_tryExec '_test_ubVirt'
+	_tryExec '_test_phpvirtualbox_self'
+	_tryExec '_test_virtualbox_self'
+	
+	
+	return 0
+}
+
+#cloud_abstraction
+# ATTENTION: Override with 'ops.sh' or 'core.sh' or similar.
+
+
+# ATTENTION: In practice, this duplicates the functionality of Cloud service 'control panel' GUI , VirtualBox GUI , VMWare GUI , etc. Intended as an abstraction layer for VM custom image building or VR access through non-web UI.
+
+
+
+
+
+
+# ATTENTION: Many providers (eg. Linode ) offer a WebUI , in which case any 'cloud API' may be most useful only for automation or to create VMs more quickly.
+# DigitalOcean 'Droplet Console' was less effective. Apparently 'lightdm' is required and mouse input is inaccurate.
+# https://www.digitalocean.com/community/tutorials/how-to-set-up-a-remote-desktop-with-x2go-on-ubuntu-20-04
+
+
+# ATTENTION: Override with 'ops.sh' or 'core.sh' or similar.
+# ATTENTION: Although primarily intended for 'cloud' this is equally applicable to 'self' networks created by 'copying' the appropriate "ubiquitous_bash.sh" and 'vm.img' files to separate directories and such. The 'CLI' for such a cloud could be using a filesystem location for such 'image' files as the equivalent of 'credentials' to create new VMs.
+_cloud_server_create() {
+	true
+	
+	
+	_cloud_server_status
+}
+
+
+# List 'cloud' 'servers' .
+_cloud_server_list() {
+	true
+}
+
+
+# Determine if a 'named' or 'uniqueid' 'cloud' 'server' is working correctly and able to report (presumably by either by serial/IPC or public ipv4/ipv6) own IP addresses and such for access to an 'internal' 'graphical console'. With a valid result, automation or remote control is expected to be available.
+_cloud_server_status() {
+	true
+	
+	# ATTENTION: Many providers (eg. Linode ) offer a WebUI , in which case any 'cloud API' may be most useful only to create VMs more quickly.
+	
+	#export_ub_cloud_server_service_url
+	
+	#export ub_cloud_server_addr_ipv4
+	#export ub_cloud_server_addr_ipv6
+	
+	#export ub_cloud_server_ssh_cred
+	#export ub_cloud_server_ssh_port
+	
+	#export ub_cloud_server_vnc_cred
+	#export ub_cloud_server_vnc_port
+	
+	#export ub_cloud_server_serial
+	
+	#export ub_cloud_server_novnc_cred
+	#export_ub_cloud_server_novnc_port
+	#export ub_cloud_server_novnc_url_ipv4
+	#export ub_cloud_server_novnc_url_ipv6
+	
+	#export ub_cloud_server_shellinabox_port
+	#export ub_cloud_server_shellinabox_url_ipv4
+	#export ub_cloud_server_shellinabox_url_ipv6
+	
+	#export ub_cloud_server_remotedesktopwebclient_port
+	#export ub_cloud_server_remotedesktopwebclient_url_ipv4
+	#export ub_cloud_server_remotedesktopwebclient_url_ipv6
+}
+
+
+
+
+
+
+
+
+
+
+
+
+#docker_build
+
+#cloudNativeBuildpack
+
+#debian_build
+
+# Intended to exemplify 'current best practices' building a 'template' Debian VM image simultaneously bootable under at least BIOS/UEFI, LiveISO/LiveUSB, userQemu/userVBox, userChRoot, userDocker . Must adhere to similar steps as documented under 'raspi' 'kit' , although 'x64' may be the typically intended architecture.
+
+
+
+
+#gentoo_build
+
+# Mostly intended only to build especially fast 'PanelVM' images, or more rarely images for programs with dependencies needing substantial modification of distribution available programs.
 
 _kernelConfig_list_here() {
 	cat << CZXWXcRMTo8EmM8i4d
@@ -7890,6 +11817,205 @@ CZXWXcRMTo8EmM8i4d
 
 
 
+
+# ATTENTION: Override with 'ops.sh' , 'core.sh' , or similar.
+_setupUbiquitous_accessories_here-gnuoctave() {
+	cat << CZXWXcRMTo8EmM8i4d
+
+%# https://stackoverflow.com/questions/8260619/how-can-i-suppress-the-output-of-a-command-in-octave
+%# oldpager = PAGER('/dev/null');
+%# oldpso = page_screen_output(1);
+%# oldpoi = page_output_immediately(1);
+
+format long g;
+
+bit = 1;
+byte = bit * 8;
+
+kilo = 10^3;
+mega = kilo * 10^3;
+giga = mega * 10^3;
+tera = giga * 10^3;
+
+kilobit = kilo * bit;
+megabit = mega * bit;
+gigabit = giga * bit;
+terabit = tera * bit;
+
+kb = kilobit;
+Kb = kilobit;
+Mb = megabit;
+Gb = gigabit;
+Tb = terabit;
+
+kilobyte = kilobit * byte;
+megabyte = megabit * byte;
+gigabyte = gigabit * byte;
+terabyte = terabit * byte;
+
+kB = kilobyte;
+KB = kilobyte;
+MB = megabyte;
+GB = gigabyte;
+TB = terabyte;
+
+
+kibi = 1024;
+mebi = kibi * 1024;
+gibi = mebi * 1024;
+tebi = gibi * 1024;
+
+kibibit = kibi * bit;
+mebibit = mebi * bit;
+gibibit = gibi * bit;
+tebibit = tebi * bit;
+
+Kib = kibibit;
+Mib = mebibit;
+Gib = gibibit;
+Tib = tebibit;
+
+kibibyte = kibi * byte;
+mebibyte = mebi * byte;
+gibibyte = gibi * byte;
+tebibyte = tebi * byte;
+
+KiB = kibibyte;
+MiB = mebibyte;
+GiB = gibibyte;
+TiB = tebibyte;
+
+
+pkg load symbolic;
+
+syms a b c d e f g h i j k l m n o p q r s t u v w x y z;
+
+
+unix("true");
+system("true");
+
+cd;
+
+%# Equivalent to Ctrl-L . 
+%# https://stackoverflow.com/questions/11269571/how-to-clear-the-command-line-in-octave
+clc;
+
+
+%# PAGER(oldpager);
+%# page_screen_output(oldpso);
+%# page_output_immediately(oldpoi);
+
+CZXWXcRMTo8EmM8i4d
+}
+
+
+_setupUbiquitous_accessories_here-gnuoctave_hook() {
+	cat << CZXWXcRMTo8EmM8i4d
+
+%# oldpager = PAGER('/dev/null');
+%# oldpso = page_screen_output(1);
+%# oldpoi = page_output_immediately(1);
+
+%# ubcore
+run("$ubcore_accessoriesFile_gnuoctave_ubhome");
+
+%# PAGER(oldpager);
+%# page_screen_output(oldpso);
+%# page_output_immediately(oldpoi);
+
+CZXWXcRMTo8EmM8i4d
+}
+
+
+
+
+_setupUbiquitous_accessories_here-cloud_bin() {
+	cat << CZXWXcRMTo8EmM8i4d
+
+if [[ "$PATH" != *'.ebcli-virtual-env/executables'* ]] && [[ -e "$HOME"/.ebcli-virtual-env/executables ]]
+then
+	# WARNING: Must interpret "$HOME" as is at this point and NOT after any "$HOME" override.
+	export PATH="$HOME"/.ebcli-virtual-env/executables:"$PATH"
+fi
+
+
+if [[ "$PATH" != *'.gcloud/google-cloud-sdk'* ]] && [[ -e "$HOME"/.gcloud/google-cloud-sdk/completion.bash.inc ]] && [[ -e "$HOME"/.gcloud/google-cloud-sdk/path.bash.inc ]]
+then
+	. "$HOME"/.gcloud/google-cloud-sdk/completion.bash.inc
+	. "$HOME"/.gcloud/google-cloud-sdk/path.bash.inc
+fi
+
+CZXWXcRMTo8EmM8i4d
+}
+
+
+
+
+
+_setupUbiquitous_accessories-gnuoctave() {
+	_messagePlain_nominal 'init: _setupUbiquitous_accessories-gnuoctave'
+	
+	mkdir -p "$ubcoreDir_accessories"/gnuoctave
+	
+	export ubcore_accessoriesFile_gnuoctave="$ubcoreDir_accessories"/gnuoctave/ubcorerc.m
+	export ubcore_accessoriesFile_gnuoctave_ubhome="$ubHome"/.ubcorerc-gnuoctave.m
+	
+	rm -f "$ubcore_accessoriesFile_gnuoctave"
+	rm -f "$ubcore_accessoriesFile_gnuoctave_ubhome"
+	ln -s "$ubcore_accessoriesFile_gnuoctave_ubhome" "$ubcore_accessoriesFile_gnuoctave"
+	
+	_setupUbiquitous_accessories_here-gnuoctave > "$ubcore_accessoriesFile_gnuoctave_ubhome"
+	
+	
+	if ! grep ubcore "$ubHome"/.octaverc > /dev/null 2>&1 && _messagePlain_probe 'octaverc'
+	then
+		# https://www.mathworks.com/matlabcentral/answers/194868-what-about-the-character
+		#echo '%# ubcore' >> "$ubHome"/.octaverc
+		#_safeEcho_newline run'("'"$ubcore_accessoriesFile_gnuoctave_ubhome"'")' >> "$ubHome"/.octaverc
+		_setupUbiquitous_accessories_here-gnuoctave_hook >> "$ubHome"/.octaverc
+	fi
+	
+	return 0
+}
+
+
+_setupUbiquitous_accessories_bashrc-cloud_bin() {
+	
+	_setupUbiquitous_accessories_here-cloud_bin
+	
+	echo 'true'
+	
+	return 0
+}
+
+
+_setupUbiquitous_accessories() {
+	
+	_setupUbiquitous_accessories-gnuoctave "$@"
+	
+	
+	
+	return 0
+}
+
+_setupUbiquitous_accessories_bashrc() {
+	#_messagePlain_nominal 'init: _setupUbiquitous_accessories_bashrc'
+	
+	_setupUbiquitous_accessories_bashrc-cloud_bin "$@"
+}
+
+
+_setupUbiquitous_accessories_requests() {
+	
+	# EXAMPLE .
+	#_messagePlain_request 'request: request'
+	
+	return 0
+}
+
+
+
+
 _setupUbiquitous_here() {
 	cat << CZXWXcRMTo8EmM8i4d
 
@@ -7926,7 +12052,10 @@ export profileScriptFolder="$ubcoreUBdir"
 ionice -c 2 -n 4 -p \$\$
 renice -n 0 -p \$\$ > /dev/null 2>&1
 
+[[ -e "$ubcoreDir"/cloudrc ]] && . "$ubcoreDir"/cloudrc
+
 true
+
 CZXWXcRMTo8EmM8i4d
 }
 
@@ -8014,6 +12143,8 @@ _installUbiquitous() {
 }
 
 
+
+
 _setupUbiquitous() {
 	_messageNormal "init: setupUbiquitous"
 	local ubHome
@@ -8022,6 +12153,8 @@ _setupUbiquitous() {
 	
 	export ubcoreDir="$ubHome"/.ubcore
 	export ubcoreFile="$ubcoreDir"/.ubcorerc
+	
+	export ubcoreDir_accessories="$ubHome"/.ubcore/accessories
 	
 	export ubcoreUBdir="$ubcoreDir"/ubiquitous_bash
 	export ubcoreUBfile="$ubcoreDir"/ubiquitous_bash/ubiquitous_bash.sh
@@ -8035,6 +12168,9 @@ _setupUbiquitous() {
 	
 	mkdir -p "$ubcoreUBdir"
 	! [[ -e "$ubcoreUBdir" ]] && _messagePlain_bad 'missing: ubcoreUBdir= '"$ubcoreUBdir" && _messageFAIL && return 1
+	
+	mkdir -p "$ubcoreDir_accessories"
+	! [[ -e "$ubcoreDir_accessories" ]] && _messagePlain_bad 'missing: ubcoreUBdir_accessories= '"$ubcoreDir_accessories" && _messageFAIL && return 1
 	
 	
 	_messageNormal "install: setupUbiquitous"
@@ -8051,6 +12187,7 @@ _setupUbiquitous() {
 	ln -sf "$ubcoreUBfile" "$ubHome"/bin/_winecfghere
 	
 	_setupUbiquitous_here > "$ubcoreFile"
+	_setupUbiquitous_accessories_bashrc >> "$ubcoreFile"
 	! [[ -e "$ubcoreFile" ]] && _messagePlain_bad 'missing: ubcoreFile= '"$ubcoreFile" && _messageFAIL && return 1
 	
 	
@@ -8058,8 +12195,19 @@ _setupUbiquitous() {
 	! grep ubcore "$ubHome"/.bashrc > /dev/null 2>&1 && _messagePlain_bad 'missing: bashrc hook' && _messageFAIL && return 1
 	
 	
-	echo "Now import new functionality into current shell if not in current shell."
-	echo ". "'"'"$scriptAbsoluteLocation"'"' --profile _importShortcuts
+	
+	
+	_messageNormal "install: setupUbiquitous_accessories"
+	
+	_setupUbiquitous_accessories "$@"
+	
+	
+	_messageNormal "request: setupUbiquitous_accessories , setupUbiquitous"
+	
+	_setupUbiquitous_accessories_requests "$@"
+	
+	_messagePlain_request "Now import new functionality into current shell if not in current shell."
+	_messagePlain_request ". "'"'"$scriptAbsoluteLocation"'"' --profile _importShortcuts
 	
 	
 	return 0
@@ -8575,6 +12723,26 @@ _unix_renice_idle() {
 
 _setup_command_commands() {
 	_find_setupCommands -name '_synergy' -exec "$scriptAbsoluteLocation" _setupCommand '{}' \;
+	
+	_find_setupCommands -name '_cloud_shell' -exec "$scriptAbsoluteLocation" _setupCommand_meta '{}' \;
+	_find_setupCommands -name '_cloud_hook' -exec "$scriptAbsoluteLocation" _setupCommand_meta '{}' \;
+	
+	# WARNING: No production use. Not expected to be necessary in practice.
+	#_find_setupCommands -name '_cloud_unhook' -exec "$scriptAbsoluteLocation" _setupCommand_meta '{}' \;
+	
+	
+	if declare -f _cloud_unhook > /dev/null 2>&1 && declare -f _messageNormal > /dev/null 2>&1
+	then
+		mkdir -p "$HOME"/bin
+		! [[ -e "$HOME"/bin ]] && return 1
+		echo '#!/usr/bin/env bash' > "$HOME"/bin/_cloud_unhook."$sessionid"
+		declare -f _messageNormal >> "$HOME"/bin/_cloud_unhook."$sessionid"
+		declare -f _cloud_unhook >> "$HOME"/bin/_cloud_unhook."$sessionid"
+		echo '_cloud_unhook' >> "$HOME"/bin/_cloud_unhook."$sessionid"
+		chmod u+x "$HOME"/bin/_cloud_unhook."$sessionid"
+		mv "$HOME"/bin/_cloud_unhook."$sessionid" "$HOME"/bin/_cloud_unhook
+		chmod u+x "$HOME"/bin/_cloud_unhook
+	fi
 }
 
 _here_synergy_config() {
@@ -9132,6 +13300,105 @@ export ub_anchor_autoupgrade
 
 
 
+#Machine information.
+
+if [[ -e "/proc/meminfo" ]]
+then
+	export hostMemoryTotal=$(cat /proc/meminfo | grep MemTotal | tr -cd '[[:digit:]]')
+	export hostMemoryAvailable=$(cat /proc/meminfo | grep MemAvailable | tr -cd '[[:digit:]]')
+	export hostMemoryQuantity="$hostMemoryTotal"
+else
+	export hostMemoryTotal="384000"
+	export hostMemoryAvailable="256000"
+	export hostMemoryQuantity="$hostMemoryTotal"
+fi
+
+export virtGuestUserDrop="ubvrtusr"
+export virtGuestUser="$virtGuestUserDrop"
+[[ "$HOST_USER_ID" == 0 ]] && export virtGuestUser="root"
+
+export globalVirtDir="$scriptLocal"/v
+export globalVirtFS="$globalVirtDir"/fs
+export globalVirtTmp="$globalVirtDir"/tmp
+
+export instancedVirtDir="$tmpSelf"/v_"$sessionid"
+export instancedVirtFS="$instancedVirtDir"/fs
+export instancedVirtTmp="$instancedVirtDir"/tmp
+
+export virtGuestHomeDrop=/home/"$virtGuestUserDrop"
+export virtGuestHome="$virtGuestHomeDrop"
+[[ "$HOST_USER_ID" == 0 ]] && export virtGuestHome=/root
+###export virtGuestHomeRef="$virtGuestHome".ref
+
+export instancedVirtHome="$instancedVirtFS""$virtGuestHome"
+###export instancedVirtHomeRef="$instancedVirtHome".ref
+
+export sharedHostProjectDirDefault=""
+export sharedGuestProjectDirDefault="$virtGuestHome"/project
+
+export sharedHostProjectDir="$sharedHostProjectDirDefault"
+export sharedGuestProjectDir="$sharedGuestProjectDirDefault"
+
+export instancedProjectDir="$instancedVirtHome"/project
+export instancedDownloadsDir="$instancedVirtHome"/Downloads
+
+export chrootDir="$globalVirtFS"
+export vboxRaw="$scriptLocal"/vmvdiraw.vmdk
+
+#Only globalFakeHome is persistent. All other default home directories are removed in some way by "_stop".
+export globalFakeHome="$scriptLocal"/h
+export instancedFakeHome="$tmpSelf"/h_"$sessionid"
+export shortFakeHome="$shortTmp"/h
+
+#Do not use directly as home directory. Append subdirectories.
+export arbitraryFakeHome="$shortTmp"/a
+
+#Default, override.
+# WARNING: Do not disable.
+export actualFakeHome="$instancedFakeHome"
+export fakeHomeEditLib="false"
+export keepFakeHome="true"
+
+#Automatically assigns appropriate memory quantities to nested virtual machines.
+_vars_vmMemoryAllocationDefault() {
+	export vmMemoryAllocationDefault=96
+	
+	
+	# Invalid.
+	[[ "$hostMemoryQuantity" -lt "64000" ]] && return 1
+	! [[ "$hostMemoryQuantity" -ge "64000" ]] && return 1
+	
+	
+	# Embedded host typical.
+	[[ "$hostMemoryQuantity" -lt "500000" ]] && export vmMemoryAllocationDefault=256 && return 1
+	
+	# Obsolete hardware or guest typical.
+	[[ "$hostMemoryQuantity" -lt "1256000" ]] && export vmMemoryAllocationDefault=512 && return 0
+	[[ "$hostMemoryQuantity" -lt "1768000" ]] && export vmMemoryAllocationDefault=1024 && return 0
+	[[ "$hostMemoryQuantity" -lt "6000000" ]] && export vmMemoryAllocationDefault=1512 && return 0
+	
+	# Modern host typical.
+	[[ "$hostMemoryQuantity" -lt "7000000" ]] && export vmMemoryAllocationDefault=2048 && return 0
+	[[ "$hostMemoryQuantity" -lt "18000000" ]] && export vmMemoryAllocationDefault=2560 && return 0
+	[[ "$hostMemoryQuantity" -lt "34000000" ]] && export vmMemoryAllocationDefault=3072 && return 0
+	
+	# Workstation typical.
+	[[ "$hostMemoryQuantity" -lt "72000000" ]] && export vmMemoryAllocationDefault=4096 && return 0
+	[[ "$hostMemoryQuantity" -lt "132000000" ]] && export vmMemoryAllocationDefault=4096 && return 0
+	
+	# Atypical host.
+	export vmMemoryAllocationDefault=4096 && return 0
+	
+	return 1
+}
+
+#Machine allocation defaults.
+_vars_vmMemoryAllocationDefault
+
+export hostToGuestDir="$instancedVirtDir"/htg
+export hostToGuestFiles="$hostToGuestDir"/files
+export hostToGuestISO="$instancedVirtDir"/htg/htg.iso 
+
 # WARNING Must use unique netName!
 export netName=default
 export gatewayName=gw-"$netName"
@@ -9234,6 +13501,23 @@ _prepare_ssh() {
 }
 
 
+
+_prepareFakeHome() {
+	mkdir -p "$actualFakeHome"
+}
+
+_rm_instance_fakeHome() {
+	! [[ -e "$instancedFakeHome" ]] && return 0
+	
+	[[ -e "$instancedFakeHome" ]] && rmdir "$instancedFakeHome" > /dev/null 2>&1
+	
+	[[ -e "$instancedFakeHome" ]] && _unmakeFakeHome "$instancedFakeHome" > /dev/null 2>&1
+	
+	# DANGER Allows folders containing ".git" to be removed in all further shells inheriting this environment!
+	export safeToDeleteGit="true"
+	[[ -e "$instancedFakeHome" ]] && _safeRMR "$instancedFakeHome"
+	export safeToDeleteGit="false"
+}
 
 
 _queue_descriptiveSelf() {
@@ -13629,6 +17913,28 @@ _variableLocalTest_sequence() {
 	env -i sessionid="" "$currentBashBinLocation" -c '[[ "$sessionid" != "" ]]' && _stop 1
 	env -i "$currentBashBinLocation" -c '[[ "$sessionid" != "" ]]' && _stop 1
 	
+	
+	
+	local currentVariableFunctionText
+	
+	export UB_TEST_VARIABLE_FUNCTION_COMMAND='_variableFunction_variableLocalTest() { echo true; }'' ; _variableFunction_variableLocalTest'
+	currentVariableFunctionText=$(bash -c "$UB_TEST_VARIABLE_FUNCTION_COMMAND")
+	#currentVariableFunctionText=$($UB_TEST_VARIABLE_FUNCTION_COMMAND)
+	[[ "$currentVariableFunctionText" != "true" ]] && _messageFAIL && _stop 1
+	export UB_TEST_VARIABLE_FUNCTION_COMMAND=
+	unset UB_TEST_VARIABLE_FUNCTION_COMMAND
+	
+	_exportFunction_variableLocalTest() {
+		echo true
+	}
+	currentVariableFunctionText=$(bash -c '_exportFunction_variableLocalTest' 2>/dev/null)
+	[[ "$currentVariableFunctionText" != "" ]] && _messageFAIL && _stop 1
+	export -f _exportFunction_variableLocalTest
+	currentVariableFunctionText=$(bash -c '_exportFunction_variableLocalTest' 2>/dev/null)
+	[[ "$currentVariableFunctionText" != "true" ]] && _messageFAIL && _stop 1
+	unset _exportFunction_variableLocalTest
+	
+	
 	_stop
 }
 
@@ -13782,6 +18088,76 @@ _test_embed() {
 }
 
 _test_sanity() {
+	if (exit 0)
+	then
+		true
+	else
+		_messageFAIL && return 1
+	fi
+	if ! (exit 0)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 1)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 2)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 3)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 126)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 127)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 128)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 129)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 130)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 131)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 132)
+	then
+		_messageFAIL && return 1
+	fi
+	if (exit 255)
+	then
+		_messageFAIL && return 1
+	fi
+	
+	local currentSubReturnStatus
+	(exit 0)
+	currentSubReturnStatus="$?"
+	[[ "$currentSubReturnStatus" != '0' ]] && _messageFAIL && return 1
+	(exit 1)
+	currentSubReturnStatus="$?"
+	[[ "$currentSubReturnStatus" != '1' ]] && _messageFAIL && return 1
+	(exit 2)
+	currentSubReturnStatus="$?"
+	[[ "$currentSubReturnStatus" != '2' ]] && _messageFAIL && return 1
+	(exit 3)
+	currentSubReturnStatus="$?"
+	[[ "$currentSubReturnStatus" != '3' ]] && _messageFAIL && return 1
+	
+	
 	# Do NOT allow 'rm' to be a shell function alias to 'rm -i' or similar.
 	[[ $(type -p rm) == "" ]] && _messageFAIL && return 1
 	
@@ -14141,12 +18517,31 @@ _test() {
 	
 	_tryExec "_test_synergy"
 	
+	
+	_tryExec "_test_devqalculate"
+	_tryExec "_test_devgnuoctave"
+	
+	
+	
 	_tryExec "_test_devatom"
 	_tryExec "_test_devemacs"
 	_tryExec "_test_deveclipse"
 	
 	_tryExec "_test_ethereum"
 	_tryExec "_test_ethereum_parity"
+	
+	
+	
+	_tryExec "_test_mktorrent"
+	
+	
+	_tryExec "_test_cloud"
+	_tryExec "_test_rclone"
+	
+	
+	
+	
+	_tryExec "_test_clog"
 	
 	_tryExec "_test_metaengine"
 	
@@ -14724,6 +19119,9 @@ then
 fi
 
 #####Entry
+
+# WARNING: Do not add code directly here without disabling checksum!
+# WARNING: Checksum may only be disabled either by override of 'generic/minimalheader.sh' or by adding appropriate '.nck' file !
 
 #"$scriptAbsoluteLocation" _setup
 
