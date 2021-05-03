@@ -47,6 +47,9 @@ mkdir -p ./_local/ssh
 #Parent derivative of ubiquitous_bash.
 cp ./_lib/coreautossh/_lib/ubiquitous_bash/_lib/ssh/ops.sh ./_local/ssh/ops.sh
 
+##### Kits (ssh, default)
+cp -r ./_lib/ubiquitous_bash/_lib/kit/ssh/. ./
+
 #cp -a ./_lib/coreautossh/_local ./
 
 ##### Specialized project scripts.
