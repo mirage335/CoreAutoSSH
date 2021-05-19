@@ -291,8 +291,18 @@ _command_messageNormal "Main - copying backup."
 echo "EXAMPLE: "
 echo sudo -n "$criticalScriptLocation"' _rsync -A -X -x -avz --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found","/home/*/.gvfs"} --delete '"$criticalBackupSource" "$criticalBackupDestination"/fs
 echo
+echo "BEWARE: "
+echo "# An infinite loop may occur within 'rsync' 'delta transfer' algorithm if loopback mounted files (ie. 'losetup -l') or small 'blocksize' are in effect."
+echo
 
-sudo -n "$criticalScriptLocation" _rsync -A -X -x -avz --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found","/home/*/.gvfs"} "$criticalBackupSource" "$criticalBackupDestination"/fs
+# ATTENTION: Set '-W' to improve performance over 'gigabit' connections.
+
+#--sparse
+#--preallocate
+#-zz --compress-level=1
+#-z
+#-W
+sudo -n "$criticalScriptLocation" _rsync --progress --stats -A -X -x -avz --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found","/home/*/.gvfs"} "$criticalBackupSource" "$criticalBackupDestination"/fs
 #true
 
 [[ "$?" -gt "0" ]] && _command_messageError "FAIL" && exit 1
