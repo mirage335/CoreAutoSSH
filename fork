@@ -57,6 +57,14 @@ cp ./_lib/coreautossh/upgrade ./
 #cp ./_lib/coreautossh/fork ./
 
 
+##### Anchor .
+
+cp -r ./_lib/coreautossh/_lib/ubiquitous_bash/_anchor.bat ./
+cp -r ./_lib/coreautossh/_lib/ubiquitous_bash/_anchor ./
+
+./cautossh _anchor
+
+
 ./compile.sh
 
 git add .
