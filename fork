@@ -59,8 +59,11 @@ cp ./_lib/coreautossh/upgrade ./
 
 ##### Anchor .
 
-cp -r ./_lib/coreautossh/_lib/ubiquitous_bash/_anchor.bat ./
-cp -r ./_lib/coreautossh/_lib/ubiquitous_bash/_anchor ./
+cp -a ./_lib/coreautossh/_lib/ubiquitous_bash/_anchor.bat ./
+cp -a ./_lib/coreautossh/_lib/ubiquitous_bash/_anchor ./
+
+chmod u+x ./_anchor.bat
+chmod u+x ./_anchor
 
 ./cautossh _anchor
 
