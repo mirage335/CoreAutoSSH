@@ -18,7 +18,7 @@ devtask/
 USAGE.*.html
 _buried
 
-package.tar.gz
+package.tar.*
 
 id_rsa
 pubring.kbx
