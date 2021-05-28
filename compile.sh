@@ -32,7 +32,7 @@ _ub_cksum_special_derivativeScripts_contents() {
 #export ub_setScriptChecksum_disable='true'
 ( [[ -e "$0".nck ]] || [[ "${BASH_SOURCE[0]}" != "${0}" ]] || [[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]] || [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] ) && export ub_setScriptChecksum_disable='true'
 export ub_setScriptChecksum_header='1891409836'
-export ub_setScriptChecksum_contents='1325360457'
+export ub_setScriptChecksum_contents='2888305668'
 
 # CAUTION: Symlinks may cause problems. Disable this test for such cases if necessary.
 # WARNING: Performance may be crucial here.
@@ -601,6 +601,24 @@ _____special_live_dent_restore() {
 
 #Override, cygwin.
 
+
+# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+#/usr/local/bin:/usr/bin:/cygdrive/c/WINDOWS/system32:/cygdrive/c/WINDOWS:/usr/bin:/usr/lib/lapack:/cygdrive/x:/cygdrive/x/_bin:/cygdrive/x/_bundle:/opt/ansible/bin:/opt/nodejs/current:/opt/testssl:/home/root/bin
+#/cygdrive/c/WINDOWS/system32:/cygdrive/c/WINDOWS:/usr/bin:/usr/lib/lapack:/cygdrive/x:/cygdrive/x/_bin:/cygdrive/x/_bundle:/opt/ansible/bin:/opt/nodejs/current:/opt/testssl:/home/root/bin
+if [[ "$PATH" == "/cygdrive"* ]] || ( [[ "$PATH" == *"/cygdrive"* ]] && [[ "$PATH" != *"/usr/local/bin"* ]] )
+then
+	if [[ "$PATH" == "/cygdrive"* ]]
+	then
+		export PATH=/usr/local/bin:/usr/bin:/bin:"$PATH"
+	fi
+	
+	[[ "$PATH" != *"/usr/local/bin"* ]] && export PATH=/usr/local/bin:"$PATH"
+	[[ "$PATH" != *"/usr/bin"* ]] && export PATH=/usr/bin:"$PATH"
+	[[ "$PATH" != *"/bin:"* ]] && export PATH=/bin:"$PATH"
+fi
+
+
+
 # WARNING: Multiple reasons to instead consider direct detection by other commands -  ' uname -a | grep -i cygwin > /dev/null 2>&1 ' , ' [[ -e '/cygdrive' ]] ' , etc .
 _if_cygwin() {
 	if uname -a | grep -i cygwin > /dev/null 2>&1
@@ -632,19 +650,6 @@ _workaround_cygwin_tmux() {
 	return "$?"
 }
 
-if ! type nmap > /dev/null 2>&1 && type '/cygdrive/c/Program Files/Nmap/nmap.exe' > /dev/null 2>&1
-then
-	nmap() {
-		'/cygdrive/c/Program Files/Nmap/nmap.exe' "$@"
-	}
-fi
-
-if ! type nmap > /dev/null 2>&1 && type '/cygdrive/c/Program Files (x86)/Nmap/nmap.exe' > /dev/null 2>&1
-then
-	nmap() {
-		'/cygdrive/c/Program Files (x86)/Nmap/nmap.exe' "$@"
-	}
-fi
 
 # DANGER: Severely differing functionality. Intended only to stand in for "ip addr show" and similar.
 if ! type ip > /dev/null 2>&1 && type 'ipconfig' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
@@ -661,25 +666,216 @@ then
 fi
 
 
-
-# WARNING: Native 'vncviewer.exe' is a GUI app, and cannot be launched directly from Cygwin SSH server.
-
-#if ! type vncviewer > /dev/null 2>&1 && type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1
-
-if type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
+if _if_cygwin
 then
-	export override_cygwin_vncviewer='true'
-	vncviewer() {
-		_workaround_cygwin_tmux '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' "$@"
+	# WARNING: Since MSW/Cygwin is hardly suitable for mounting UNIX/tmpfs/ramfs/etc filesystems, 'mountpoint' 'safety checks' are merely disabled.
+	mountpoint() {
+		true
+	}
+	losetup() {
+		false
+	}
+	
+	tc() {
+		false
+	}
+	wondershaper() {
+		false
+	}
+	
+	ionice() {
+		false
 	}
 fi
 
-if type '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
+
+# https://stackoverflow.com/questions/4090301/root-user-sudo-equivalent-in-cygwin
+_sudo_cygwin_sequence() {
+	_start
+	
+	# 'If already admin, just run the command in-line.'
+	# 'This works on my Win10 machine; dunno about others.'
+	if id -G | grep -q ' 544 '
+	then
+		"$@"
+		_stop "$?"
+	fi
+	
+	# 'cygstart/runas doesn't handle arguments with spaces correctly so create'
+	# 'a script that will do so properly.'
+	echo "#!/bin/bash" >> "$safeTmp"/cygwin_sudo_temp.sh
+	echo "export PATH=\"$PATH\"" >> "$safeTmp"/cygwin_sudo_temp.sh
+	
+	
+	_safeEcho_newline "$@" >> "$safeTmp"/cygwin_sudo_temp.sh
+	
+
+	# 'Do it as Administrator.'
+	#cygstart --action=runas "$scriptAbsoluteFolder"/_bin.bat bash
+	cygstart --action=runas "$scriptAbsoluteFolder"/_bin.bat "$safeTmp"/cygwin_sudo_temp.sh
+	
+	_stop "$?"
+}
+_sudo_cygwin() {
+	"$scriptAbsoluteLocation" _sudo_cygwin_sequence "$@"
+}
+
+# CAUTION: BROKEN !
+if _if_cygwin && type cygstart > /dev/null 2>&1
 then
-	export override_cygwin_vncviewer='true'
-	vncviewer() {
-		_workaround_cygwin_tmux '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' "$@"
+	sudo() {
+		[[ "$1" == "-n" ]] && shift
+		if type cygstart > /dev/null 2>&1
+		then
+			_sudo_cygwin "$@"
+			#cygstart --action=runas "$@"
+			#"$@"
+			return
+		else
+			"$@"
+			return
+		fi
+		
+		return 1
 	}
+fi
+
+
+
+
+_discoverResource-cygwinNative-ProgramFiles-declaration-ProgramFiles() {
+	local currentBinary
+	currentBinary="$1"
+	
+	local currentExpectedSubdir
+	currentExpectedSubdir="$2"
+	
+	local forceNativeBinary
+	forceNativeBinary='false'
+	
+	[[ "$3" != "true" ]] && type "$currentBinary" > /dev/null 2>&1 && return 0
+	
+	local forceWorkaroundPrefix
+	forceWorkaroundPrefix="$4"
+	
+	if ! type "$currentBinary" > /dev/null 2>&1 && type '/cygdrive/'"$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q"'/Program Files/'"$currentExpectedSubdir"'/'"$currentBinary".exe > /dev/null 2>&1
+	then
+		eval $currentBinary'() { '"$forceWorkaroundPrefix"'/cygdrive/"'"$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q"'"/"'"Program Files"'"/"'"$currentExpectedSubdir"'"/"'"$currentBinary"'".exe "$@" ; }'
+		false
+	fi
+	
+	if ! type "$currentBinary" > /dev/null 2>&1 && type '/cygdrive/'"$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q"'/Program Files (x86)/'"$currentExpectedSubdir"'/'"$currentBinary".exe > /dev/null 2>&1
+	then
+		eval $currentBinary'() { '"$forceWorkaroundPrefix"'/cygdrive/"'"$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q"'"/"'"Program Files (x86)"'"/"'"$currentExpectedSubdir"'"/"'"$currentBinary"'".exe "$@" ; }'
+	fi
+	type "$currentBinary" > /dev/null 2>&1 && export -f "$currentBinary" > /dev/null 2>&1 && return 0
+	return 1
+}
+
+_discoverResource-cygwinNative-ProgramFiles-declaration-core() {
+	local currentBinary
+	currentBinary="$1"
+	
+	local currentExpectedSubdir
+	currentExpectedSubdir="$2"
+	
+	local forceNativeBinary
+	forceNativeBinary='false'
+	
+	[[ "$3" != "true" ]] && type "$currentBinary" > /dev/null 2>&1 && return 0
+	
+	local forceWorkaroundPrefix
+	forceWorkaroundPrefix="$4"
+	
+	local currentCygdriveC_equivalent
+	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g' | sed 's/^\/cygdrive\///')
+	
+	if ! type "$currentBinary" > /dev/null 2>&1 && type '/cygdrive/'"$currentCygdriveC_equivalent"'/core/installations/'"$currentExpectedSubdir"'/'"$currentBinary".exe > /dev/null 2>&1
+	then
+		eval $currentBinary'() { '"$forceWorkaroundPrefix"'/cygdrive/"'"$currentCygdriveC_equivalent"'"/"'"core/installations"'"/"'"$currentExpectedSubdir"'"/"'"$currentBinary"'".exe "$@" ; }'
+	fi
+	type "$currentBinary" > /dev/null 2>&1 && return 0
+	
+	if ! type "$currentBinary" > /dev/null 2>&1 && type '/cygdrive/'"$currentCygdriveC_equivalent"'/core/installations/'"$currentExpectedSubdir"'/'"$currentBinary".exe > /dev/null 2>&1
+	then
+		eval $currentBinary'() { '"$forceWorkaroundPrefix"'/cygdrive/"'"$currentCygdriveC_equivalent"'"/"'"core/installations"'"/"'"$currentExpectedSubdir"'"/"'"$currentBinary"'".exe "$@" ; }'
+	fi
+	type "$currentBinary" > /dev/null 2>&1 && export -f "$currentBinary" > /dev/null 2>&1 && return 0
+	return 1
+}
+
+_discoverResource-cygwinNative-ProgramFiles() {
+	local currentBinary
+	currentBinary="$1"
+	[[ "$3" != "true" ]] && type "$currentBinary" > /dev/null 2>&1 && return 0
+	
+	local currentCygdriveC_equivalent
+	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g' | sed 's/^\/cygdrive\///')
+	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+	export currentDriveLetter_cygwin_uk4uPhB663kVcygT0q="$currentCygdriveC_equivalent"
+	_discoverResource-cygwinNative-ProgramFiles-declaration-ProgramFiles "$@"
+	
+	
+	# ATTENTION: Configure: 'c..w' (aka. 'w..c') .
+	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+	for currentDriveLetter_cygwin_uk4uPhB663kVcygT0q in {c..w}
+	do
+		_discoverResource-cygwinNative-ProgramFiles-declaration-ProgramFiles "$@"
+	done
+	
+	_discoverResource-cygwinNative-ProgramFiles-declaration-core "$@"
+	
+	type "$currentBinary" > /dev/null 2>&1 && export -f "$currentBinary" > /dev/null 2>&1 && return 0
+	return 1
+}
+
+
+_ops_cygwinOverride_allDisks() {
+	# DANGER: Calling a script from every connected Cygwin/MSW drive arguably causes obvious problems, although any device or network directly connected to any MSW machine inevitably entails such risks.
+	# WARNING: Looping through {w..c} completely may impose delays sufficient to break "_test_selfTime", "_test_broadcastPipe_page", etc, if extremely slow storage is attached.
+	# ATTENTION: Configure: 'w..c' (aka. 'c..w') .
+	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+	for currentDriveLetter_cygwin_uk4uPhB663kVcygT0q in {w..c}
+	do
+		# WARNING: May require export of functions!
+		[[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q ]] && [[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh ]] && . /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh
+	done
+	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+}
+
+
+if [[ -e /cygdrive ]] && _if_cygwin
+then
+	# WARNING: Reduces incidents of extremely slow storage attachment from breaking "_test_selfTime", "_test_broadcastPipe_page", etc, at risks of not recognizing newly installed 'native' programs for up to 20minutes .
+	export cygwinOverride_measureDateB=$(date +%s%N | cut -b1-13)
+	[[ "$cygwinOverride_measureDateA" == "" ]] && export cygwinOverride_measureDateA=$(bc <<< "$cygwinOverride_measureDateB - 900000000" | tr -dc '0-9')
+	
+	# WARNING: Experiment without checking checksum to ensure functions are exported correctly!
+	if [[ $(bc <<< "$cygwinOverride_measureDateB - $cygwinOverride_measureDateA" | tr -dc '0-9') -gt 1200000 ]] || [[ "$ub_setScriptChecksum_contents_cygwinOverride" != "$ub_setScriptChecksum_contents" ]]
+	then
+		export cygwinOverride_measureDateA=$(date +%s%N | cut -b1-13)
+		export ub_setScriptChecksum_contents_cygwinOverride="$ub_setScriptChecksum_contents"
+		
+		_discoverResource-cygwinNative-ProgramFiles 'nmap' 'Nmap' false
+		
+		# WARNING: Native 'vncviewer.exe' is a GUI app, and cannot be launched directly from Cygwin SSH server.
+		_discoverResource-cygwinNative-ProgramFiles 'vncviewer' 'TigerVNC' false '_workaround_cygwin_tmux '
+		
+		_discoverResource-cygwinNative-ProgramFiles 'qalc' 'Qalculate' false
+		
+		
+		# WARNING: CAUTION: DANGER: UNIX EOL *MANDATORY* !
+		[[ -e "$scriptAbsoluteFolder"/ops-cygwin.sh ]] && . "$scriptAbsoluteFolder"/ops-cygwin.sh
+		
+		# export ubiquitiousBashID=uk4uPhB663kVcygT0q
+		unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+		export currentDriveLetter_cygwin_uk4uPhB663kVcygT0q=$(cygpath -S | sed 's/\/Windows\/System32//g' | sed 's/^\/cygdrive\///')
+		[[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q ]] && [[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh ]] && . /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh
+		
+		#_ops_cygwinOverride_allDisks "$@"
+		
+		unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+	fi
 fi
 
 
@@ -690,21 +886,142 @@ fi
 
 
 
+_setup_ubiquitousBash_cygwin_procedure_root() {
+	local cygwinMSWdesktopDir
+	local cygwinMSWmenuDir
+	
+	cygwinMSWdesktopDir=$(cygpath -u -a -A -D)
+	cygwinMSWmenuDir=$(cygpath -u -a -A -P)
+	
+	mkdir -p "$cygwinMSWdesktopDir"
+	mkdir -p "$cygwinMSWmenuDir"/ubiquitous_bash
+	
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWdesktopDir"/
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWmenuDir"/ubiquitous_bash/
+	
+	
+	cygwinMSWdesktopDir=$(cygpath -u -a -D)
+	cygwinMSWmenuDir=$(cygpath -u -a -P)
+	
+	chown -R "$USER":"$USER" "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash > /dev/null 2>&1
+	chown -R "$USER":None "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
+	
+	chown "$USER":"$USER" "$cygwinMSWdesktopDir"/_bash.bat > /dev/null 2>&1
+	chown "$USER":None "$cygwinMSWdesktopDir"/_bash.bat
+	chown -R "$USER":"$USER" "$cygwinMSWmenuDir"/ubiquitous_bash/ > /dev/null 2>&1
+	chown -R "$USER":None "$cygwinMSWmenuDir"/ubiquitous_bash/
+}
+
+_setup_ubiquitousBash_cygwin_procedure() {
+	[[ "$scriptAbsoluteFolder" != '/cygdrive'* ]] && _stop 1
+	
+	_messagePlain_nominal 'init: _setup_ubiquitousBash_cygwin'
+	
+	local currentCygdriveC_equivalent
+	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g')
+	
+	mkdir -p "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
+	cd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
+	
+	cp "$scriptAbsoluteFolder"/ubiquitous_bash.sh "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/lean.sh "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/ubcore.sh "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/lean.py "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	#cp "$scriptAbsoluteFolder"/_bash "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_bash.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	#cp "$scriptAbsoluteFolder"/_bin "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_bin.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/_test "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_test.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/_true "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_true.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/_false "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_false.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/_anchor "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_anchor.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_setup_ubcp.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	
+	cp "$scriptAbsoluteFolder"/package.tar.xz "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	
+	
+	mkdir -p "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp
+	
+	cp -a "$scriptLocal"/ubcp/_upstream "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp -a "$scriptLocal"/ubcp/overlay "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/.gitignore "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/agpl-3.0.txt "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/cygwin-portable.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/cygwin-portable-updater.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/gpl-2.0.txt "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/gpl-3.0.txt "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/license.txt "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/README.md "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/ubcp.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/ubcp_rename-to-enable.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/ubcp-cygwin-portable-installer.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	
+	
+	
+	cygwinMSWdesktopDir=$(cygpath -u -a -A -D)
+	cygwinMSWmenuDir=$(cygpath -u -a -A -P)
+	
+	mkdir -p "$cygwinMSWdesktopDir"
+	mkdir -p "$cygwinMSWmenuDir"/ubiquitous_bash
+	
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWdesktopDir"/
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWmenuDir"/ubiquitous_bash/
+	
+	
+	
+	local cygwinMSWdesktopDir
+	local cygwinMSWmenuDir
+	cygwinMSWdesktopDir=$(cygpath -u -a -D)
+	cygwinMSWmenuDir=$(cygpath -u -a -P)
+	
+	mkdir -p "$cygwinMSWdesktopDir"
+	mkdir -p "$cygwinMSWmenuDir"/ubiquitous_bash
+	
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWdesktopDir"/
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWmenuDir"/ubiquitous_bash/
+	
+	
+	
+	chown -R "$USER":"$USER" "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash > /dev/null 2>&1
+	chown -R "$USER":None "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
+	
+	chown "$USER":"$USER" "$cygwinMSWdesktopDir"/_bash.bat > /dev/null 2>&1
+	chown "$USER":None "$cygwinMSWdesktopDir"/_bash.bat
+	chown -R "$USER":"$USER" "$cygwinMSWmenuDir"/ubiquitous_bash/ > /dev/null 2>&1
+	chown -R "$USER":None "$cygwinMSWmenuDir"/ubiquitous_bash/
+	
+	
+	#sudo -n "$scriptAbsoluteLocation" _setup_ubiquitousBash_cygwin_procedure_root "$@"
+	
+	
+	_messagePlain_good 'done: _setup_ubiquitousBash_cygwin: lean'
+	sleep 1
+}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+_setup_ubiquitousBash_cygwin() {
+	"$scriptAbsoluteLocation" _setup_ubiquitousBash_cygwin "$@"
+}
 
 
 
@@ -714,11 +1031,16 @@ _setup_ubcp_procedure() {
 	_messagePlain_nominal 'init: _setup_ubcp_procedure'
 	! uname -a | grep -i cygwin > /dev/null 2>&1 && _stop 1
 	
+	tskill ssh-pageant > /dev/null 2>&1
+	
+	local currentCygdriveC_equivalent
+	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g')
+	
 	export safeToDeleteGit="true"
-	if [[ -e /cygdrive/c/core/infrastructure/ubcp ]]
+	if [[ -e "$currentCygdriveC_equivalent"/core/infrastructure/ubcp ]]
 	then
 		# DANGER: Not only does this use 'rm -rf' without sanity checking, the behavior is undefined if this ubcp installation has been used to start this script!
-		#[[ -e /cygdrive/c/core/infrastructure/ubcp ]] && rm -rf /cygdrive/c/core/infrastructure/ubcp
+		#[[ -e "$currentCygdriveC_equivalent"/core/infrastructure/ubcp ]] && rm -rf "$currentCygdriveC_equivalent"/core/infrastructure/ubcp
 		
 		_messageError 'FAIL: ubcp already installed locally and must be deleted prior to script!'
 		sleep 10
@@ -733,12 +1055,13 @@ _setup_ubcp_procedure() {
 	
 	#cd "$scriptLocal"/
 	
-	mkdir -p /cygdrive/c/core/infrastructure/
-	cd /cygdrive/c/core/infrastructure/
+	mkdir -p "$currentCygdriveC_equivalent"/core/infrastructure/
+	cd "$currentCygdriveC_equivalent"/core/infrastructure/
 	
-	tar -xvf "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.gz
+	#tar -xvf "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.gz
+	tar -xvf "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.xz
 	
-	_messagePlain_good 'done: _setup_ubcp_procedure'
+	_messagePlain_good 'done: _setup_ubcp_procedure: ubcp'
 	sleep 10
 	
 	cd "$outerPWD"
@@ -750,8 +1073,16 @@ _setup_ubcp_procedure() {
 # No production use. Developer feature.
 # Highly irregular accommodation for usage of 'ubiquitous_bash' through 'ubcp' (cygwin portable) compatibility layer through MSW network drive (especially '_userVBox' MSW guest network drive) .
 # WARNING: May require 'administrator' privileges under MSW. However, it may be better for this directory to be 'owned' by the 'primary' 'user' account. Particularly considering the VR/gaming/CAD software that remains 'exclusive' to MSW is 'legacy' software which for both licensing and technical reasons may be inherently incompatible with 'multi-user' access.
+# WARNING: MSW 'administrator' 'privileges' may break 'ubcp' .
 _setup_ubcp() {
+	# WARNING: May break if 'mitigation' has not been applied!
+	if ! [[ -e "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.gz ]] && ! [[ -e "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.xz ]] && [[ -e "$scriptLocal"/ubcp/cygwin ]]
+	then
+		"$scriptAbsoluteLocation" _package_procedure-cygwinOnly "$@"
+	fi
+	
 	"$scriptAbsoluteLocation" _setup_ubcp_procedure "$@"
+	"$scriptAbsoluteLocation" _setup_ubiquitousBash_cygwin_procedure "$@"
 }
 
 
@@ -995,6 +1326,10 @@ _package_procedure-cygwinOnly() {
 	rm -f "$scriptLocal"/package_ubcp-cygwinOnly.tar.gz > /dev/null 2>&1
 	rm -f "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.gz > /dev/null 2>&1
 	
+	rm -f "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.xz > /dev/null 2>&1
+	rm -f "$scriptLocal"/package_ubcp-cygwinOnly.tar.xz > /dev/null 2>&1
+	rm -f "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.xz > /dev/null 2>&1
+	
 	if [[ "$ubPackage_enable_ubcp" == 'true' ]]
 	then
 		_package_ubcp_copy "$@"
@@ -1007,10 +1342,12 @@ _package_procedure-cygwinOnly() {
 	# WARNING: Having these subdirectories opened in MSW 'explorer' (file manager) may cause this directory to not exist.
 	! cd "$safeTmp"/package/"$objectName"/_local && _stop 1
 	
-	tar -czvf "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.gz .
+	#tar -czvf "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.gz .
+	env XZ_OPT=-5 tar -cJvf "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.xz .
 	
 	mkdir -p "$scriptLocal"/ubcp/
-	mv "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.gz "$scriptLocal"/ubcp/
+	mv "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.gz "$scriptLocal"/ubcp/ > /dev/null 2>&1
+	mv "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.xz "$scriptLocal"/ubcp/
 	
 	_messagePlain_request 'request: review contents of _local/ubcp/cygwin/home and similar directories'
 	sleep 20
@@ -1029,28 +1366,6 @@ _package-cygwinOnly() {
 _package-cygwin() {
 	_package-cygwinOnly "$@"
 }
-
-
-
-
-
-if _if_cygwin
-then
-	# WARNING: Since MSW/Cygwin is hardly suitable for mounting UNIX/tmpfs/ramfs/etc filesystems, 'mountpoint' 'safety checks' are merely disabled.
-	mountpoint() {
-		true
-	}
-	losetup() {
-		false
-	}
-	
-	tc() {
-		false
-	}
-	wondershaper() {
-		false
-	}
-fi
 
 
 
@@ -1873,6 +2188,8 @@ _test_moveconfirm_procedure() {
 	rm -f "$safeTmp"/mv_dst
 	! _moveconfirm "$safeTmp"/mv_src "$safeTmp"/mv_dst && return 1
 	
+	rm -f "$safeTmp"/mv_dst
+	
 	return 0
 }
 
@@ -2049,7 +2366,17 @@ _permissions_directory_checkForPath() {
 	
 	[[ "$parameterAbsoluteLocation" == "$PWD" ]] && ! [[ "$parameterAbsoluteLocation" == "$checkScriptAbsoluteFolder" ]] && return 1
 	
-	local permissions_readout=$(_compat_stat_c_run "%a" "$1")
+	
+	
+	local currentParameter
+	currentParameter="$1"
+	
+	[[ "$scriptAbsoluteFolder" == /media/"$USER"* ]] && [[ -e /media/"$USER" ]] && currentParameter=/media/"$USER"
+	[[ "$scriptAbsoluteFolder" == /mnt/"$USER"* ]] && [[ -e /mnt/"$USER" ]] && currentParameter=/mnt/"$USER"
+	[[ "$scriptAbsoluteFolder" == /var/run/media/"$USER"* ]] && [[ -e /var/run/media/"$USER" ]] && currentParameter=/var/run/media/"$USER"
+	[[ "$scriptAbsoluteFolder" == /run/"$USER"* ]] && [[ -e /run/"$USER" ]] && currentParameter=/run/"$USER"
+	
+	local permissions_readout=$(_compat_stat_c_run "%a" "$currentParameter")
 	
 	local permissions_user
 	local permissions_group
@@ -2069,8 +2396,8 @@ _permissions_directory_checkForPath() {
 	local permissions_uid
 	local permissions_gid
 	
-	permissions_uid=$(_compat_stat_c_run "%u" "$1")
-	permissions_gid=$(_compat_stat_c_run "%g" "$1")
+	permissions_uid=$(_compat_stat_c_run "%u" "$currentParameter")
+	permissions_gid=$(_compat_stat_c_run "%g" "$currentParameter")
 	
 	#Normally these variables are available through ubiqutious bash, but this permissions check may be needed earlier in that global variables setting process.
 	local permissions_host_uid
@@ -2100,15 +2427,22 @@ _permissions_ubiquitous_repo() {
 	return 0
 }
 
+_test_permissions_ubiquitous-cygwin() {
+	! _if_cygwin && _stop 1
+	#! _if_cygwin && _stop "$1"
+	
+	_if_cygwin && echo 'warn: accepted: cygwin: permissions' && return 0
+}
+
 #Checks whether currently set "$scriptBin" and similar locations are actually safe.
 # WARNING Keep in mind this is necessarily run only after PATH would already have been modified, and does not guard against threats already present on the local machine.
 _test_permissions_ubiquitous() {
 	[[ ! -e "$scriptAbsoluteFolder" ]] && _stop 1
 	
-	! _permissions_directory_checkForPath "$scriptAbsoluteFolder" && _stop 1
+	! _permissions_directory_checkForPath "$scriptAbsoluteFolder" && _test_permissions_ubiquitous-cygwin 1
 	
-	[[ -e "$scriptBin" ]] && ! _permissions_directory_checkForPath "$scriptBin" && _stop 1
-	[[ -e "$scriptBundle" ]] && ! _permissions_directory_checkForPath "$scriptBundle" && _stop 1
+	[[ -e "$scriptBin" ]] && ! _permissions_directory_checkForPath "$scriptBin" && _test_permissions_ubiquitous-cygwin 1
+	[[ -e "$scriptBundle" ]] && ! _permissions_directory_checkForPath "$scriptBundle" && _test_permissions_ubiquitous-cygwin 1
 	
 	return 0
 }
@@ -3220,10 +3554,11 @@ _testFindPort() {
 	! _wantGetDep ss
 	! _wantGetDep sockstat
 	
-	# WARNING: Cygwin port range detection not yet implemented.
+	# WARNING: Not yet relying exclusively on 'netstat' - recommend continuing to install 'nmap' for Cygwin port range detection (and also for _waitPort) .
 	if uname -a | grep -i cygwin > /dev/null 2>&1
 	then
-		! type nmap > /dev/null 2>&1 && echo "missing socket detection" && _stop 1
+		! type nmap > /dev/null 2>&1 && echo "missing socket detection: nmap" && _stop 1
+		! type netstat | grep cygdrive > /dev/null 2>&1 && echo "missing socket detection: netstat" && _stop 1
 		return 0
 	fi
 	
@@ -3265,7 +3600,17 @@ _checkPort_local() {
 		return $?
 	fi
 	
-	if uname -a | grep -i cygwin > /dev/null 2>&1
+	if uname -a | grep -i cygwin > /dev/null 2>&1 && type netstat > /dev/null 2>&1 && type netstat | grep cygdrive > /dev/null 2>&1
+	then
+		#nmap --host-timeout 0.1 -Pn localhost -p "$1" 2> /dev/null | grep open > /dev/null 2>&1
+		
+		# https://www.maketecheasier.com/check-ports-in-use-windows10/
+		#netstat -a | grep 'TCP\|UDP' | cut -f 1-7 -d\
+		netstat -a -n -q | grep 'TCP\|UDP' | cut -f 1-8 -d\  | grep ':'"$1" > /dev/null 2>&1
+		return $?
+	fi
+	
+	if type nmap
 	then
 		nmap --host-timeout 0.1 -Pn localhost -p "$1" 2> /dev/null | grep open > /dev/null 2>&1
 		return $?
@@ -3658,6 +4003,9 @@ _typeDep() {
 _wantDep() {
 	_typeDep "$1" && return 0
 	
+	# Expect already root if 'MSW/Cygwin' and obstructive popup dialog if 'sudo' is called through 'MSW/Cygwin' .
+	_if_cygwin && return 1
+	
 	_wantSudo && sudo -n "$scriptAbsoluteLocation" _typeDep "$1" && return 0
 	
 	return 1
@@ -3709,6 +4057,9 @@ alias mustBeRoot=_mustBeRoot
 
 #Determines if sudo is usable by scripts.
 _mustGetSudo() {
+	# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+	_if_cygwin && return 0
+	
 	local rootAvailable
 	rootAvailable=false
 	
@@ -3723,6 +4074,9 @@ _mustGetSudo() {
 
 #Determines if sudo is usable by scripts. Will not exit on failure.
 _wantSudo() {
+	# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+	_if_cygwin && return 0
+	
 	local rootAvailable
 	rootAvailable=false
 	
@@ -3930,7 +4284,7 @@ export bootTmp="$scriptLocal"
 #Consistent absolute path abstraction.
 export abstractfs_root=/tmp/"$ubiquitiousBashIDnano"
 ( [[ "$bootTmp" == '/dev/shm' ]] || [[ "$bootTmp" == '/tmp' ]] || [[ "$tmpMSW" != "" ]] ) && export abstractfs_root="$bootTmp"/"$ubiquitiousBashIDnano"
-export abstractfs_lock=/"$bootTmp"/"$ubiquitiousBashID"/afslock
+export abstractfs_lock="$bootTmp"/"$ubiquitiousBashID"/afslock
 
 # Unusually, safeTmpSSH must not be interpreted by client, and therefore is single quoted.
 # TODO Test safeTmpSSH variants including spaces in path.
@@ -4069,6 +4423,12 @@ _compile_bash_vars_queue() {
 	#[[ "$enUb_packet" == "true" ]] && 
 	#[[ "$enUb_portal" == "true" ]] && 
 	
+	
+	# ATTENTION: Only the test procedures are disabled if the 'queue' dependency is not declared. Due to the lengthy timing required to reliabily test the inherently unpredictability of any InterProcess-Communication with non-dedicated non-realtime software.
+	
+	
+	
+	
 	includeScriptList+=( "queue"/queue_vars.sh )
 	includeScriptList+=( "queue"/queue_vars_default.sh )
 	
@@ -4093,8 +4453,8 @@ _compile_bash_vars_queue() {
 	includeScriptList+=( "queue/tripleBuffer"/benchmark_page.sh )
 	
 	
-	includeScriptList+=( "queue/tripleBuffer"/test_broadcastPipe_page.sh )
-	includeScriptList+=( "queue/tripleBuffer"/benchmark_broadcastPipe_page.sh )
+	[[ "$enUb_queue" ]] && includeScriptList+=( "queue/tripleBuffer"/test_broadcastPipe_page.sh )
+	[[ "$enUb_queue" ]] && includeScriptList+=( "queue/tripleBuffer"/benchmark_broadcastPipe_page.sh )
 	
 	
 	
@@ -4106,10 +4466,10 @@ _compile_bash_vars_queue() {
 	includeScriptList+=( "queue/aggregator/static"/broadcastPipe_aggregatorStatic.sh )
 	includeScriptList+=( "queue/aggregator/static"/demand_broadcastPipe_aggregatorStatic.sh )
 	
-	includeScriptList+=( "queue/aggregator/static"/test_broadcastPipe_aggregatorStatic.sh )
-	includeScriptList+=( "queue/aggregator/static"/benchmark_broadcastPipe_aggregatorStatic.sh )
+	[[ "$enUb_queue" ]] && includeScriptList+=( "queue/aggregator/static"/test_broadcastPipe_aggregatorStatic.sh )
+	[[ "$enUb_queue" ]] && includeScriptList+=( "queue/aggregator/static"/benchmark_broadcastPipe_aggregatorStatic.sh )
 	
-	[[ "$enUb_dev" == "true" ]] && includeScriptList+=( "queue/aggregator/static"/test_scope_aggregatorStatic.sh )
+	( [[ "$enUb_queue" ]] || [[ "$enUb_dev" == "true" ]] ) && includeScriptList+=( "queue/aggregator/static"/test_scope_aggregatorStatic.sh )
 	
 	
 	includeScriptList+=( "queue/zSocket"/page_socket_tcp.sh )
@@ -4127,6 +4487,8 @@ _compile_bash_vars_queue() {
 	includeScriptList+=( "queue/zInteractive"/interactive.sh )
 	
 	
+	
+	[[ "$enUb_queue" ]] && includeScriptList+=( "queue"/test_queue.sh )
 	
 }
 
@@ -4167,6 +4529,592 @@ _compile_bash_vars_metaengine() {
 	[[ "$enUb_metaengine" == "true" ]] && includeScriptList+=( "metaengine/typical"/typical_metaengine_buffer.sh )
 	[[ "$enUb_metaengine" == "true" ]] && includeScriptList+=( "metaengine/typical"/typical_metaengine_page.sh )
 }
+
+
+_generate_lean-lib-python_here() {
+	cat << 'CZXWXcRMTo8EmM8i4d'
+
+# https://stackoverflow.com/questions/44834/can-someone-explain-all-in-python
+
+# https://bruxy.regnet.cz/programming/bash-python/workshop_bash-python-en.html
+# https://www.geeksforgeeks.org/how-to-run-bash-script-in-python/
+# https://softwareengineering.stackexchange.com/questions/207613/encoding-a-bash-script-for-use-in-python
+
+# https://www.codementor.io/@arpitbhayani/personalize-your-python-prompt-13ts4kw6za
+
+# https://kimsereylam.com/python/2020/02/07/improve-your-python-shell-with-pythonrc.html
+
+
+
+
+#os.system("python --version")
+#print (sys.version_info)
+
+
+
+#os.system("ubiquitous_bash.sh _getAbsoluteFolder .")
+
+
+
+# https://www.geeksforgeeks.org/how-to-pass-multiple-arguments-to-function/
+
+#def _bin(currentArgumentsString):
+#	os.system("ubiquitous_bash.sh _bin " + currentArgumentsString)
+
+#_bin("_getAbsoluteFolder .")
+
+#_bin("_scope .")
+
+#_bin("_bash -i")
+
+
+
+#def _bash():
+#	os.system("ubiquitous_bash.sh _bin _bash -i ")
+
+#def _bash():
+#	os.system("$HOME/.ubcore/ubiquitous_bash/ubcore.sh _bash -i ")
+
+#_bash()
+
+
+
+
+
+########################################
+
+
+# WARNING: Python API documentation suggests significant possibility of incompatibility (perhaps return object type) 'if sys.hexversion < 0x03060000' or 'if sys.hexversion < 0x03000000'.
+# CAUTION: Python API version compatibility may or may not be strictly enforced, due to lack of known failures, and/or usual expectations of problems from the multiple ways of doing things.
+# Apparently reasonable expectations confirmed by exhaustive research may be met if python version is at least >0x20710f0 and <0x30703f0 .
+#import sys
+#if sys.hexversion < 0x03060000:
+# https://stackoverflow.com/questions/446052/how-can-i-check-for-python-version-in-a-program-that-uses-new-language-features
+#	exit(1)
+
+
+#_messagePlain_request( 'request: user please install...' )
+def _messagePlain_request(currentMessage = '', currentContext = '(python)'):
+	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;35m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
+
+#_messagePlain_nominal( 'init: _function' )
+def _messagePlain_nominal(currentMessage = '', currentContext = '(python)'):
+	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;36m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
+
+#_messagePlain_probe( '_messagePlain_probe ( \'_messagePlain_probe\' ) ' )
+def _messagePlain_probe(currentMessage = '', currentContext = '(python)'):
+	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;34m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
+
+#_messagePlain_good( 'good: success' )
+def _messagePlain_good(currentMessage = '', currentContext = '(python)'):
+	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;32m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
+
+#_messagePlain_warn( 'warn: workaround' )
+def _messagePlain_warn(currentMessage = '', currentContext = '(python)'):
+	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[1;33m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
+
+#_messagePlain_bad( 'bad: fail: missing' )
+def _messagePlain_bad(currentMessage = '', currentContext = '(python)'):
+	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;31m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
+
+#_messageNormal( '_function_sequence: Stop' )
+def _messageNormal(currentMessage = '', currentContext = '(python)'):
+	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[1;32;46m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
+
+#_messageError( 'FAIL: unknown app failure' )
+def _messageERROR(currentMessage = '', currentContext = '(python)'):
+	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[1;33;41m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
+
+
+#_messageNormal( '_function_sequence: Start' )
+
+#_messagePlain_nominal( 'init: _function' )
+#_messagePlain_request( 'request: user please install...' )
+#_messagePlain_probe( '_messagePlain_probe ( \'_messagePlain_probe\' ) ' )
+
+#_messagePlain_good( 'good: success' )
+#_messagePlain_warn( 'warn: workaround' )
+#_messagePlain_bad( 'bad: fail: missing' )
+
+#_messageERROR( 'FAIL: unknown app failure' )
+
+#_messageNormal( '_function_sequence: Stop' )
+
+
+
+
+
+
+
+import sys
+# https://stackoverflow.com/questions/446052/how-can-i-check-for-python-version-in-a-program-that-uses-new-language-features
+#if sys.hexversion < 0x03060000:
+#	exit(1)
+import string
+import subprocess
+import os
+# WARNING: Procedures exclusively relying on python code are NOT intended or expected to be robust. Instead use '_getScriptAbsoluteLocation' within 'ubiquitous_bash.sh' as able.
+# WARNING: Whether '__file__' has similar characteristics to "$0" as used within 'ubiquitous_bash' in all relevant cases is NOT determined and is NOT to be relied upon.
+# WARNING: Historically 'python' has NOT had the API stability, reliability, or portability of 'bash'.
+# https://stackoverflow.com/questions/4934806/how-can-i-find-scripts-directory
+# https://stackoverflow.com/questions/3503879/assign-output-of-os-system-to-a-variable-and-prevent-it-from-being-displayed-on
+#currentPathCheck = subprocess.Popen(['/bin/bash', '--noprofile', '--norc', '-c', 'type -p ubiquitous_bash.sh'], stdout=subprocess.PIPE, universal_newlines=True)
+#print(os.path.dirname(os.path.realpath(__file__)))
+#print(sys.path[0])
+#os.path.abspath(os.path.dirname(os.path.realpath(__file__))).rstrip('\n')
+#if True:
+#currentProc = subprocess.Popen(['/bin/bash', '-c', 'ubiquitous_bash.sh _getAbsoluteFolder ' + __file__], stdout=subprocess.PIPE, universal_newlines=True)
+#currentProc = subprocess.Popen(['/bin/bash', '--noprofile', '--norc', '-c', 'ubiquitous_bash.sh _getAbsoluteFolder ' + __file__], stdout=subprocess.PIPE, universal_newlines=True)
+#currentProc = subprocess.Popen(['ubiquitous_bash.sh', '_getAbsoluteFolder', __file__], stdout=subprocess.PIPE, universal_newlines=True)
+def _getScriptAbsoluteFolder():
+	currentPathCheck = subprocess.Popen(['/bin/bash', '-c', 'type -p ubiquitous_bash.sh'], stdout=subprocess.PIPE, universal_newlines=True)
+	currentPathCheck.communicate()
+	currentPathCheck.wait()
+	if currentPathCheck.returncode == 0:
+		currentProc = subprocess.Popen(['ubiquitous_bash.sh', '_getAbsoluteFolder', __file__], stdout=subprocess.PIPE, universal_newlines=True)
+		(currentOut, currentErr) = currentProc.communicate()
+		currentProc.wait()
+		currentOut = currentOut.rstrip('\n')
+		return(currentOut.rstrip('\n'))
+	else:
+		return(os.path.abspath(os.path.dirname(os.path.realpath(__file__))).rstrip('\n'))
+
+#print(_getScriptAbsoluteFolder())
+
+
+
+
+
+
+
+
+
+
+import sys
+#if sys.hexversion < 0x03060000:
+#	exit(1)
+import string
+import subprocess
+import os
+#
+#_bash()
+# WARNING: CAUTION: DANGER: Beware '_getScriptAbsoluteLocation' will NOT be set correctly!
+#_bash(['-c', '_getScriptAbsoluteLocation'], True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
+#_bash("-c '_getScriptAbsoluteLocation'", True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
+#
+#_bash(['-c', 'echo test', 'xyz'])
+#print(_bash(['-c', 'echo test', 'xyz'], False))
+#print(_bash(['-c', '_false'], False))
+#print(_bash(['-c', '_false'], False)[1])
+#
+#_bash('-i')
+#_bash("-c '/bin/echo true'")
+#_bash("-c 'echo true'")
+# https://stackoverflow.com/questions/38821586/one-line-to-check-if-string-or-list-then-convert-to-list-in-python
+# https://stackoverflow.com/questions/23883394/detect-if-python-script-is-run-from-an-ipython-shell-or-run-from-the-command-li
+#sys.argv[1]
+#os.system("$HOME/.ubcore/ubiquitous_bash/ubcore.sh _bash -i ")
+#currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
+#print(['ubiquitous_bash.sh', '_bash'] + currentArguments)
+def _bash(currentArguments = ['-i'], currentPrint = False, current_ubiquitous_bash = "ubiquitous_bash.sh"):
+	if current_ubiquitous_bash == "ubiquitous_bash.sh":
+		if os.path.exists(os.environ['HOME'] + "/.ubcore/ubiquitous_bash/ubcore.sh"):
+			current_ubiquitous_bash = (os.environ['HOME'] + "/.ubcore/ubiquitous_bash/ubcore.sh")
+	if current_ubiquitous_bash == "ubiquitous_bash.sh":
+		if os.path.exists("/cygdrive/c/core/infrastructure/ubiquitous_bash/ubcore.sh"):
+			current_ubiquitous_bash = "/cygdrive/c/core/infrastructure/ubiquitous_bash/ubcore.sh"
+	if current_ubiquitous_bash == "ubiquitous_bash.sh":
+		if os.path.exists("/cygdrive/c/core/infrastructure/lean/lean.sh"):
+			current_ubiquitous_bash = "/cygdrive/c/core/infrastructure/lean/lean.sh"
+	currentArguments = ['-i'] if currentArguments == '-i' else currentArguments
+	if isinstance(currentArguments, str):
+		# WARNING: Discouraged.
+		if not currentArguments == '-i':
+			currentProc = subprocess.Popen(current_ubiquitous_bash + " _bash " + currentArguments, stdout=subprocess.PIPE, universal_newlines=True, shell=True)
+			(currentOut, currentErr) = currentProc.communicate()
+			currentProc.wait()
+			currentOut = currentOut.rstrip('\n')
+			if currentPrint == True:
+				print(currentOut)
+				return (currentOut), currentProc.returncode
+		else:
+			currentProc = subprocess.Popen(current_ubiquitous_bash + " _bash " + currentArguments, universal_newlines=True, shell=True)
+			(currentOut, currentErr) = currentProc.communicate()
+			currentProc.wait()
+		return (currentOut), currentProc.returncode
+	else:
+		if not currentArguments == ['-i']:
+			currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
+			currentProc = subprocess.Popen([current_ubiquitous_bash, '_bash'] + currentArguments, stdout=subprocess.PIPE, universal_newlines=True)
+			(currentOut, currentErr) = currentProc.communicate()
+			currentProc.wait()
+			currentOut = currentOut.rstrip('\n')
+			if currentPrint == True:
+				print(currentOut)
+				return (currentOut), currentProc.returncode
+		else:
+			currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
+			currentProc = subprocess.Popen([current_ubiquitous_bash, '_bash'] + currentArguments, universal_newlines=True)
+			(currentOut, currentErr) = currentProc.communicate()
+			currentProc.wait()
+		return (currentOut), currentProc.returncode
+
+
+
+
+
+import sys
+#if sys.hexversion < 0x03060000:
+#	exit(1)
+import string
+import subprocess
+import os
+#
+#_bin(['/bin/bash', '-i'])
+#_bin(['_getScriptAbsoluteLocation'], True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
+#_bin(['_getScriptAbsoluteLocation'], True)
+#_bin(['echo', 'test'], True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
+#print(_bin(['_false'], False, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))[1])
+#
+#_bin('_true')
+#_bin('_echo test')
+#_bin('_bash')
+#print( _bin('_false', False)[1] )
+#_bin("_getScriptAbsoluteLocation", True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
+def _bin(currentArguments = [''], currentPrint = False, current_ubiquitous_bash = "ubiquitous_bash.sh"):
+	if current_ubiquitous_bash == "ubiquitous_bash.sh":
+		if os.path.exists(os.environ['HOME'] + "/.ubcore/ubiquitous_bash/ubcore.sh"):
+			current_ubiquitous_bash = (os.environ['HOME'] + "/.ubcore/ubiquitous_bash/ubcore.sh")
+	if current_ubiquitous_bash == "ubiquitous_bash.sh":
+		if os.path.exists("/cygdrive/c/core/infrastructure/ubiquitous_bash/ubcore.sh"):
+			current_ubiquitous_bash = "/cygdrive/c/core/infrastructure/ubiquitous_bash/ubcore.sh"
+	if current_ubiquitous_bash == "ubiquitous_bash.sh":
+		if os.path.exists("/cygdrive/c/core/infrastructure/lean/lean.sh"):
+			current_ubiquitous_bash = "/cygdrive/c/core/infrastructure/lean/lean.sh"
+	currentArguments = [''] if currentArguments == '' else currentArguments
+	if isinstance(currentArguments, str):
+		# WARNING: Discouraged.
+		if not ( ( currentArguments == '/bin/bash -i' ) or ( currentArguments == '/bin/bash' ) ):
+			currentProc = subprocess.Popen(current_ubiquitous_bash + " _bin " + currentArguments, stdout=subprocess.PIPE, universal_newlines=True, shell=True)
+			(currentOut, currentErr) = currentProc.communicate()
+			currentProc.wait()
+			currentOut = currentOut.rstrip('\n')
+			if currentPrint == True:
+				print(currentOut)
+				return (currentOut), currentProc.returncode
+		else:
+			currentProc = subprocess.Popen(current_ubiquitous_bash + " _bin " + currentArguments, universal_newlines=True, shell=True)
+			(currentOut, currentErr) = currentProc.communicate()
+			currentProc.wait()
+		return (currentOut), currentProc.returncode
+	else:
+		if not (  ( currentArguments == ['/bin/bash', '-i'] ) or ( currentArguments == ['/bin/bash'] ) or ( currentArguments == ['_qalculate', ''] ) or ( currentArguments == ['_qalculate'] ) or ( currentArguments == ['_octave', ''] ) or ( currentArguments == ['_octave'] )  ):
+			currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
+			currentProc = subprocess.Popen([current_ubiquitous_bash, '_bin'] + currentArguments, stdout=subprocess.PIPE, universal_newlines=True)
+			(currentOut, currentErr) = currentProc.communicate()
+			currentProc.wait()
+			currentOut = currentOut.rstrip('\n')
+			if currentPrint == True:
+				print(currentOut)
+				return (currentOut), currentProc.returncode
+		else:
+			currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
+			currentProc = subprocess.Popen([current_ubiquitous_bash, '_bin'] + currentArguments, universal_newlines=True)
+			(currentOut, currentErr) = currentProc.communicate()
+			currentProc.wait()
+		return (currentOut), currentProc.returncode
+
+# ATTENTION: Only intended for indirect calls.
+# https://stackoverflow.com/questions/5067604/determine-function-name-from-within-that-function-without-using-traceback
+#	'there aren't enough important use cases given'
+# https://www.tutorialspoint.com/How-can-I-remove-the-ANSI-escape-sequences-from-a-string-in-python
+# https://docs.python.org/3/library/re.html
+#return _bin(currentCommand + currentArguments + currentString, currentPrint)[0]
+#return re.sub(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]', '', _bin(currentCommand + currentArguments + currentString, currentPrint)[0])
+def _bin_stringAfterArgs(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_false']):
+	currentString = [currentString] if isinstance(currentString, str) else currentString
+	currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
+	if currentPrint:
+		return _bin(currentCommand + currentArguments + currentString, currentPrint)
+	else:
+		return re.sub(r'\n', '', re.sub(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]', '', _bin(currentCommand + currentArguments + currentString, currentPrint)[0]))
+
+#def _bash(currentArguments = [''], currentPrint = True, current_ubiquitous_bash = "ubiquitous_bash.sh"):
+#	_bin(['/bin/bash', '-i'])
+
+
+
+#if sys.hexversion < 0x03000000:
+#	exit(1)
+#_bin_alias = _bin
+
+
+#_clc('1 + 2')
+#_qalculate('1 + 2')
+#_octave('1 + 2')
+#print(_octave_solve('(y == x * 2, x)' ))
+
+def _clc(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_clc']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def clc(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['clc']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def c(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['c']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def _solve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_solve']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def solve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['solve']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def nsolve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['nsolve']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def _qalculate_solve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_qalculate_solve']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def _qalculate_nsolve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_qalculate_nsolve']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def _octave_solve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_octave_solve']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def _octave_nsolve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_octave_nsolve']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+
+def _qalculate(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_qalculate']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+def _octave(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_octave']):
+	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
+
+
+
+
+
+
+
+
+import readline # optional, will allow Up/Down/History in the console
+import code
+#_python()
+# https://stackoverflow.com/questions/5597836/embed-create-an-interactive-python-shell-inside-a-python-program
+def _python():
+	variables = globals().copy()
+	variables.update(locals())
+	shell = code.InteractiveConsole(variables)
+	shell.interact()
+
+
+
+import sys
+import os
+import socket
+import string
+import re
+#if sys.hexversion < 0x03060000:
+#	exit(1)
+# https://www.codementor.io/@arpitbhayani/personalize-your-python-prompt-13ts4kw6za
+# https://stackoverflow.com/questions/4271740/how-can-i-use-python-to-get-the-system-hostname
+# https://bugs.python.org/issue20359
+#os.environ['PWD']
+#os.path.expanduser(os.getcwd())
+#\033[0;35;47mpython-%d\033[0m
+#return "\033[92mIn [%d]:\033[0m " % (self.line)
+#return ">>> "
+#return "\033[1;94m|\033[91m#:\033[1;93m%s\033[1;92m@%s\033[1;94m)-%s(\033[1;95m\033[0;35;47mpython-%s\033[0m\033[1;94m)\033[1;96m|\n\033[1;94m|\033[1;97m[%s]\n\033[1;94m|\033[1;96m%d\033[1;94m) \033[1;96m>\033[0m " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
+#return "\033[1;94m|\033[91m#:\033[1;93m%s\033[1;92m@%s\033[1;94m)-%s(\033[1;95m\033[0;35;47mpython-%s\033[0m\033[1;94m)\033[1;96m|\n\033[1;94m|\033[1;97m[%s]\n\033[1;94m|%d\033[1;94m) \033[1;96m>\033[0m " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
+class ubPythonPS1(object):
+	def __init__(self):
+		self.line = 0
+
+	def __str__(self):
+		self.line += 1
+		if self.line == 1:
+			return "\x01\033[1;94m\x02|\x01\033[91m\x02#:\x01\033[1;93m\x02%s\x01\033[1;92m\x02@%s\x01\033[1;94m\x02)-%s(\x01\033[1;95m\x02\x01\033[0;35;47m\x02python-%s\x01\033[0m\x02\x01\033[1;94m\x02)\x01\033[1;96m\x02|\n\x01\033[1;94m\x02|\x01\033[1;97m\x02[%s]\n\x01\033[1;94m\x02|\x01\033[1;96m\x02%d\x01\033[1;94m\x02) \x01\033[1;96m\x02>\x01\033[0m\x02 " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
+		else:
+			return "\x01\033[1;94m\x02|\x01\033[91m\x02#:\x01\033[1;93m\x02%s\x01\033[1;92m\x02@%s\x01\033[1;94m\x02)-%s(\x01\033[1;95m\x02\x01\033[0;35;47m\x02python-%s\x01\033[0m\x02\x01\033[1;94m\x02)\x01\033[1;96m\x02|\n\x01\033[1;94m\x02|\x01\033[1;97m\x02[%s]\n\x01\033[1;94m\x02|%d\x01\033[1;94m\x02) \x01\033[1;96m\x02>\x01\033[0m\x02 " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
+
+sys.ps1 = ubPythonPS1()
+sys.ps2 = "\x01\033[0;96m\x02|...\x01\033[0m\x02 "
+
+
+
+
+#_python()
+
+
+
+
+
+CZXWXcRMTo8EmM8i4d
+}
+
+
+_generate_lean-overrides-python_here() {
+	cat << 'CZXWXcRMTo8EmM8i4d'
+
+
+
+
+
+
+
+
+
+
+#################################################
+# ATTENTION: Add '_prog' script code here!
+
+
+
+
+
+
+
+def _main():
+	pass
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ATTENTION: Add '_prog' script code here!
+#################################################
+
+
+import sys
+if sys.hexversion > 0x03000000:
+	exec('_print = print')
+
+import sys
+import string
+#./lean.py "_python(c('1 + 2'))"
+#./lean.py "_print(c('1 + 2'))"
+#./lean.py "print(c('1 + 2'))"
+# https://www.tutorialspoint.com/python/python_command_line_arguments.htm
+# https://www.programiz.com/python-programming/methods/built-in/exec
+# https://www.geeksforgeeks.org/python-program-to-convert-a-list-to-string/
+# https://www.geeksforgeeks.org/python-removing-first-element-of-list/
+#print ( 'Argument List:', str(sys.argv) )
+#eval( sys.argv[1] + ' ' + ' '.join( sys.argv[2:] ) )
+#exec( sys.argv[1] )
+#if (1 in sys.argv):
+if len(sys.argv) > 1:
+	if ( sys.argv[1].startswith('_') ) or ( sys.argv[1].startswith('print') ) :
+		exec( sys.argv[1] )
+
+
+
+
+
+
+
+
+
+
+
+_main()
+
+
+
+CZXWXcRMTo8EmM8i4d
+}
+
+
+
+
+_generate_lean-python_prog() {
+	[[ "$objectName" == "ubiquitous_bash" ]] && return 0
+	
+	return 1
+}
+
+_generate_lean-python() {
+	! _generate_lean-python_prog && return 0
+	
+	echo '#!/usr/bin/env python3' > "$scriptAbsoluteFolder"/lean.py
+	
+	_generate_lean-lib-python_here "$@" >> "$scriptAbsoluteFolder"/lean.py
+	
+	_generate_lean-overrides-python_here "$@" >> "$scriptAbsoluteFolder"/lean.py
+	
+	chmod u+x "$scriptAbsoluteFolder"/lean.py
+}
+
+
+
+
+
+
+# 
+# _python_hook_here() {
+# 	cat << CZXWXcRMTo8EmM8i4d
+# 	
+# 	_setupUbiquitous_accessories_here-python_hook
+# 	
+# CZXWXcRMTo8EmM8i4d
+# }
+# 
+# 
+# _python_hook() {
+# 	_messageNormal "init: _python_hook"
+# 	local ubHome
+# 	ubHome="$HOME"
+# 	[[ "$1" != "" ]] && ubHome="$1"
+# 	
+# 	export ubcoreDir="$ubHome"/.ubcore
+# 	
+# 	_python_hook_here > "$ubcoreDir"/python_bash_rc
+# }
+# 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 _findUbiquitous() {
 	export ubiquitiousLibDir="$scriptAbsoluteFolder"
@@ -4272,6 +5220,11 @@ _deps_cloud() {
 	_deps_fakehome
 	
 	export enUb_cloud="true"
+}
+
+_deps_cloud_self() {
+	_deps_cloud
+	export enUb_cloud_self="true"
 }
 
 _deps_cloud_build() {
@@ -4606,6 +5559,8 @@ _compile_bash_deps() {
 		
 		#_deps_stopwatch
 		
+		_deps_queue
+		
 		return 0
 	fi
 	
@@ -4621,7 +5576,8 @@ _compile_bash_deps() {
 		
 		# WARNING: Only known production use in this context is '_cloud_reset' , '_cloud_unhook' , and similar.
 		_deps_cloud
-		_deps_cloud_build
+		#_deps_cloud_self
+		#_deps_cloud_build
 		
 		_deps_abstractfs
 		
@@ -4635,7 +5591,7 @@ _compile_bash_deps() {
 		
 		_deps_calculators
 		
-		_deps_queue
+		#_deps_queue
 		
 		# _compile_bash_deps 'core'
 		return 0
@@ -4656,6 +5612,7 @@ _compile_bash_deps() {
 		
 		_deps_repo
 		_deps_cloud
+		_deps_cloud_self
 		_deps_cloud_build
 		
 		_deps_command
@@ -4693,7 +5650,7 @@ _compile_bash_deps() {
 		
 		_deps_channel
 		
-		_deps_queue
+		#_deps_queue
 		_deps_metaengine
 		
 		_deps_abstractfs
@@ -4710,7 +5667,7 @@ _compile_bash_deps() {
 		
 		_deps_channel
 		
-		_deps_queue
+		#_deps_queue
 		_deps_metaengine
 		
 		_deps_fakehome
@@ -4752,7 +5709,7 @@ _compile_bash_deps() {
 		
 		_deps_channel
 		
-		_deps_queue
+		#_deps_queue
 		_deps_metaengine
 		
 		_deps_git
@@ -4760,6 +5717,7 @@ _compile_bash_deps() {
 		_deps_repo
 		
 		_deps_cloud
+		_deps_cloud_self
 		_deps_cloud_build
 		
 		_deps_distro
@@ -4833,6 +5791,7 @@ _compile_bash_deps() {
 		_deps_repo
 		
 		_deps_cloud
+		_deps_cloud_self
 		_deps_cloud_build
 		
 		_deps_distro
@@ -5082,9 +6041,10 @@ _compile_bash_shortcuts() {
 	#[[ "$enUb_dev_heavy" == "true" ]] && 
 	includeScriptList+=( "shortcuts/dev"/devsearch.sh )
 	
-	( ( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_metaengine" == "true" ]] ) || [[ "$enUb_calculators" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/calculators"/qalculate.sh )
+	
 	( ( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_metaengine" == "true" ]] ) || [[ "$enUb_calculators" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/calculators"/gnuoctave.sh )
 	( ( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_metaengine" == "true" ]] ) || [[ "$enUb_calculators" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/calculators"/gnuoctave_extra.sh )
+	( ( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_metaengine" == "true" ]] ) || [[ "$enUb_calculators" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/calculators"/qalculate.sh )
 	
 	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/devemacs.sh )
 	[[ "$enUb_fakehome" == "true" ]] && [[ "$enUb_dev_heavy" == "true" ]] && includeScriptList+=( "shortcuts/dev/app"/devatom.sh )
@@ -5117,10 +6077,10 @@ _compile_bash_shortcuts() {
 	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/screenScraper"/screenScraper-nix.sh )
 	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/screenScraper"/screenScraper-msw.sh )
 	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/ubVirt"/ubVirt_self.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/phpvirtualbox_self.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/virtualbox_self.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/libvirt_self.sh )
+	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/ubVirt"/ubVirt_self.sh )
+	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/phpvirtualbox_self.sh )
+	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/virtualbox_self.sh )
+	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/libvirt_self.sh )
 	
 	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/aws/aws.sh )
 	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/gcloud/gcloud.sh )
@@ -5340,6 +6300,13 @@ _compile_bash_selfHost() {
 	
 	
 	#####Generate/Compile
+	if ( [[ "$enUb_buildBashUbiquitous" == "true" ]] || [[ "$enUb_notLean" == "true" ]] || [[ "$enUb_dev" == "true" ]] || [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_metaengine" == "true" ]] || [[ "$enUb_calculators" == "true" ]] )
+	then
+		includeScriptList+=( "build/python"/python_lean_here.sh )
+		includeScriptList+=( "build/python"/python_lean_here_prog.sh )
+	fi
+	
+	
 	includeScriptList+=( "build/bash/ubiquitous"/discoverubiquitious.sh )
 	#[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash/ubiquitous"/discoverubiquitious.sh )
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash/ubiquitous"/depsubiquitous.sh )
@@ -5349,8 +6316,6 @@ _compile_bash_selfHost() {
 	
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash"/compile_bash.sh )
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash"/compile_bash_prog.sh )
-	
-	( [[ "$enUb_buildBashUbiquitous" == "true" ]] || [[ "$enUb_notLean" == "true" ]] || [[ "$enUb_dev" == "true" ]] || [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_metaengine" == "true" ]] || [[ "$enUb_calculators" == "true" ]] ) && includeScriptList+=( "build/python"/python_lean_here.sh )
 }
 
 _compile_bash_overrides() {
@@ -5701,585 +6666,6 @@ _compile_bash_entry_prog() {
 	true
 }
 
-
-_generate_lean-lib-python_here() {
-	cat << 'CZXWXcRMTo8EmM8i4d'
-
-# https://stackoverflow.com/questions/44834/can-someone-explain-all-in-python
-
-# https://bruxy.regnet.cz/programming/bash-python/workshop_bash-python-en.html
-# https://www.geeksforgeeks.org/how-to-run-bash-script-in-python/
-# https://softwareengineering.stackexchange.com/questions/207613/encoding-a-bash-script-for-use-in-python
-
-# https://www.codementor.io/@arpitbhayani/personalize-your-python-prompt-13ts4kw6za
-
-# https://kimsereylam.com/python/2020/02/07/improve-your-python-shell-with-pythonrc.html
-
-
-
-
-#os.system("python --version")
-#print (sys.version_info)
-
-
-
-#os.system("ubiquitous_bash.sh _getAbsoluteFolder .")
-
-
-
-# https://www.geeksforgeeks.org/how-to-pass-multiple-arguments-to-function/
-
-#def _bin(currentArgumentsString):
-#	os.system("ubiquitous_bash.sh _bin " + currentArgumentsString)
-
-#_bin("_getAbsoluteFolder .")
-
-#_bin("_scope .")
-
-#_bin("_bash -i")
-
-
-
-#def _bash():
-#	os.system("ubiquitous_bash.sh _bin _bash -i ")
-
-#def _bash():
-#	os.system("$HOME/.ubcore/ubiquitous_bash/ubcore.sh _bash -i ")
-
-#_bash()
-
-
-
-
-
-########################################
-
-
-# WARNING: Python API documentation suggests significant possibility of incompatibility (perhaps return object type) 'if sys.hexversion < 0x03060000' or 'if sys.hexversion < 0x03000000'.
-# CAUTION: Python API version compatibility may or may not be strictly enforced, due to lack of known failures, and/or usual expectations of problems from the multiple ways of doing things.
-# Apparently reasonable expectations confirmed by exhaustive research may be met if python version is at least >0x20710f0 and <0x30703f0 .
-#import sys
-#if sys.hexversion < 0x03060000:
-# https://stackoverflow.com/questions/446052/how-can-i-check-for-python-version-in-a-program-that-uses-new-language-features
-#	exit(1)
-
-
-#_messagePlain_request( 'request: user please install...' )
-def _messagePlain_request(currentMessage = '', currentContext = '(python)'):
-	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;35m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
-
-#_messagePlain_nominal( 'init: _function' )
-def _messagePlain_nominal(currentMessage = '', currentContext = '(python)'):
-	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;36m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
-
-#_messagePlain_probe( '_messagePlain_probe ( \'_messagePlain_probe\' ) ' )
-def _messagePlain_probe(currentMessage = '', currentContext = '(python)'):
-	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;34m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
-
-#_messagePlain_good( 'good: success' )
-def _messagePlain_good(currentMessage = '', currentContext = '(python)'):
-	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;32m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
-
-#_messagePlain_warn( 'warn: workaround' )
-def _messagePlain_warn(currentMessage = '', currentContext = '(python)'):
-	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[1;33m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
-
-#_messagePlain_bad( 'bad: fail: missing' )
-def _messagePlain_bad(currentMessage = '', currentContext = '(python)'):
-	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[0;31m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
-
-#_messageNormal( '_function_sequence: Stop' )
-def _messageNormal(currentMessage = '', currentContext = '(python)'):
-	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[1;32;46m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
-
-#_messageError( 'FAIL: unknown app failure' )
-def _messageERROR(currentMessage = '', currentContext = '(python)'):
-	print ( '\x01\033[0;35;47m\x02' + currentContext + '\x01\033[0m\x02' + '\x01\033[1;33;41m\x02 ' + currentMessage + ' \x01\033[0m\x02' )
-
-
-#_messageNormal( '_function_sequence: Start' )
-
-#_messagePlain_nominal( 'init: _function' )
-#_messagePlain_request( 'request: user please install...' )
-#_messagePlain_probe( '_messagePlain_probe ( \'_messagePlain_probe\' ) ' )
-
-#_messagePlain_good( 'good: success' )
-#_messagePlain_warn( 'warn: workaround' )
-#_messagePlain_bad( 'bad: fail: missing' )
-
-#_messageERROR( 'FAIL: unknown app failure' )
-
-#_messageNormal( '_function_sequence: Stop' )
-
-
-
-
-
-
-
-import sys
-# https://stackoverflow.com/questions/446052/how-can-i-check-for-python-version-in-a-program-that-uses-new-language-features
-#if sys.hexversion < 0x03060000:
-#	exit(1)
-import string
-import subprocess
-import os
-# WARNING: Procedures exclusively relying on python code are NOT intended or expected to be robust. Instead use '_getScriptAbsoluteLocation' within 'ubiquitous_bash.sh' as able.
-# WARNING: Whether '__file__' has similar characteristics to "$0" as used within 'ubiquitous_bash' in all relevant cases is NOT determined and is NOT to be relied upon.
-# WARNING: Historically 'python' has NOT had the API stability, reliability, or portability of 'bash'.
-# https://stackoverflow.com/questions/4934806/how-can-i-find-scripts-directory
-# https://stackoverflow.com/questions/3503879/assign-output-of-os-system-to-a-variable-and-prevent-it-from-being-displayed-on
-#currentPathCheck = subprocess.Popen(['/bin/bash', '--noprofile', '--norc', '-c', 'type -p ubiquitous_bash.sh'], stdout=subprocess.PIPE, universal_newlines=True)
-#print(os.path.dirname(os.path.realpath(__file__)))
-#print(sys.path[0])
-#os.path.abspath(os.path.dirname(os.path.realpath(__file__))).rstrip('\n')
-#if True:
-#currentProc = subprocess.Popen(['/bin/bash', '-c', 'ubiquitous_bash.sh _getAbsoluteFolder ' + __file__], stdout=subprocess.PIPE, universal_newlines=True)
-#currentProc = subprocess.Popen(['/bin/bash', '--noprofile', '--norc', '-c', 'ubiquitous_bash.sh _getAbsoluteFolder ' + __file__], stdout=subprocess.PIPE, universal_newlines=True)
-#currentProc = subprocess.Popen(['ubiquitous_bash.sh', '_getAbsoluteFolder', __file__], stdout=subprocess.PIPE, universal_newlines=True)
-def _getScriptAbsoluteFolder():
-	currentPathCheck = subprocess.Popen(['/bin/bash', '-c', 'type -p ubiquitous_bash.sh'], stdout=subprocess.PIPE, universal_newlines=True)
-	currentPathCheck.communicate()
-	currentPathCheck.wait()
-	if currentPathCheck.returncode == 0:
-		currentProc = subprocess.Popen(['ubiquitous_bash.sh', '_getAbsoluteFolder', __file__], stdout=subprocess.PIPE, universal_newlines=True)
-		(currentOut, currentErr) = currentProc.communicate()
-		currentProc.wait()
-		currentOut = currentOut.rstrip('\n')
-		return(currentOut.rstrip('\n'))
-	else:
-		return(os.path.abspath(os.path.dirname(os.path.realpath(__file__))).rstrip('\n'))
-
-#print(_getScriptAbsoluteFolder())
-
-
-
-
-
-
-
-
-
-
-import sys
-#if sys.hexversion < 0x03060000:
-#	exit(1)
-import string
-import subprocess
-import os
-#
-#_bash()
-# WARNING: CAUTION: DANGER: Beware '_getScriptAbsoluteLocation' will NOT be set correctly!
-#_bash(['-c', '_getScriptAbsoluteLocation'], True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
-#_bash("-c '_getScriptAbsoluteLocation'", True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
-#
-#_bash(['-c', 'echo test', 'xyz'])
-#print(_bash(['-c', 'echo test', 'xyz'], False))
-#print(_bash(['-c', '_false'], False))
-#print(_bash(['-c', '_false'], False)[1])
-#
-#_bash('-i')
-#_bash("-c '/bin/echo true'")
-#_bash("-c 'echo true'")
-# https://stackoverflow.com/questions/38821586/one-line-to-check-if-string-or-list-then-convert-to-list-in-python
-# https://stackoverflow.com/questions/23883394/detect-if-python-script-is-run-from-an-ipython-shell-or-run-from-the-command-li
-#sys.argv[1]
-#os.system("$HOME/.ubcore/ubiquitous_bash/ubcore.sh _bash -i ")
-#currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
-#print(['ubiquitous_bash.sh', '_bash'] + currentArguments)
-def _bash(currentArguments = ['-i'], currentPrint = False, current_ubiquitous_bash = "ubiquitous_bash.sh"):
-	if current_ubiquitous_bash == "ubiquitous_bash.sh":
-		if os.path.exists(os.environ['HOME'] + "/.ubcore/ubiquitous_bash/ubcore.sh"):
-			current_ubiquitous_bash = (os.environ['HOME'] + "/.ubcore/ubiquitous_bash/ubcore.sh")
-	if current_ubiquitous_bash == "ubiquitous_bash.sh":
-		if os.path.exists("/cygdrive/c/core/infrastructure/ubiquitous_bash/ubcore.sh"):
-			current_ubiquitous_bash = "/cygdrive/c/core/infrastructure/ubiquitous_bash/ubcore.sh"
-	if current_ubiquitous_bash == "ubiquitous_bash.sh":
-		if os.path.exists("/cygdrive/c/core/infrastructure/lean/lean.sh"):
-			current_ubiquitous_bash = "/cygdrive/c/core/infrastructure/lean/lean.sh"
-	currentArguments = ['-i'] if currentArguments == '-i' else currentArguments
-	if isinstance(currentArguments, str):
-		# WARNING: Discouraged.
-		if not currentArguments == '-i':
-			currentProc = subprocess.Popen(current_ubiquitous_bash + " _bash " + currentArguments, stdout=subprocess.PIPE, universal_newlines=True, shell=True)
-			(currentOut, currentErr) = currentProc.communicate()
-			currentProc.wait()
-			currentOut = currentOut.rstrip('\n')
-			if currentPrint == True:
-				print(currentOut)
-				return (currentOut), currentProc.returncode
-		else:
-			currentProc = subprocess.Popen(current_ubiquitous_bash + " _bash " + currentArguments, universal_newlines=True, shell=True)
-			(currentOut, currentErr) = currentProc.communicate()
-			currentProc.wait()
-		return (currentOut), currentProc.returncode
-	else:
-		if not currentArguments == ['-i']:
-			currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
-			currentProc = subprocess.Popen([current_ubiquitous_bash, '_bash'] + currentArguments, stdout=subprocess.PIPE, universal_newlines=True)
-			(currentOut, currentErr) = currentProc.communicate()
-			currentProc.wait()
-			currentOut = currentOut.rstrip('\n')
-			if currentPrint == True:
-				print(currentOut)
-				return (currentOut), currentProc.returncode
-		else:
-			currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
-			currentProc = subprocess.Popen([current_ubiquitous_bash, '_bash'] + currentArguments, universal_newlines=True)
-			(currentOut, currentErr) = currentProc.communicate()
-			currentProc.wait()
-		return (currentOut), currentProc.returncode
-
-
-
-
-
-import sys
-#if sys.hexversion < 0x03060000:
-#	exit(1)
-import string
-import subprocess
-import os
-#
-#_bin(['/bin/bash', '-i'])
-#_bin(['_getScriptAbsoluteLocation'], True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
-#_bin(['_getScriptAbsoluteLocation'], True)
-#_bin(['echo', 'test'], True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
-#print(_bin(['_false'], False, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))[1])
-#
-#_bin('_true')
-#_bin('_echo test')
-#_bin('_bash')
-#print( _bin('_false', False)[1] )
-#_bin("_getScriptAbsoluteLocation", True, os.path.expanduser("~/core/infrastructure/ubiquitous_bash/ubiquitous_bash.sh"))
-def _bin(currentArguments = [''], currentPrint = False, current_ubiquitous_bash = "ubiquitous_bash.sh"):
-	if current_ubiquitous_bash == "ubiquitous_bash.sh":
-		if os.path.exists(os.environ['HOME'] + "/.ubcore/ubiquitous_bash/ubcore.sh"):
-			current_ubiquitous_bash = (os.environ['HOME'] + "/.ubcore/ubiquitous_bash/ubcore.sh")
-	if current_ubiquitous_bash == "ubiquitous_bash.sh":
-		if os.path.exists("/cygdrive/c/core/infrastructure/ubiquitous_bash/ubcore.sh"):
-			current_ubiquitous_bash = "/cygdrive/c/core/infrastructure/ubiquitous_bash/ubcore.sh"
-	if current_ubiquitous_bash == "ubiquitous_bash.sh":
-		if os.path.exists("/cygdrive/c/core/infrastructure/lean/lean.sh"):
-			current_ubiquitous_bash = "/cygdrive/c/core/infrastructure/lean/lean.sh"
-	currentArguments = [''] if currentArguments == '' else currentArguments
-	if isinstance(currentArguments, str):
-		# WARNING: Discouraged.
-		if not ( ( currentArguments == '/bin/bash -i' ) or ( currentArguments == '/bin/bash' ) ):
-			currentProc = subprocess.Popen(current_ubiquitous_bash + " _bin " + currentArguments, stdout=subprocess.PIPE, universal_newlines=True, shell=True)
-			(currentOut, currentErr) = currentProc.communicate()
-			currentProc.wait()
-			currentOut = currentOut.rstrip('\n')
-			if currentPrint == True:
-				print(currentOut)
-				return (currentOut), currentProc.returncode
-		else:
-			currentProc = subprocess.Popen(current_ubiquitous_bash + " _bin " + currentArguments, universal_newlines=True, shell=True)
-			(currentOut, currentErr) = currentProc.communicate()
-			currentProc.wait()
-		return (currentOut), currentProc.returncode
-	else:
-		if not (  ( currentArguments == ['/bin/bash', '-i'] ) or ( currentArguments == ['/bin/bash'] ) or ( currentArguments == ['_qalculate', ''] ) or ( currentArguments == ['_qalculate'] ) or ( currentArguments == ['_octave', ''] ) or ( currentArguments == ['_octave'] )  ):
-			currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
-			currentProc = subprocess.Popen([current_ubiquitous_bash, '_bin'] + currentArguments, stdout=subprocess.PIPE, universal_newlines=True)
-			(currentOut, currentErr) = currentProc.communicate()
-			currentProc.wait()
-			currentOut = currentOut.rstrip('\n')
-			if currentPrint == True:
-				print(currentOut)
-				return (currentOut), currentProc.returncode
-		else:
-			currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
-			currentProc = subprocess.Popen([current_ubiquitous_bash, '_bin'] + currentArguments, universal_newlines=True)
-			(currentOut, currentErr) = currentProc.communicate()
-			currentProc.wait()
-		return (currentOut), currentProc.returncode
-
-# ATTENTION: Only intended for indirect calls.
-# https://stackoverflow.com/questions/5067604/determine-function-name-from-within-that-function-without-using-traceback
-#	'there aren't enough important use cases given'
-def _bin_stringAfterArgs(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_false']):
-	currentString = [currentString] if isinstance(currentString, str) else currentString
-	currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
-	if currentPrint:
-		return _bin(currentCommand + currentArguments + currentString, currentPrint)
-	else:
-		return _bin(currentCommand + currentArguments + currentString, currentPrint)[0]
-
-
-#def _bash(currentArguments = [''], currentPrint = True, current_ubiquitous_bash = "ubiquitous_bash.sh"):
-#	_bin(['/bin/bash', '-i'])
-
-
-
-#if sys.hexversion < 0x03000000:
-#	exit(1)
-#_bin_alias = _bin
-
-
-#_clc('1 + 2')
-#_qalculate('1 + 2')
-#_octave('1 + 2')
-#print(_octave_solve('(y == x * 2, x)' ))
-
-def _clc(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_clc']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def clc(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['clc']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def c(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['c']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def _solve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_solve']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def solve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['solve']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def nsolve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['nsolve']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def _qalculate_solve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_qalculate_solve']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def _qalculate_nsolve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_qalculate_nsolve']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def _octave_solve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_octave_solve']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def _octave_nsolve(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_octave_nsolve']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-
-def _qalculate(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_qalculate']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-def _octave(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_octave']):
-	return _bin_stringAfterArgs(currentString, currentArguments, currentPrint, currentCommand)
-
-
-
-
-
-
-
-
-import readline # optional, will allow Up/Down/History in the console
-import code
-#_python()
-# https://stackoverflow.com/questions/5597836/embed-create-an-interactive-python-shell-inside-a-python-program
-def _python():
-	variables = globals().copy()
-	variables.update(locals())
-	shell = code.InteractiveConsole(variables)
-	shell.interact()
-
-
-
-import sys
-import os
-import socket
-import string
-import re
-#if sys.hexversion < 0x03060000:
-#	exit(1)
-# https://www.codementor.io/@arpitbhayani/personalize-your-python-prompt-13ts4kw6za
-# https://stackoverflow.com/questions/4271740/how-can-i-use-python-to-get-the-system-hostname
-# https://bugs.python.org/issue20359
-#os.environ['PWD']
-#os.path.expanduser(os.getcwd())
-#\033[0;35;47mpython-%d\033[0m
-#return "\033[92mIn [%d]:\033[0m " % (self.line)
-#return ">>> "
-#return "\033[1;94m|\033[91m#:\033[1;93m%s\033[1;92m@%s\033[1;94m)-%s(\033[1;95m\033[0;35;47mpython-%s\033[0m\033[1;94m)\033[1;96m|\n\033[1;94m|\033[1;97m[%s]\n\033[1;94m|\033[1;96m%d\033[1;94m) \033[1;96m>\033[0m " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
-#return "\033[1;94m|\033[91m#:\033[1;93m%s\033[1;92m@%s\033[1;94m)-%s(\033[1;95m\033[0;35;47mpython-%s\033[0m\033[1;94m)\033[1;96m|\n\033[1;94m|\033[1;97m[%s]\n\033[1;94m|%d\033[1;94m) \033[1;96m>\033[0m " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
-class ubPythonPS1(object):
-	def __init__(self):
-		self.line = 0
-
-	def __str__(self):
-		self.line += 1
-		if self.line == 1:
-			return "\x01\033[1;94m\x02|\x01\033[91m\x02#:\x01\033[1;93m\x02%s\x01\033[1;92m\x02@%s\x01\033[1;94m\x02)-%s(\x01\033[1;95m\x02\x01\033[0;35;47m\x02python-%s\x01\033[0m\x02\x01\033[1;94m\x02)\x01\033[1;96m\x02|\n\x01\033[1;94m\x02|\x01\033[1;97m\x02[%s]\n\x01\033[1;94m\x02|\x01\033[1;96m\x02%d\x01\033[1;94m\x02) \x01\033[1;96m\x02>\x01\033[0m\x02 " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
-		else:
-			return "\x01\033[1;94m\x02|\x01\033[91m\x02#:\x01\033[1;93m\x02%s\x01\033[1;92m\x02@%s\x01\033[1;94m\x02)-%s(\x01\033[1;95m\x02\x01\033[0;35;47m\x02python-%s\x01\033[0m\x02\x01\033[1;94m\x02)\x01\033[1;96m\x02|\n\x01\033[1;94m\x02|\x01\033[1;97m\x02[%s]\n\x01\033[1;94m\x02|%d\x01\033[1;94m\x02) \x01\033[1;96m\x02>\x01\033[0m\x02 " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
-
-sys.ps1 = ubPythonPS1()
-sys.ps2 = "\x01\033[0;96m\x02|...\x01\033[0m\x02 "
-
-
-
-
-#_python()
-
-
-
-
-
-CZXWXcRMTo8EmM8i4d
-}
-
-
-_generate_lean-overrides-python_here() {
-	cat << 'CZXWXcRMTo8EmM8i4d'
-
-
-
-
-
-
-
-
-
-
-#################################################
-# ATTENTION: Add '_prog' script code here!
-
-
-
-
-
-
-
-def _main():
-	pass
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ATTENTION: Add '_prog' script code here!
-#################################################
-
-
-import sys
-if sys.hexversion > 0x03000000:
-	exec('_print = print')
-
-import sys
-import string
-#./lean.py "_python(c('1 + 2'))"
-#./lean.py "_print(c('1 + 2'))"
-#./lean.py "print(c('1 + 2'))"
-# https://www.tutorialspoint.com/python/python_command_line_arguments.htm
-# https://www.programiz.com/python-programming/methods/built-in/exec
-# https://www.geeksforgeeks.org/python-program-to-convert-a-list-to-string/
-# https://www.geeksforgeeks.org/python-removing-first-element-of-list/
-#print ( 'Argument List:', str(sys.argv) )
-#eval( sys.argv[1] + ' ' + ' '.join( sys.argv[2:] ) )
-#exec( sys.argv[1] )
-#if (1 in sys.argv):
-if len(sys.argv) > 1:
-	if ( sys.argv[1].startswith('_') ) or ( sys.argv[1].startswith('print') ) :
-		exec( sys.argv[1] )
-
-
-
-
-
-
-
-
-
-
-
-_main()
-
-
-
-CZXWXcRMTo8EmM8i4d
-}
-
-
-
-
-
-
-_generate_lean-python() {
-	! [[ "$objectName" == "ubiquitous_bash" ]] && return 0
-	
-	echo '#!/usr/bin/env python3' > "$scriptAbsoluteFolder"/lean.py
-	
-	_generate_lean-lib-python_here "$@" >> "$scriptAbsoluteFolder"/lean.py
-	
-	_generate_lean-overrides-python_here "$@" >> "$scriptAbsoluteFolder"/lean.py
-	
-	chmod u+x "$scriptAbsoluteFolder"/lean.py
-}
-
-
-
-
-
-
-# 
-# _python_hook_here() {
-# 	cat << CZXWXcRMTo8EmM8i4d
-# 	
-# 	_setupUbiquitous_accessories_here-python_hook
-# 	
-# CZXWXcRMTo8EmM8i4d
-# }
-# 
-# 
-# _python_hook() {
-# 	_messageNormal "init: _python_hook"
-# 	local ubHome
-# 	ubHome="$HOME"
-# 	[[ "$1" != "" ]] && ubHome="$1"
-# 	
-# 	export ubcoreDir="$ubHome"/.ubcore
-# 	
-# 	_python_hook_here > "$ubcoreDir"/python_bash_rc
-# }
-# 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #####Overrides DISABLE
 
 # DANGER: NEVER intended to be set in an end user shell for ANY reason.
@@ -6399,12 +6785,46 @@ _bin() {
 }
 #Mostly intended to launch bash prompt for MSW/Cygwin users.
 _bash() {
-	if [[ "$1" == '-i' ]]
+	local currentIsCygwin
+	currentIsCygwin='false'
+	[[ -e '/cygdrive' ]] && uname -a | grep -i cygwin > /dev/null 2>&1 && _if_cygwin && currentIsCygwin='true'
+	
+	# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+	[[ "$currentIsCygwin" == 'true' ]] && echo -n '.'
+	
+	
+	_visualPrompt
+	[[ "$ub_scope_name" != "" ]] && _scopePrompt
+	
+	
+	[[ "$1" == '-i' ]] && shift
+	
+	
+	
+	if [[ "$currentIsCygwin" == 'true' ]] && grep ubcore "$HOME"/.bashrc > /dev/null 2>&1 && [[ "$scriptAbsoluteLocation" == *"lean.sh" ]]
 	then
-		bash "$@"
+		export sessionid=""
+		export scriptAbsoluteFolder=""
+		export scriptAbsoluteLocation=""
+		bash -i "$@"
+		return
+	elif  [[ "$currentIsCygwin" == 'true' ]] && grep ubcore "$HOME"/.bashrc > /dev/null 2>&1 && [[ "$scriptAbsoluteLocation" != *"lean.sh" ]]
+	then
+		bash -i "$@"
+		return
+	elif [[ "$currentIsCygwin" == 'true' ]] && ! grep ubcore "$HOME"/.bashrc > /dev/null 2>&1
+	then
+		bash --norc -i "$@"
+		return
+	else
+		bash -i "$@"
 		return
 	fi
+	
 	bash -i "$@"
+	return
+	
+	return 1
 }
 
 #Mostly if not entirely intended for end user convenience.

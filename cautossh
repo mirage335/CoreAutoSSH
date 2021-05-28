@@ -32,7 +32,7 @@ _ub_cksum_special_derivativeScripts_contents() {
 #export ub_setScriptChecksum_disable='true'
 ( [[ -e "$0".nck ]] || [[ "${BASH_SOURCE[0]}" != "${0}" ]] || [[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]] || [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] ) && export ub_setScriptChecksum_disable='true'
 export ub_setScriptChecksum_header='1891409836'
-export ub_setScriptChecksum_contents='724390422'
+export ub_setScriptChecksum_contents='2434918264'
 
 # CAUTION: Symlinks may cause problems. Disable this test for such cases if necessary.
 # WARNING: Performance may be crucial here.
@@ -601,6 +601,24 @@ _____special_live_dent_restore() {
 
 #Override, cygwin.
 
+
+# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+#/usr/local/bin:/usr/bin:/cygdrive/c/WINDOWS/system32:/cygdrive/c/WINDOWS:/usr/bin:/usr/lib/lapack:/cygdrive/x:/cygdrive/x/_bin:/cygdrive/x/_bundle:/opt/ansible/bin:/opt/nodejs/current:/opt/testssl:/home/root/bin
+#/cygdrive/c/WINDOWS/system32:/cygdrive/c/WINDOWS:/usr/bin:/usr/lib/lapack:/cygdrive/x:/cygdrive/x/_bin:/cygdrive/x/_bundle:/opt/ansible/bin:/opt/nodejs/current:/opt/testssl:/home/root/bin
+if [[ "$PATH" == "/cygdrive"* ]] || ( [[ "$PATH" == *"/cygdrive"* ]] && [[ "$PATH" != *"/usr/local/bin"* ]] )
+then
+	if [[ "$PATH" == "/cygdrive"* ]]
+	then
+		export PATH=/usr/local/bin:/usr/bin:/bin:"$PATH"
+	fi
+	
+	[[ "$PATH" != *"/usr/local/bin"* ]] && export PATH=/usr/local/bin:"$PATH"
+	[[ "$PATH" != *"/usr/bin"* ]] && export PATH=/usr/bin:"$PATH"
+	[[ "$PATH" != *"/bin:"* ]] && export PATH=/bin:"$PATH"
+fi
+
+
+
 # WARNING: Multiple reasons to instead consider direct detection by other commands -  ' uname -a | grep -i cygwin > /dev/null 2>&1 ' , ' [[ -e '/cygdrive' ]] ' , etc .
 _if_cygwin() {
 	if uname -a | grep -i cygwin > /dev/null 2>&1
@@ -632,19 +650,6 @@ _workaround_cygwin_tmux() {
 	return "$?"
 }
 
-if ! type nmap > /dev/null 2>&1 && type '/cygdrive/c/Program Files/Nmap/nmap.exe' > /dev/null 2>&1
-then
-	nmap() {
-		'/cygdrive/c/Program Files/Nmap/nmap.exe' "$@"
-	}
-fi
-
-if ! type nmap > /dev/null 2>&1 && type '/cygdrive/c/Program Files (x86)/Nmap/nmap.exe' > /dev/null 2>&1
-then
-	nmap() {
-		'/cygdrive/c/Program Files (x86)/Nmap/nmap.exe' "$@"
-	}
-fi
 
 # DANGER: Severely differing functionality. Intended only to stand in for "ip addr show" and similar.
 if ! type ip > /dev/null 2>&1 && type 'ipconfig' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
@@ -661,25 +666,216 @@ then
 fi
 
 
-
-# WARNING: Native 'vncviewer.exe' is a GUI app, and cannot be launched directly from Cygwin SSH server.
-
-#if ! type vncviewer > /dev/null 2>&1 && type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1
-
-if type '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
+if _if_cygwin
 then
-	export override_cygwin_vncviewer='true'
-	vncviewer() {
-		_workaround_cygwin_tmux '/cygdrive/c/Program Files/TigerVNC/vncviewer.exe' "$@"
+	# WARNING: Since MSW/Cygwin is hardly suitable for mounting UNIX/tmpfs/ramfs/etc filesystems, 'mountpoint' 'safety checks' are merely disabled.
+	mountpoint() {
+		true
+	}
+	losetup() {
+		false
+	}
+	
+	tc() {
+		false
+	}
+	wondershaper() {
+		false
+	}
+	
+	ionice() {
+		false
 	}
 fi
 
-if type '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' > /dev/null 2>&1 && uname -a | grep -i cygwin > /dev/null 2>&1
+
+# https://stackoverflow.com/questions/4090301/root-user-sudo-equivalent-in-cygwin
+_sudo_cygwin_sequence() {
+	_start
+	
+	# 'If already admin, just run the command in-line.'
+	# 'This works on my Win10 machine; dunno about others.'
+	if id -G | grep -q ' 544 '
+	then
+		"$@"
+		_stop "$?"
+	fi
+	
+	# 'cygstart/runas doesn't handle arguments with spaces correctly so create'
+	# 'a script that will do so properly.'
+	echo "#!/bin/bash" >> "$safeTmp"/cygwin_sudo_temp.sh
+	echo "export PATH=\"$PATH\"" >> "$safeTmp"/cygwin_sudo_temp.sh
+	
+	
+	_safeEcho_newline "$@" >> "$safeTmp"/cygwin_sudo_temp.sh
+	
+
+	# 'Do it as Administrator.'
+	#cygstart --action=runas "$scriptAbsoluteFolder"/_bin.bat bash
+	cygstart --action=runas "$scriptAbsoluteFolder"/_bin.bat "$safeTmp"/cygwin_sudo_temp.sh
+	
+	_stop "$?"
+}
+_sudo_cygwin() {
+	"$scriptAbsoluteLocation" _sudo_cygwin_sequence "$@"
+}
+
+# CAUTION: BROKEN !
+if _if_cygwin && type cygstart > /dev/null 2>&1
 then
-	export override_cygwin_vncviewer='true'
-	vncviewer() {
-		_workaround_cygwin_tmux '/cygdrive/c/Program Files (x86)/TigerVNC/vncviewer.exe' "$@"
+	sudo() {
+		[[ "$1" == "-n" ]] && shift
+		if type cygstart > /dev/null 2>&1
+		then
+			_sudo_cygwin "$@"
+			#cygstart --action=runas "$@"
+			#"$@"
+			return
+		else
+			"$@"
+			return
+		fi
+		
+		return 1
 	}
+fi
+
+
+
+
+_discoverResource-cygwinNative-ProgramFiles-declaration-ProgramFiles() {
+	local currentBinary
+	currentBinary="$1"
+	
+	local currentExpectedSubdir
+	currentExpectedSubdir="$2"
+	
+	local forceNativeBinary
+	forceNativeBinary='false'
+	
+	[[ "$3" != "true" ]] && type "$currentBinary" > /dev/null 2>&1 && return 0
+	
+	local forceWorkaroundPrefix
+	forceWorkaroundPrefix="$4"
+	
+	if ! type "$currentBinary" > /dev/null 2>&1 && type '/cygdrive/'"$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q"'/Program Files/'"$currentExpectedSubdir"'/'"$currentBinary".exe > /dev/null 2>&1
+	then
+		eval $currentBinary'() { '"$forceWorkaroundPrefix"'/cygdrive/"'"$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q"'"/"'"Program Files"'"/"'"$currentExpectedSubdir"'"/"'"$currentBinary"'".exe "$@" ; }'
+		false
+	fi
+	
+	if ! type "$currentBinary" > /dev/null 2>&1 && type '/cygdrive/'"$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q"'/Program Files (x86)/'"$currentExpectedSubdir"'/'"$currentBinary".exe > /dev/null 2>&1
+	then
+		eval $currentBinary'() { '"$forceWorkaroundPrefix"'/cygdrive/"'"$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q"'"/"'"Program Files (x86)"'"/"'"$currentExpectedSubdir"'"/"'"$currentBinary"'".exe "$@" ; }'
+	fi
+	type "$currentBinary" > /dev/null 2>&1 && export -f "$currentBinary" > /dev/null 2>&1 && return 0
+	return 1
+}
+
+_discoverResource-cygwinNative-ProgramFiles-declaration-core() {
+	local currentBinary
+	currentBinary="$1"
+	
+	local currentExpectedSubdir
+	currentExpectedSubdir="$2"
+	
+	local forceNativeBinary
+	forceNativeBinary='false'
+	
+	[[ "$3" != "true" ]] && type "$currentBinary" > /dev/null 2>&1 && return 0
+	
+	local forceWorkaroundPrefix
+	forceWorkaroundPrefix="$4"
+	
+	local currentCygdriveC_equivalent
+	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g' | sed 's/^\/cygdrive\///')
+	
+	if ! type "$currentBinary" > /dev/null 2>&1 && type '/cygdrive/'"$currentCygdriveC_equivalent"'/core/installations/'"$currentExpectedSubdir"'/'"$currentBinary".exe > /dev/null 2>&1
+	then
+		eval $currentBinary'() { '"$forceWorkaroundPrefix"'/cygdrive/"'"$currentCygdriveC_equivalent"'"/"'"core/installations"'"/"'"$currentExpectedSubdir"'"/"'"$currentBinary"'".exe "$@" ; }'
+	fi
+	type "$currentBinary" > /dev/null 2>&1 && return 0
+	
+	if ! type "$currentBinary" > /dev/null 2>&1 && type '/cygdrive/'"$currentCygdriveC_equivalent"'/core/installations/'"$currentExpectedSubdir"'/'"$currentBinary".exe > /dev/null 2>&1
+	then
+		eval $currentBinary'() { '"$forceWorkaroundPrefix"'/cygdrive/"'"$currentCygdriveC_equivalent"'"/"'"core/installations"'"/"'"$currentExpectedSubdir"'"/"'"$currentBinary"'".exe "$@" ; }'
+	fi
+	type "$currentBinary" > /dev/null 2>&1 && export -f "$currentBinary" > /dev/null 2>&1 && return 0
+	return 1
+}
+
+_discoverResource-cygwinNative-ProgramFiles() {
+	local currentBinary
+	currentBinary="$1"
+	[[ "$3" != "true" ]] && type "$currentBinary" > /dev/null 2>&1 && return 0
+	
+	local currentCygdriveC_equivalent
+	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g' | sed 's/^\/cygdrive\///')
+	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+	export currentDriveLetter_cygwin_uk4uPhB663kVcygT0q="$currentCygdriveC_equivalent"
+	_discoverResource-cygwinNative-ProgramFiles-declaration-ProgramFiles "$@"
+	
+	
+	# ATTENTION: Configure: 'c..w' (aka. 'w..c') .
+	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+	for currentDriveLetter_cygwin_uk4uPhB663kVcygT0q in {c..w}
+	do
+		_discoverResource-cygwinNative-ProgramFiles-declaration-ProgramFiles "$@"
+	done
+	
+	_discoverResource-cygwinNative-ProgramFiles-declaration-core "$@"
+	
+	type "$currentBinary" > /dev/null 2>&1 && export -f "$currentBinary" > /dev/null 2>&1 && return 0
+	return 1
+}
+
+
+_ops_cygwinOverride_allDisks() {
+	# DANGER: Calling a script from every connected Cygwin/MSW drive arguably causes obvious problems, although any device or network directly connected to any MSW machine inevitably entails such risks.
+	# WARNING: Looping through {w..c} completely may impose delays sufficient to break "_test_selfTime", "_test_broadcastPipe_page", etc, if extremely slow storage is attached.
+	# ATTENTION: Configure: 'w..c' (aka. 'c..w') .
+	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+	for currentDriveLetter_cygwin_uk4uPhB663kVcygT0q in {w..c}
+	do
+		# WARNING: May require export of functions!
+		[[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q ]] && [[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh ]] && . /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh
+	done
+	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+}
+
+
+if [[ -e /cygdrive ]] && _if_cygwin
+then
+	# WARNING: Reduces incidents of extremely slow storage attachment from breaking "_test_selfTime", "_test_broadcastPipe_page", etc, at risks of not recognizing newly installed 'native' programs for up to 20minutes .
+	export cygwinOverride_measureDateB=$(date +%s%N | cut -b1-13)
+	[[ "$cygwinOverride_measureDateA" == "" ]] && export cygwinOverride_measureDateA=$(bc <<< "$cygwinOverride_measureDateB - 900000000" | tr -dc '0-9')
+	
+	# WARNING: Experiment without checking checksum to ensure functions are exported correctly!
+	if [[ $(bc <<< "$cygwinOverride_measureDateB - $cygwinOverride_measureDateA" | tr -dc '0-9') -gt 1200000 ]] || [[ "$ub_setScriptChecksum_contents_cygwinOverride" != "$ub_setScriptChecksum_contents" ]]
+	then
+		export cygwinOverride_measureDateA=$(date +%s%N | cut -b1-13)
+		export ub_setScriptChecksum_contents_cygwinOverride="$ub_setScriptChecksum_contents"
+		
+		_discoverResource-cygwinNative-ProgramFiles 'nmap' 'Nmap' false
+		
+		# WARNING: Native 'vncviewer.exe' is a GUI app, and cannot be launched directly from Cygwin SSH server.
+		_discoverResource-cygwinNative-ProgramFiles 'vncviewer' 'TigerVNC' false '_workaround_cygwin_tmux '
+		
+		_discoverResource-cygwinNative-ProgramFiles 'qalc' 'Qalculate' false
+		
+		
+		# WARNING: CAUTION: DANGER: UNIX EOL *MANDATORY* !
+		[[ -e "$scriptAbsoluteFolder"/ops-cygwin.sh ]] && . "$scriptAbsoluteFolder"/ops-cygwin.sh
+		
+		# export ubiquitiousBashID=uk4uPhB663kVcygT0q
+		unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+		export currentDriveLetter_cygwin_uk4uPhB663kVcygT0q=$(cygpath -S | sed 's/\/Windows\/System32//g' | sed 's/^\/cygdrive\///')
+		[[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q ]] && [[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh ]] && . /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh
+		
+		#_ops_cygwinOverride_allDisks "$@"
+		
+		unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+	fi
 fi
 
 
@@ -690,21 +886,142 @@ fi
 
 
 
+_setup_ubiquitousBash_cygwin_procedure_root() {
+	local cygwinMSWdesktopDir
+	local cygwinMSWmenuDir
+	
+	cygwinMSWdesktopDir=$(cygpath -u -a -A -D)
+	cygwinMSWmenuDir=$(cygpath -u -a -A -P)
+	
+	mkdir -p "$cygwinMSWdesktopDir"
+	mkdir -p "$cygwinMSWmenuDir"/ubiquitous_bash
+	
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWdesktopDir"/
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWmenuDir"/ubiquitous_bash/
+	
+	
+	cygwinMSWdesktopDir=$(cygpath -u -a -D)
+	cygwinMSWmenuDir=$(cygpath -u -a -P)
+	
+	chown -R "$USER":"$USER" "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash > /dev/null 2>&1
+	chown -R "$USER":None "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
+	
+	chown "$USER":"$USER" "$cygwinMSWdesktopDir"/_bash.bat > /dev/null 2>&1
+	chown "$USER":None "$cygwinMSWdesktopDir"/_bash.bat
+	chown -R "$USER":"$USER" "$cygwinMSWmenuDir"/ubiquitous_bash/ > /dev/null 2>&1
+	chown -R "$USER":None "$cygwinMSWmenuDir"/ubiquitous_bash/
+}
+
+_setup_ubiquitousBash_cygwin_procedure() {
+	[[ "$scriptAbsoluteFolder" != '/cygdrive'* ]] && _stop 1
+	
+	_messagePlain_nominal 'init: _setup_ubiquitousBash_cygwin'
+	
+	local currentCygdriveC_equivalent
+	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g')
+	
+	mkdir -p "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
+	cd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
+	
+	cp "$scriptAbsoluteFolder"/ubiquitous_bash.sh "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/lean.sh "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/ubcore.sh "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/lean.py "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	#cp "$scriptAbsoluteFolder"/_bash "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_bash.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	#cp "$scriptAbsoluteFolder"/_bin "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_bin.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/_test "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_test.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/_true "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_true.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/_false "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_false.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/_anchor "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_anchor.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	cp "$scriptAbsoluteFolder"/_setup_ubcp.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	
+	cp "$scriptAbsoluteFolder"/package.tar.xz "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	
+	
+	mkdir -p "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp
+	
+	cp -a "$scriptLocal"/ubcp/_upstream "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp -a "$scriptLocal"/ubcp/overlay "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/.gitignore "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/agpl-3.0.txt "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/cygwin-portable.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/cygwin-portable-updater.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/gpl-2.0.txt "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/gpl-3.0.txt "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/license.txt "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/README.md "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/ubcp.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/ubcp_rename-to-enable.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	cp "$scriptLocal"/ubcp/ubcp-cygwin-portable-installer.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	
+	
+	
+	cygwinMSWdesktopDir=$(cygpath -u -a -A -D)
+	cygwinMSWmenuDir=$(cygpath -u -a -A -P)
+	
+	mkdir -p "$cygwinMSWdesktopDir"
+	mkdir -p "$cygwinMSWmenuDir"/ubiquitous_bash
+	
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWdesktopDir"/
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWmenuDir"/ubiquitous_bash/
+	
+	
+	
+	local cygwinMSWdesktopDir
+	local cygwinMSWmenuDir
+	cygwinMSWdesktopDir=$(cygpath -u -a -D)
+	cygwinMSWmenuDir=$(cygpath -u -a -P)
+	
+	mkdir -p "$cygwinMSWdesktopDir"
+	mkdir -p "$cygwinMSWmenuDir"/ubiquitous_bash
+	
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWdesktopDir"/
+	cp "$scriptAbsoluteFolder"/_bash.bat "$cygwinMSWmenuDir"/ubiquitous_bash/
+	
+	
+	
+	chown -R "$USER":"$USER" "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash > /dev/null 2>&1
+	chown -R "$USER":None "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
+	
+	chown "$USER":"$USER" "$cygwinMSWdesktopDir"/_bash.bat > /dev/null 2>&1
+	chown "$USER":None "$cygwinMSWdesktopDir"/_bash.bat
+	chown -R "$USER":"$USER" "$cygwinMSWmenuDir"/ubiquitous_bash/ > /dev/null 2>&1
+	chown -R "$USER":None "$cygwinMSWmenuDir"/ubiquitous_bash/
+	
+	
+	#sudo -n "$scriptAbsoluteLocation" _setup_ubiquitousBash_cygwin_procedure_root "$@"
+	
+	
+	_messagePlain_good 'done: _setup_ubiquitousBash_cygwin: lean'
+	sleep 1
+}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+_setup_ubiquitousBash_cygwin() {
+	"$scriptAbsoluteLocation" _setup_ubiquitousBash_cygwin "$@"
+}
 
 
 
@@ -714,11 +1031,16 @@ _setup_ubcp_procedure() {
 	_messagePlain_nominal 'init: _setup_ubcp_procedure'
 	! uname -a | grep -i cygwin > /dev/null 2>&1 && _stop 1
 	
+	tskill ssh-pageant > /dev/null 2>&1
+	
+	local currentCygdriveC_equivalent
+	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g')
+	
 	export safeToDeleteGit="true"
-	if [[ -e /cygdrive/c/core/infrastructure/ubcp ]]
+	if [[ -e "$currentCygdriveC_equivalent"/core/infrastructure/ubcp ]]
 	then
 		# DANGER: Not only does this use 'rm -rf' without sanity checking, the behavior is undefined if this ubcp installation has been used to start this script!
-		#[[ -e /cygdrive/c/core/infrastructure/ubcp ]] && rm -rf /cygdrive/c/core/infrastructure/ubcp
+		#[[ -e "$currentCygdriveC_equivalent"/core/infrastructure/ubcp ]] && rm -rf "$currentCygdriveC_equivalent"/core/infrastructure/ubcp
 		
 		_messageError 'FAIL: ubcp already installed locally and must be deleted prior to script!'
 		sleep 10
@@ -733,12 +1055,13 @@ _setup_ubcp_procedure() {
 	
 	#cd "$scriptLocal"/
 	
-	mkdir -p /cygdrive/c/core/infrastructure/
-	cd /cygdrive/c/core/infrastructure/
+	mkdir -p "$currentCygdriveC_equivalent"/core/infrastructure/
+	cd "$currentCygdriveC_equivalent"/core/infrastructure/
 	
-	tar -xvf "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.gz
+	#tar -xvf "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.gz
+	tar -xvf "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.xz
 	
-	_messagePlain_good 'done: _setup_ubcp_procedure'
+	_messagePlain_good 'done: _setup_ubcp_procedure: ubcp'
 	sleep 10
 	
 	cd "$outerPWD"
@@ -750,8 +1073,16 @@ _setup_ubcp_procedure() {
 # No production use. Developer feature.
 # Highly irregular accommodation for usage of 'ubiquitous_bash' through 'ubcp' (cygwin portable) compatibility layer through MSW network drive (especially '_userVBox' MSW guest network drive) .
 # WARNING: May require 'administrator' privileges under MSW. However, it may be better for this directory to be 'owned' by the 'primary' 'user' account. Particularly considering the VR/gaming/CAD software that remains 'exclusive' to MSW is 'legacy' software which for both licensing and technical reasons may be inherently incompatible with 'multi-user' access.
+# WARNING: MSW 'administrator' 'privileges' may break 'ubcp' .
 _setup_ubcp() {
+	# WARNING: May break if 'mitigation' has not been applied!
+	if ! [[ -e "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.gz ]] && ! [[ -e "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.xz ]] && [[ -e "$scriptLocal"/ubcp/cygwin ]]
+	then
+		"$scriptAbsoluteLocation" _package_procedure-cygwinOnly "$@"
+	fi
+	
 	"$scriptAbsoluteLocation" _setup_ubcp_procedure "$@"
+	"$scriptAbsoluteLocation" _setup_ubiquitousBash_cygwin_procedure "$@"
 }
 
 
@@ -995,6 +1326,10 @@ _package_procedure-cygwinOnly() {
 	rm -f "$scriptLocal"/package_ubcp-cygwinOnly.tar.gz > /dev/null 2>&1
 	rm -f "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.gz > /dev/null 2>&1
 	
+	rm -f "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.xz > /dev/null 2>&1
+	rm -f "$scriptLocal"/package_ubcp-cygwinOnly.tar.xz > /dev/null 2>&1
+	rm -f "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.xz > /dev/null 2>&1
+	
 	if [[ "$ubPackage_enable_ubcp" == 'true' ]]
 	then
 		_package_ubcp_copy "$@"
@@ -1007,10 +1342,12 @@ _package_procedure-cygwinOnly() {
 	# WARNING: Having these subdirectories opened in MSW 'explorer' (file manager) may cause this directory to not exist.
 	! cd "$safeTmp"/package/"$objectName"/_local && _stop 1
 	
-	tar -czvf "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.gz .
+	#tar -czvf "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.gz .
+	env XZ_OPT=-5 tar -cJvf "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.xz .
 	
 	mkdir -p "$scriptLocal"/ubcp/
-	mv "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.gz "$scriptLocal"/ubcp/
+	mv "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.gz "$scriptLocal"/ubcp/ > /dev/null 2>&1
+	mv "$scriptAbsoluteFolder"/package_ubcp-cygwinOnly.tar.xz "$scriptLocal"/ubcp/
 	
 	_messagePlain_request 'request: review contents of _local/ubcp/cygwin/home and similar directories'
 	sleep 20
@@ -1029,28 +1366,6 @@ _package-cygwinOnly() {
 _package-cygwin() {
 	_package-cygwinOnly "$@"
 }
-
-
-
-
-
-if _if_cygwin
-then
-	# WARNING: Since MSW/Cygwin is hardly suitable for mounting UNIX/tmpfs/ramfs/etc filesystems, 'mountpoint' 'safety checks' are merely disabled.
-	mountpoint() {
-		true
-	}
-	losetup() {
-		false
-	}
-	
-	tc() {
-		false
-	}
-	wondershaper() {
-		false
-	}
-fi
 
 
 
@@ -1878,6 +2193,8 @@ _test_moveconfirm_procedure() {
 	rm -f "$safeTmp"/mv_dst
 	! _moveconfirm "$safeTmp"/mv_src "$safeTmp"/mv_dst && return 1
 	
+	rm -f "$safeTmp"/mv_dst
+	
 	return 0
 }
 
@@ -2054,7 +2371,17 @@ _permissions_directory_checkForPath() {
 	
 	[[ "$parameterAbsoluteLocation" == "$PWD" ]] && ! [[ "$parameterAbsoluteLocation" == "$checkScriptAbsoluteFolder" ]] && return 1
 	
-	local permissions_readout=$(_compat_stat_c_run "%a" "$1")
+	
+	
+	local currentParameter
+	currentParameter="$1"
+	
+	[[ "$scriptAbsoluteFolder" == /media/"$USER"* ]] && [[ -e /media/"$USER" ]] && currentParameter=/media/"$USER"
+	[[ "$scriptAbsoluteFolder" == /mnt/"$USER"* ]] && [[ -e /mnt/"$USER" ]] && currentParameter=/mnt/"$USER"
+	[[ "$scriptAbsoluteFolder" == /var/run/media/"$USER"* ]] && [[ -e /var/run/media/"$USER" ]] && currentParameter=/var/run/media/"$USER"
+	[[ "$scriptAbsoluteFolder" == /run/"$USER"* ]] && [[ -e /run/"$USER" ]] && currentParameter=/run/"$USER"
+	
+	local permissions_readout=$(_compat_stat_c_run "%a" "$currentParameter")
 	
 	local permissions_user
 	local permissions_group
@@ -2074,8 +2401,8 @@ _permissions_directory_checkForPath() {
 	local permissions_uid
 	local permissions_gid
 	
-	permissions_uid=$(_compat_stat_c_run "%u" "$1")
-	permissions_gid=$(_compat_stat_c_run "%g" "$1")
+	permissions_uid=$(_compat_stat_c_run "%u" "$currentParameter")
+	permissions_gid=$(_compat_stat_c_run "%g" "$currentParameter")
 	
 	#Normally these variables are available through ubiqutious bash, but this permissions check may be needed earlier in that global variables setting process.
 	local permissions_host_uid
@@ -2105,15 +2432,22 @@ _permissions_ubiquitous_repo() {
 	return 0
 }
 
+_test_permissions_ubiquitous-cygwin() {
+	! _if_cygwin && _stop 1
+	#! _if_cygwin && _stop "$1"
+	
+	_if_cygwin && echo 'warn: accepted: cygwin: permissions' && return 0
+}
+
 #Checks whether currently set "$scriptBin" and similar locations are actually safe.
 # WARNING Keep in mind this is necessarily run only after PATH would already have been modified, and does not guard against threats already present on the local machine.
 _test_permissions_ubiquitous() {
 	[[ ! -e "$scriptAbsoluteFolder" ]] && _stop 1
 	
-	! _permissions_directory_checkForPath "$scriptAbsoluteFolder" && _stop 1
+	! _permissions_directory_checkForPath "$scriptAbsoluteFolder" && _test_permissions_ubiquitous-cygwin 1
 	
-	[[ -e "$scriptBin" ]] && ! _permissions_directory_checkForPath "$scriptBin" && _stop 1
-	[[ -e "$scriptBundle" ]] && ! _permissions_directory_checkForPath "$scriptBundle" && _stop 1
+	[[ -e "$scriptBin" ]] && ! _permissions_directory_checkForPath "$scriptBin" && _test_permissions_ubiquitous-cygwin 1
+	[[ -e "$scriptBundle" ]] && ! _permissions_directory_checkForPath "$scriptBundle" && _test_permissions_ubiquitous-cygwin 1
 	
 	return 0
 }
@@ -3233,10 +3567,11 @@ _testFindPort() {
 	! _wantGetDep ss
 	! _wantGetDep sockstat
 	
-	# WARNING: Cygwin port range detection not yet implemented.
+	# WARNING: Not yet relying exclusively on 'netstat' - recommend continuing to install 'nmap' for Cygwin port range detection (and also for _waitPort) .
 	if uname -a | grep -i cygwin > /dev/null 2>&1
 	then
-		! type nmap > /dev/null 2>&1 && echo "missing socket detection" && _stop 1
+		! type nmap > /dev/null 2>&1 && echo "missing socket detection: nmap" && _stop 1
+		! type netstat | grep cygdrive > /dev/null 2>&1 && echo "missing socket detection: netstat" && _stop 1
 		return 0
 	fi
 	
@@ -3278,7 +3613,17 @@ _checkPort_local() {
 		return $?
 	fi
 	
-	if uname -a | grep -i cygwin > /dev/null 2>&1
+	if uname -a | grep -i cygwin > /dev/null 2>&1 && type netstat > /dev/null 2>&1 && type netstat | grep cygdrive > /dev/null 2>&1
+	then
+		#nmap --host-timeout 0.1 -Pn localhost -p "$1" 2> /dev/null | grep open > /dev/null 2>&1
+		
+		# https://www.maketecheasier.com/check-ports-in-use-windows10/
+		#netstat -a | grep 'TCP\|UDP' | cut -f 1-7 -d\
+		netstat -a -n -q | grep 'TCP\|UDP' | cut -f 1-8 -d\  | grep ':'"$1" > /dev/null 2>&1
+		return $?
+	fi
+	
+	if type nmap
 	then
 		nmap --host-timeout 0.1 -Pn localhost -p "$1" 2> /dev/null | grep open > /dev/null 2>&1
 		return $?
@@ -6712,6 +7057,9 @@ _typeDep() {
 _wantDep() {
 	_typeDep "$1" && return 0
 	
+	# Expect already root if 'MSW/Cygwin' and obstructive popup dialog if 'sudo' is called through 'MSW/Cygwin' .
+	_if_cygwin && return 1
+	
 	_wantSudo && sudo -n "$scriptAbsoluteLocation" _typeDep "$1" && return 0
 	
 	return 1
@@ -7581,6 +7929,9 @@ alias mustBeRoot=_mustBeRoot
 
 #Determines if sudo is usable by scripts.
 _mustGetSudo() {
+	# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+	_if_cygwin && return 0
+	
 	local rootAvailable
 	rootAvailable=false
 	
@@ -7595,6 +7946,9 @@ _mustGetSudo() {
 
 #Determines if sudo is usable by scripts. Will not exit on failure.
 _wantSudo() {
+	# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+	_if_cygwin && return 0
+	
 	local rootAvailable
 	rootAvailable=false
 	
@@ -9182,7 +9536,7 @@ _mktorrent() {
 
 _test_mktorrent() {
 	# If not Debian, then simply accept these pacakges may not be available.
-	[[ -e /etc/issue ]] && cat /etc/issue | grep 'Debian' > /dev/null 2>&1 && return 0
+	[[ -e /etc/issue ]] && ! cat /etc/issue | grep 'Debian' > /dev/null 2>&1 && return 0
 	
 	_wantGetDep mktorrent
 	
@@ -11198,6 +11552,10 @@ _rclone() {
 	#env XDG_CONFIG_HOME="$scriptLocal"/rclone HOME="$scriptLocal"/rclone rclone --config="$scriptLocal"/rclone/rclone/rclone.conf "$@"
 	#env XDG_CONFIG_HOME="$scriptLocal"/rclone rclone --config="$scriptLocal"/rclone/rclone/rclone.conf "$@"
 	
+	# https://forum.rclone.org/t/how-to-change-rclone-config-location-windows/13073
+	#export RCLONE_CONFIG="$scriptLocal"/rclone/rclone/rclone.conf
+	#env RCLONE_CONFIG="$scriptLocal"/rclone/rclone/rclone.conf XDG_CONFIG_HOME="$scriptLocal"/rclone "$currentBin_rclone" --config="$scriptLocal"/rclone/rclone/rclone.conf "$@"
+	
 	env XDG_CONFIG_HOME="$scriptLocal"/rclone "$currentBin_rclone" --config="$scriptLocal"/rclone/rclone/rclone.conf "$@"
 }
 
@@ -11258,7 +11616,7 @@ _test_rclone_upstream() {
 
 
 _test_rclone() {
-	if [[ "$nonet" != "true" ]]
+	if [[ "$nonet" != "true" ]] && ! _if_cygwin
 	then
 		_messagePlain_request 'ignore: upstream progress ->'
 		
@@ -12366,15 +12724,9 @@ _setupUbiquitous_accessories_here-gnuoctave() {
 %# oldpso = page_screen_output(1);
 %# oldpoi = page_output_immediately(1);
 
-pkg load symbolic;
-
-syms a b c d e f g h i j k l m n o p q r s t u v w x y z;
 
 format long g;
 
-
-%# https://octave.sourceforge.io/symbolic/overview.html
-nsolve = @vpasolve;
 
 deci = 10^-1;
 centi = 10^-2;
@@ -12500,6 +12852,20 @@ clc;
 %# page_output_immediately(oldpoi);
 
 CZXWXcRMTo8EmM8i4d
+
+
+	! _if_cygwin && cat << CZXWXcRMTo8EmM8i4d
+
+pkg load symbolic;
+
+syms a b c d e f g h i j k l m n o p q r s t u v w x y z;
+
+
+%# https://octave.sourceforge.io/symbolic/overview.html
+nsolve = @vpasolve;
+
+CZXWXcRMTo8EmM8i4d
+
 }
 
 
@@ -12712,21 +13078,39 @@ _setupUbiquitous_accessories_requests() {
 
 
 
+
+
 _setupUbiquitous_here() {
-	cat << CZXWXcRMTo8EmM8i4d
+	! uname -a | grep -i cygwin > /dev/null 2>&1 && cat << CZXWXcRMTo8EmM8i4d
 
-PS1_lineNumber=""
-
-if type sudo > /dev/null 2>&1 && groups | grep -E 'wheel|sudo' > /dev/null 2>&1
+if type sudo > /dev/null 2>&1 && groups | grep -E 'wheel|sudo' > /dev/null 2>&1 && ! uname -a | grep -i cygwin > /dev/null 2>&1
 then
 	# Greater or equal, '_priority_critical_pid_root' .
 	sudo -n renice -n -15 -p \$\$ > /dev/null 2>&1
 	sudo -n ionice -c 2 -n 2 -p \$\$ > /dev/null 2>&1
 fi
+
 # ^
 # Ensures admin user shell startup, including Ubiquitous Bash, is relatively quick under heavy system load.
 # Near-realtime priority may be acceptable, due to reliability of relevant Ubiquitous Bash functions.
 # WARNING: Do NOT prioritize highly enough to interfere with embedded hard realtime processes.
+
+CZXWXcRMTo8EmM8i4d
+
+
+	# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+	_if_cygwin && cat << CZXWXcRMTo8EmM8i4d
+
+[[ -e '/cygdrive' ]] && uname -a | grep -i cygwin > /dev/null 2>&1 && echo -n '.'
+
+[[ "\$profileScriptLocation" == "" ]] && export profileScriptLocation_new='true'
+
+CZXWXcRMTo8EmM8i4d
+
+
+	cat << CZXWXcRMTo8EmM8i4d
+PS1_lineNumber=""
+
 
 # WARNING: Importing complete 'ubiquitous_bash.sh' may cause other scripts to call functions inappropriate for their needs during "_test" and "_setup" .
 # This may be acceptable if the user has already run "_setup" from the imported script .
@@ -12753,6 +13137,37 @@ renice -n 0 -p \$\$ > /dev/null 2>&1
 true
 
 CZXWXcRMTo8EmM8i4d
+
+
+	# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+	_if_cygwin && cat << CZXWXcRMTo8EmM8i4d
+
+if [[ -e '/cygdrive' ]] && uname -a | grep -i cygwin > /dev/null 2>&1
+then
+	#echo -n '.'
+	#clear
+	
+	# https://stackoverflow.com/questions/238073/how-to-add-a-progress-bar-to-a-shell-script
+	echo -e -n '.\r'
+	
+	if [[ "\$profileScriptLocation_new" == 'true' ]]
+	then
+		export profileScriptLocation_new=''
+		unset profileScriptLocation_new
+		
+		sleep 0.1
+		echo '.'
+		sleep 0.1
+		echo '.'
+		sleep 0.1
+		clear
+	fi
+fi
+
+true
+
+CZXWXcRMTo8EmM8i4d
+
 }
 
 _configureLocal() {
@@ -12782,6 +13197,8 @@ _importShortcuts() {
 	_tryExec "_visualPrompt"
 	
 	_tryExec "_scopePrompt"
+	
+	return 0
 }
 
 _gitPull_ubiquitous() {
@@ -12845,6 +13262,10 @@ _installUbiquitous() {
 
 _setupUbiquitous() {
 	_messageNormal "init: setupUbiquitous"
+	
+	_if_cygwin && _setup_ubiquitousBash_cygwin_procedure
+	
+	
 	local ubHome
 	ubHome="$HOME"
 	[[ "$1" != "" ]] && ubHome="$1"
@@ -12879,7 +13300,16 @@ _setupUbiquitous() {
 	
 	
 	_messageNormal "hook: setupUbiquitous"
-	! _permissions_ubiquitous_repo "$ubcoreUBdir" && _messagePlain_bad 'permissions: ubcoreUBdir = '"$ubcoreUBdir" && _messageFAIL && return 1
+	if ! _permissions_ubiquitous_repo "$ubcoreUBdir" && _messagePlain_bad 'permissions: ubcoreUBdir = '"$ubcoreUBdir"
+	then
+		if ! _if_cygwin
+		then
+			_messageFAIL
+			return 1
+		else
+			echo 'warn: accepted: cygwin: permissions'
+		fi
+	fi
 	
 	mkdir -p "$ubHome"/bin/
 	ln -sf "$ubcoreUBfile" "$ubHome"/bin/ubiquitous_bash.sh
@@ -12960,6 +13390,10 @@ _refresh_anchors_ubiquitous() {
 	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_bash.bat
 	
 	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_setup_ubcp.bat
+	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_setup_ubiquitousBash_cygwin.bat
+	
+	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_setupUbiquitous.bat
+	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_setupUbiquitous_nonet.bat
 	
 	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_demand_broadcastPipe_page.bat
 	cp -a "$scriptAbsoluteFolder"/_anchor.bat "$scriptAbsoluteFolder"/_terminate_broadcastPipe_page.bat
@@ -13099,12 +13533,16 @@ _anchor_configure() {
 	cat "$scriptAbsoluteFolder"/_anchor.tmp1 | sed 's/^SET \"MSWanchorSourceDir\=.*$/SET \"MSWanchorSourceDir\='"$objectName"'\"/g' > "$scriptAbsoluteFolder"/_anchor.tmp2
 	#perl -p -e 's/SET "MSWanchorSourceDir=.*/SET "MSWanchorSourceDir=$ENV{objectName}"/g' "$scriptAbsoluteFolder"/_anchor.tmp1 > "$scriptAbsoluteFolder"/_anchor.tmp2
 	
-	if [[ "$scriptAbsoluteLocation" == *"cautossh" ]]
+	local currentScriptBaseName
+	currentScriptBaseName=$(basename $scriptAbsoluteLocation)
+	
+	# ATTENTION: Configure with 'ops.sh' , 'core.sh' , or similar.
+	if [[ "$scriptAbsoluteLocation" == *"cautossh" ]] || [[ "$scriptAbsoluteLocation" != *"ubiquitous_bash.sh" ]]
 	then
-		cat "$scriptAbsoluteFolder"/_anchor.tmp2  | sed 's/^export anchorSource\=.*$/export anchorSource\=\"'"cautossh"'\"/g' > "$scriptAbsoluteFolder"/_anchor.tmp3
+		cat "$scriptAbsoluteFolder"/_anchor.tmp2  | sed 's/^export anchorSource\=.*$/export anchorSource\=\"'"$currentScriptBaseName"'\"/g' > "$scriptAbsoluteFolder"/_anchor.tmp3
 		#perl -p -e 's/export anchorSource=.*/export anchorSource="cautossh"/g' "$scriptAbsoluteFolder"/_anchor.tmp2 > "$scriptAbsoluteFolder"/_anchor.tmp3
 		
-		cat "$scriptAbsoluteFolder"/_anchor.tmp3 | sed 's/^SET \"MSWanchorSource\=.*$/SET \"MSWanchorSource\='"cautossh"'\"/g' > "$scriptAbsoluteFolder"/_anchor.tmp4
+		cat "$scriptAbsoluteFolder"/_anchor.tmp3 | sed 's/^SET \"MSWanchorSource\=.*$/SET \"MSWanchorSource\='"$currentScriptBaseName"'\"/g' > "$scriptAbsoluteFolder"/_anchor.tmp4
 		#perl -p -e 's/SET "MSWanchorSource=.*/SET "MSWanchorSource=cautossh"/g' "$scriptAbsoluteFolder"/_anchor.tmp3 > "$scriptAbsoluteFolder"/_anchor.tmp4
 	else
 		cat "$scriptAbsoluteFolder"/_anchor.tmp2 > "$scriptAbsoluteFolder"/_anchor.tmp4
@@ -13927,7 +14365,7 @@ export bootTmp="$scriptLocal"
 #Consistent absolute path abstraction.
 export abstractfs_root=/tmp/"$ubiquitiousBashIDnano"
 ( [[ "$bootTmp" == '/dev/shm' ]] || [[ "$bootTmp" == '/tmp' ]] || [[ "$tmpMSW" != "" ]] ) && export abstractfs_root="$bootTmp"/"$ubiquitiousBashIDnano"
-export abstractfs_lock=/"$bootTmp"/"$ubiquitiousBashID"/afslock
+export abstractfs_lock="$bootTmp"/"$ubiquitiousBashID"/afslock
 
 # Unusually, safeTmpSSH must not be interpreted by client, and therefore is single quoted.
 # TODO Test safeTmpSSH variants including spaces in path.
@@ -14733,7 +15171,15 @@ _broadcastPipe_page_read_maxTime() {
 
 
 
-
+# ATTENTION: Only the test procedures are disabled if the 'queue' dependency is not declared. Due to the lengthy timing required to reliabily test the inherently unpredictability of any InterProcess-Communication with non-dedicated non-realtime software.
+unset _test_queue
+unset _test_selfTime
+unset _test_bashTime
+unset _test_filemtime
+unset _test_timeoutRead
+#unset _timetest
+unset _test_broadcastPipe_page
+unset _test_broadcastPipe_aggregatorStatic
 
 
 
@@ -15513,150 +15959,6 @@ _benchmark_page() {
 	
 	_stop
 }
-
-
-
-
-# WARNING: Not a valid example of intended or otherwise correct usage.
-# WARNING: Bus parameters are chosen to attempt synchronyous operation, which is usually highly undesirable!
-# System latency and bandwidth indirectly measured by this test. Inability to triple buffer through the "$safeTmp" filesystem at expected rate (ie. ~15KiB/s) will return failure.
-_test_broadcastPipe_page-stream_sequence() {
-	_start
-	
-	#Benchmarked at >15KiB/s .
-	export ub_force_limit_page_rate='true'
-	local current_Service_MaxTime=975
-	local current_Read_MaxTime=575
-	local current_Write_MaxTime=4475
-	local current_Write_MaxBytes=86400
-	
-	_demand_broadcastPipe_page "$safeTmp"/inputBufferDir "$safeTmp"/outputBufferDir "$current_Service_MaxTime"
-	
-	#>&2 echo "read"
-	"$scriptAbsoluteLocation" _page_read "$safeTmp"/outputBufferDir 'out-' "$current_Read_MaxTime" > "$safeTmp"/rewrite &
-	
-	dd if=/dev/urandom of="$safeTmp"/testfill bs=1k count=288 > /dev/null 2>&1
-	
-	#>&2 echo "write"
-	#_timeout 150 cat "$safeTmp"/testfill | pv | _timeout 30 "$scriptAbsoluteLocation" _page_write "$safeTmp"/inputBufferDir 'testfill-' "$current_Write_MaxTime" "$current_Write_MaxBytes"
-	_timeout 150 cat "$safeTmp"/testfill | _timeout 30 "$scriptAbsoluteLocation" _page_write "$safeTmp"/inputBufferDir 'testfill-' "$current_Write_MaxTime" "$current_Write_MaxBytes"
-	
-	#cat "$safeTmp"/testfill | _page_write_single "$safeTmp"/inputBufferDir 'testfill-' "$current_Write_MaxTime" "$current_Write_MaxBytes"
-	#_sleep_spinlock
-	
-	_terminate_broadcastPipe_page "$safeTmp"/inputBufferDir
-	
-	#(
-	#cd "$safeTmp"
-	#du -sh ./testfill ./rewrite
-	#md5sum ./testfill ./rewrite
-	#)
-	
-	! [[ -s "$safeTmp"/testfill ]] && _stop 1
-	! [[ -s "$safeTmp"/rewrite ]] && _stop 1
-	! diff "$safeTmp"/testfill "$safeTmp"/rewrite && _stop 1
-	
-	_stop
-}
-
-# WARNING: Not a valid example of intended or otherwise correct usage.
-# WARNING: Bus parameters are chosen to attempt synchronyous operation, which is usually highly undesirable!
-_test_broadcastPipe_page-single_sequence() {
-	_start
-	
-	#Benchmarked at >15KiB/s .
-	export ub_force_limit_page_rate='true'
-	local current_Service_MaxTime=975
-	local current_Read_MaxTime=575
-	local current_Write_MaxTime=4475
-	local current_Write_MaxBytes=86400
-	
-	_demand_broadcastPipe_page "$safeTmp"/inputBufferDir "$safeTmp"/outputBufferDir "$current_Service_MaxTime"
-	
-	#>&2 echo "read"
-	"$scriptAbsoluteLocation" _page_read "$safeTmp"/outputBufferDir 'out-' "$current_Read_MaxTime" > "$safeTmp"/rewrite &
-	
-	dd if=/dev/urandom of="$safeTmp"/testfill bs=1k count=288 > /dev/null 2>&1
-	
-	#>&2 echo "write"
-	#_timeout 150 cat "$safeTmp"/testfill | pv | _timeout 30 "$scriptAbsoluteLocation" _page_write "$safeTmp"/inputBufferDir 'testfill-' "$current_Write_MaxTime" "$current_Write_MaxBytes"
-	#_timeout 150 cat "$safeTmp"/testfill | _timeout 30 "$scriptAbsoluteLocation" _page_write "$safeTmp"/inputBufferDir 'testfill-' "$current_Write_MaxTime" "$current_Write_MaxBytes"
-	
-	cat "$safeTmp"/testfill | _page_write_single "$safeTmp"/inputBufferDir 'testfill-' "$current_Write_MaxTime" "$current_Write_MaxBytes"
-	_sleep_spinlock
-	
-	_terminate_broadcastPipe_page "$safeTmp"/inputBufferDir
-	
-	#(
-	#cd "$safeTmp"
-	#du -sh ./testfill ./rewrite
-	#md5sum ./testfill ./rewrite
-	#)
-	
-	! [[ -s "$safeTmp"/testfill ]] && _stop 1
-	! [[ -s "$safeTmp"/rewrite ]] && _stop 1
-	! diff "$safeTmp"/testfill "$safeTmp"/rewrite && _stop 1
-	
-	_stop
-}
-
-_test_broadcastPipe_page() {
-	_getDep md5sum
-	_getDep sha512sum
-	#_getDep pv
-	
-	if ! "$scriptAbsoluteLocation" _test_broadcastPipe_page-stream_sequence "$@" 2> /dev/null
-	then
-		return 1
-	fi
-	if ! "$scriptAbsoluteLocation" _test_broadcastPipe_page-single_sequence "$@" 2> /dev/null
-	then
-		return 1
-	fi
-	return 0
-}
-
-
-
-
-# Under ideal conditions, small quantities of data may be continiously copied completely or identically (<10M).
-_benchmark_broadcastPipe_page() {
-	_start
-	
-	export ub_force_limit_page_rate='false'
-	local current_Write_MaxBytes=864000
-	
-	
-	_demand_broadcastPipe_page "$safeTmp"/inputBufferDir "$safeTmp"/outputBufferDir "$current_Service_MaxTime" "$current_Service_MaxBytes" "$current_Service_Write_MaxTime"
-	
-	#>&2 echo "read"
-	"$scriptAbsoluteLocation" _page_read "$safeTmp"/outputBufferDir 'out-' "$current_Read_MaxTime" > "$safeTmp"/rewrite &
-	
-	dd if=/dev/urandom of="$safeTmp"/testfill bs=1M count=4 > /dev/null 2>&1
-	
-	#>&2 echo "write"
-	_timeout 150 cat "$safeTmp"/testfill | pv | _timeout 30 "$scriptAbsoluteLocation" _page_write "$safeTmp"/inputBufferDir 'testfill-' "$current_Write_MaxTime" "$current_Write_MaxBytes"
-	#_timeout 150 cat "$safeTmp"/testfill | _timeout 30 "$scriptAbsoluteLocation" _page_write "$safeTmp"/inputBufferDir 'testfill-' '$current_Write_MaxTime' '$current_Write_MaxBytes'
-	
-	#cat "$safeTmp"/testfill | _page_write_single "$safeTmp"/inputBufferDir 'testfill-' '$current_Write_MaxTime' '$current_Write_MaxBytes'
-	#_sleep_spinlock
-	
-	_terminate_broadcastPipe_page "$safeTmp"/inputBufferDir
-	
-	(
-	cd "$safeTmp"
-	du -sh ./testfill ./rewrite
-	md5sum ./testfill ./rewrite
-	)
-	
-	#! [[ -s "$safeTmp"/testfill ]] && _stop 1
-	#! [[ -s "$safeTmp"/rewrite ]] && _stop 1
-	#! diff "$safeTmp"/testfill "$safeTmp"/rewrite && _stop 1
-	
-	_stop
-}
-
-
 
 
 
@@ -16596,141 +16898,6 @@ _skip_broadcastPipe_aggregatorStatic() {
 
 
 
-_test_broadcastPipe_aggregatorStatic_sequence() {
-	_start
-	
-	
-	export inputBufferDir="$safeTmp"/_i
-	export outputBufferDir="$safeTmp"/_o
-	
-	
-	# > /dev/null 2>&1
-	_demand_broadcastPipe_aggregatorStatic "$inputBufferDir" "$outputBufferDir" > "$safeTmp"/log/demand.log
-	
-	
-	
-	
-	
-	
-	
-	dd if=/dev/urandom of="$safeTmp"/testfill bs=1k count=2048 > /dev/null 2>&1
-	
-	"$scriptAbsoluteLocation" _aggregator_read_procedure "$outputBufferDir" > "$safeTmp"/rewrite &
-	#_reset_broadcastPipe_aggregatorStatic
-	
-	# WARNING: May be incompatible with '_timeout' .
-	cat "$safeTmp"/testfill | "$scriptAbsoluteLocation" _aggregator_write_procedure "$inputBufferDir" &
-	#_reset_broadcastPipe_aggregatorStatic
-	
-	
-	_sleep_spinlock
-	_skip_broadcastPipe_aggregatorStatic "$inputBufferDir"
-	
-	sleep 24
-	_sleep_spinlock
-	_terminate_broadcastPipe_aggregatorStatic "$inputBufferDir"
-	
-	#(
-	#cd "$safeTmp"
-	#du -sh ./testfill ./rewrite
-	#md5sum ./testfill ./rewrite
-	#)
-	
-	! [[ -s "$safeTmp"/testfill ]] && _stop 1
-	! [[ -s "$safeTmp"/rewrite ]] && _stop 1
-	! diff "$safeTmp"/testfill "$safeTmp"/rewrite && _stop 1
-	
-	_stop
-}
-
-
-_test_broadcastPipe_aggregatorStatic_delayIPC__aggregatorStatic_converse() {
-	true | _aggregatorStatic_converse "$1" "$2" > "$3"
-}
-
-
-_test_broadcastPipe_aggregatorStatic_delayIPC_sequence() {
-	_start
-	
-	
-	export inputBufferDir="$safeTmp"/_i
-	export outputBufferDir="$safeTmp"/_o
-	
-	
-	# > /dev/null 2>&1
-	_demand_broadcastPipe_aggregatorStatic "$inputBufferDir" "$outputBufferDir" > "$safeTmp"/log/demand.log
-	_sleep_spinlock
-	
-	
-	
-	
-	
-	
-	dd if=/dev/urandom of="$safeTmp"/testfill bs=1k count=2048 > /dev/null 2>&1
-	
-	"$scriptAbsoluteLocation" _aggregatorStatic_read "$outputBufferDir" "$inputBufferDir" > "$safeTmp"/rewrite &
-	
-	"$scriptAbsoluteLocation" _aggregatorStatic_converse "$outputBufferDir" "$inputBufferDir" > "$safeTmp"/rewrite_converse &
- 	"$scriptAbsoluteLocation" _test_broadcastPipe_aggregatorStatic_delayIPC__aggregatorStatic_converse "$outputBufferDir" "$inputBufferDir" "$safeTmp"/rewrite_converse_subprocess &
-	
-	#_reset_broadcastPipe_aggregatorStatic
-	
-	# WARNING: May be incompatible with '_timeout' .
-	cat "$safeTmp"/testfill | "$scriptAbsoluteLocation" _aggregatorStatic_write "$inputBufferDir" "$outputBufferDir"
-	#_reset_broadcastPipe_aggregatorStatic
-	
-	
-	#_sleep_spinlock
-	#_skip_broadcastPipe_aggregatorStatic "$inputBufferDir"
-	
-	sleep 18
-	_sleep_spinlock
-	
-	sleep 24
-	_sleep_spinlock
-	
-	_terminate_broadcastPipe_aggregatorStatic "$inputBufferDir"
-	
-	#(
-	#cd "$safeTmp"
-	#du -sh ./testfill ./rewrite ./rewrite_converse ./rewrite_converse_subprocess
-	#md5sum ./testfill ./rewrite ./rewrite_converse ./rewrite_converse_subprocess
-	#)
-	
-	! [[ -s "$safeTmp"/testfill ]] && _stop 1
-	! [[ -s "$safeTmp"/rewrite ]] && _stop 1
-	! [[ -s "$safeTmp"/rewrite_converse ]] && _stop 1
-	! diff "$safeTmp"/testfill "$safeTmp"/rewrite && _stop 1
-	! diff "$safeTmp"/testfill "$safeTmp"/rewrite_converse && _stop 1
-	
-	_stop
-}
-
-
-_test_broadcastPipe_aggregatorStatic() {
-	if ! "$scriptAbsoluteLocation" _test_broadcastPipe_aggregatorStatic_sequence "$@" 2> /dev/null
-	#if ! "$scriptAbsoluteLocation" _test_broadcastPipe_aggregatorStatic_sequence "$@"
-	then
-		return 1
-	fi
-	if ! "$scriptAbsoluteLocation" _test_broadcastPipe_aggregatorStatic_delayIPC_sequence "$@" 2> /dev/null
-	#if ! "$scriptAbsoluteLocation" _test_broadcastPipe_aggregatorStatic_sequence "$@"
-	then
-		return 1
-	fi
-	return 0
-}
-
-
-_benchmark_broadcastPipe_aggregatorStatic() {
-	_start
-	
-	
-	
-	
-	_stop
-}
-
 # ATTENTION: Override with 'ops' or similar.
 # Lock (if at all) the socket, not the buffers.
 # Ports 6391 or alternatively 24671 preferred for one-per-machine IPC service with high-latency no-reset (ie. 'tripleBuffer' ) backend.
@@ -17332,18 +17499,38 @@ _prepare_abstract() {
 	! mkdir -p "$abstractfs_root" && exit 1
 	chmod 0700 "$abstractfs_root" > /dev/null 2>&1
 	! chmod 700 "$abstractfs_root" && exit 1
-	if ! chown "$USER":"$USER" "$abstractfs_root" > /dev/null 2>&1
+	
+	if _if_cygwin
 	then
-		! /sbin/chown "$USER" "$abstractfs_root" && exit 1
+		if ! chown "$USER":None "$abstractfs_root" > /dev/null 2>&1
+		then
+			! chown "$USER" "$abstractfs_root" && exit 1
+		fi
+	else
+		if ! chown "$USER":"$USER" "$abstractfs_root" > /dev/null 2>&1
+		then
+			! /sbin/chown "$USER" "$abstractfs_root" && exit 1
+		fi
 	fi
+	
+	
 	
 	
 	! mkdir -p "$abstractfs_lock" && exit 1
 	chmod 0700 "$abstractfs_lock" > /dev/null 2>&1
 	! chmod 700 "$abstractfs_lock" && exit 1
-	if ! chown "$USER":"$USER" "$abstractfs_lock" > /dev/null 2>&1
+	
+	if _if_cygwin
 	then
-		! /sbin/chown "$USER" "$abstractfs_root" && exit 1
+		if ! chown "$USER":None "$abstractfs_lock" > /dev/null 2>&1
+		then
+			! chown "$USER" "$abstractfs_lock" && exit 1
+		fi
+	else
+		if ! chown "$USER":"$USER" "$abstractfs_lock" > /dev/null 2>&1
+		then
+			! /sbin/chown "$USER" "$abstractfs_lock" && exit 1
+		fi
 	fi
 }
 
@@ -17859,6 +18046,19 @@ _preserveVar() {
 
 #####Installation
 
+_installation_nonet_default() {
+	if [[ "$nonet" != 'false' ]]
+	then
+		[[ "$scriptAbsoluteFolder" == /media/"$USER"* ]] && [[ -e /media/"$USER" ]] && export nonet='true'
+		[[ "$scriptAbsoluteFolder" == /mnt/"$USER"* ]] && [[ -e /mnt/"$USER" ]] && export nonet='true'
+		[[ "$scriptAbsoluteFolder" == /var/run/media/"$USER"* ]] && [[ -e /var/run/media/"$USER" ]] && export nonet='true'
+		[[ "$scriptAbsoluteFolder" == /run/"$USER"* ]] && [[ -e /run/"$USER" ]] && currentParameter=/run/"$USER" && export nonet='true'
+		[[ "$scriptAbsoluteFolder" == "/cygdrive"* ]] && [[ -e /cygdrive ]] && export nonet='true'
+	fi
+	
+	return 0
+}
+
 _vector_line_cksum() {
 	[[ $(echo test | env CMD_ENV=xpg4 cksum | cut -f1 -d\  | tr -dc '0-9') != '935282863' ]] && echo 'broken cksum' && _messageFAIL && _stop 1
 	
@@ -17885,301 +18085,6 @@ _vector() {
 }
 
 
-
-
-# https://stackoverflow.com/questions/4774358/get-mtime-of-specific-file-using-bash
-_test_selfTime_sequence() {
-	_start
-	
-	local iterations
-	
-	local dateA
-	local dateB
-	local dateDelta
-	
-	
-	iterations=0
-	while [[ "$iterations" -lt 3 ]]
-	do
-		dateA=$(date +%s)
-		! "$scriptAbsoluteLocation" _true && _messageFAIL && _stop 1
-		"$scriptAbsoluteLocation" _false && _messageFAIL && _stop 1
-		dateB=$(date +%s)
-		
-		dateDelta=$(bc <<< "$dateB - $dateA")
-		#echo "$dateDelta"
-		
-		if [[ "$dateDelta" -lt 0 ]]
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		if [[ "$dateDelta" -gt 14 ]]
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		let iterations="$iterations + 1"
-	done
-	
-	_stop 0
-}
-
-_test_selfTime() {
-	"$scriptAbsoluteLocation" _test_selfTime_sequence "$@"
-}
-
-
-_test_bashTime_sequence() {
-	_start
-	
-	local iterations
-	
-	local dateA
-	local dateB
-	local dateDelta
-	
-	
-	iterations=0
-	while [[ "$iterations" -lt 3 ]]
-	do
-		dateA=$(date +%s)
-		! echo 'echo fake interactive' | bash -i > /dev/null 2>&1 && _messageFAIL && _stop 1
-		echo 'false' | bash -i > /dev/null 2>&1 && _messageFAIL && _stop 1
-		! echo 'echo fake interactive' | dash -i > /dev/null 2>&1 && _messageFAIL && _stop 1
-		echo 'false' | dash -i > /dev/null 2>&1 && _messageFAIL && _stop 1
-		dateB=$(date +%s)
-		
-		dateDelta=$(bc <<< "$dateB - $dateA")
-		#echo "$dateDelta"
-		
-		if [[ "$dateDelta" -lt 0 ]]
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		if [[ "$dateDelta" -gt 14 ]]
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		let iterations="$iterations + 1"
-	done
-	
-	_stop 0
-}
-
-_test_bashTime() {
-	"$scriptAbsoluteLocation" _test_bashTime_sequence "$@"
-}
-
-
-# https://stackoverflow.com/questions/4774358/get-mtime-of-specific-file-using-bash
-_test_filemtime_sequence() {
-	_start
-	
-	local iterations
-	
-	local currentFileMtimeA
-	local currentFileMtimeB
-	local currentFileMtimeDelta
-	
-	
-	iterations=0
-	while [[ "$iterations" -lt 3 ]]
-	do
-		echo > "$safeTmp"/test_filemtime
-		currentFileMtimeA=$(stat -c %Y "$safeTmp"/test_filemtime)
-		sleep 2
-		touch "$safeTmp"/test_filemtime
-		currentFileMtimeB=$(stat -c %Y "$safeTmp"/test_filemtime)
-		
-		currentFileMtimeDelta=$(bc <<< "$currentFileMtimeB - $currentFileMtimeA")
-		#echo "$currentFileMtimeDelta"
-		
-		if [[ "$currentFileMtimeDelta" -lt 1 ]]
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		if [[ "$currentFileMtimeDelta" -gt 12 ]]
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		let iterations="$iterations + 1"
-	done
-	
-	
-	iterations=0
-	while [[ "$iterations" -lt 3 ]]
-	do
-		echo > "$safeTmp"/test_filemtime
-		currentFileMtimeA=$(stat -c %Y "$safeTmp"/test_filemtime)
-		sleep 2
-		echo 'x' >> "$safeTmp"/test_filemtime
-		currentFileMtimeB=$(stat -c %Y "$safeTmp"/test_filemtime)
-		
-		currentFileMtimeDelta=$(bc <<< "$currentFileMtimeB - $currentFileMtimeA")
-		#echo "$currentFileMtimeDelta"
-		
-		if [[ "$currentFileMtimeDelta" -lt 1 ]]
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		if [[ "$currentFileMtimeDelta" -gt 12 ]]
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		let iterations="$iterations + 1"
-	done
-	
-	
-	iterations=0
-	while [[ "$iterations" -lt 3 ]]
-	do
-		if ! rm -f "$safeTmp"/test_filemtime
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		echo > "$safeTmp"/test_filemtime
-		if ! find "$safeTmp"/ -type f -mmin 0.19 | grep test_filemtime > /dev/null 2>&1
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		if ! find "$safeTmp"/ -type f -mmin -0.19 | grep test_filemtime > /dev/null 2>&1
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		sleep 16
-		if find "$safeTmp"/ -type f -mmin 0.19 | grep test_filemtime > /dev/null 2>&1
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		if find "$safeTmp"/ -type f -mmin -0.19 | grep test_filemtime > /dev/null 2>&1
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		if ! find "$safeTmp"/ -type f -mmin 1 | grep test_filemtime > /dev/null 2>&1
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		if find "$safeTmp"/ -type f -mmin 2 | grep test_filemtime > /dev/null 2>&1
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		if ! find "$safeTmp"/ -type f -mmin -1 | grep test_filemtime > /dev/null 2>&1
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		if ! find "$safeTmp"/ -type f -mmin -2700 | grep test_filemtime > /dev/null 2>&1
-		then
-			_messageFAIL
-			_stop 1
-		fi
-		
-		let iterations="$iterations + 1"
-	done
-	
-	
-	_stop 0
-}
-
-_test_filemtime() {
-	"$scriptAbsoluteLocation" _test_filemtime_sequence "$@"
-}
-
-
-_test_timeoutRead_slowByteRead() {
-	while head --bytes=1
-	do
-		sleep 9
-		#sleep 2
-	done
-}
-
-_test_timeoutRead_multiByteRead() {
-	#while head --bytes=3
-	while dd bs="3" count=1 2>/dev/null
-	do
-		true
-	done
-}
-
-_test_timeoutRead_bashRead() {
-	# Inaccurate. Tests with random data ('/dev/urandom') seem to show errors.
-	local currentString
-	export IFS=
-	export LANG=C
-	export LC_ALL=C
-	#LANG=C IFS= read -r -d '' -n 1 currentString
-	while read -r -d '' -n 1 currentString
-	do
-		#[ "$currentString" ] && echo -n "$currentString" || echo
-		[ "$currentString" ] && printf '%b' "$currentString" || echo
-	done
-}
-
-_test_timeoutRead_read() {
-	local currentIterations
-	currentIterations=0
-	while _timeout 0.1 cat 2>/dev/null && true | ([[ "$currentIterations" -lt "$1" ]])
-	do
-		true | (sleep 6 ; echo -n x)
-		#true | (sleep 1 ; echo -n x)
-		let currentIterations="$currentIterations"' + 1'
-	done
-}
-
-_test_timeoutRead_procedure() {
-	
-	# Applying 'timeout' to 'echo' may have no effect (presumably due to immediately filling pipe buffer).
-	# Applying 'timeout' to 'slowByteRead' should be able to limit the number of input characters. A 8s timeout at 3s/b read rate should apparently interrupt '12345' at '123'.
-	# Applying timeout to '_test_timeoutRead_read' should immediately terminate all processes in the processing chain (presumably due to pipe close).
-	
-	#_timeout 75 echo '12345' | _timeout 26 _test_timeoutRead_slowByteRead | _timeout 75 _test_timeoutRead_multiByteRead | _timeout 75 _test_timeoutRead_bashRead | _timeout 75 _test_timeoutRead_read 6
-	
-	_timeout 75 echo '12345' | _timeout 75 _test_timeoutRead_multiByteRead | _timeout 26 _test_timeoutRead_slowByteRead | _timeout 75 _test_timeoutRead_bashRead | _timeout 75 _test_timeoutRead_read 6
-	
-	
-	true
-}
-
-_test_timeoutRead() {
-	#true | "$scriptAbsoluteLocation" _test_timeoutRead_procedure "$@" | cat
-	#return 0
-	
-	local currentString
-	currentString=$(true | "$scriptAbsoluteLocation" _test_timeoutRead_procedure "$@" | cat)
-	#echo "$currentString"
-	
-	[[ "$currentString" == "" ]] && _stop 1
-	[[ "$currentString" != "1xx2x3xxx" ]] && _stop 1
-	[[ $(echo -n "$currentString" | wc -c) != '9' ]] && _stop 1
-	
-	return 0
-}
 
 
 #Verifies the timeout and sleep commands work properly, with subsecond specifications.
@@ -18513,6 +18418,7 @@ _timetest() {
 	return 0
 }
 
+
 _testarglength() {
 	local testArgLength
 	
@@ -18823,6 +18729,59 @@ _test_embed() {
 	"$scriptAbsoluteLocation" _test_embed_sequence "$@"
 }
 
+_test_parallelFifo_procedure() {
+	mkfifo "$safeTmp"/parallel_fifo
+	cat "$safeTmp"/parallel_fifo > "$safeTmp"/parallel_fifo_out &
+	
+	local currentIterationsA
+	currentIterationsA=0
+	local currentIterationsB
+	currentIterationsB=0
+	
+	while [[ "$currentIterationsA" -lt "2" ]]
+	do
+		echo a
+		sleep 1
+		let currentIterationsA="$currentIterationsA"" + 1"
+	done | cat > "$safeTmp"/parallel_fifo &
+	
+	sleep 0.4
+	
+	while [[ "$currentIterationsB" -lt "2" ]]
+	do
+		echo b
+		sleep 1
+		let currentIterationsB="$currentIterationsB"" + 1"
+	done | cat > "$safeTmp"/parallel_fifo
+	
+	sleep 1
+	sleep 7
+	
+	
+	#echo $(cat "$safeTmp"/parallel_fifo_out | tr -dc 'a-zA-Z0-9' 2> /dev/null)
+	
+	# WARNING: Strongly discouraged! Strict test highly dependent on unpredictable InterProcess-Communication timing requiring >7s latency margins at each 'step'!
+	if _if_cygwin
+	then
+		[[ $(cat "$safeTmp"/parallel_fifo_out | tr -dc 'a-zA-Z0-9' 2> /dev/null) != "abab" ]] && _messageFAIL && return 1
+	fi
+	
+	[[ $(cat "$safeTmp"/parallel_fifo_out | tr -dc 'a-zA-Z0-9' | wc -c) != "4" ]] && _messageFAIL && return 1
+	
+	
+	rm -f "$safeTmp"/parallel_fifo
+	rm -f "$safeTmp"/parallel_fifo_out
+}
+
+# No production use.
+_test_parallelFifo_sequence() {
+	_start
+	
+	_test_parallelFifo_procedure "$@"
+	
+	_stop
+}
+
 _test_sanity() {
 	if (exit 0)
 	then
@@ -18950,12 +18909,21 @@ _test_sanity() {
 	
 	_start
 	
+	
 	[[ ! -e "$safeTmp" ]] && _messageFAIL && return 1
+	
+	[[ $( cd "$safeTmp" 2>/dev/null ; ls *doNotMatch* 2>/dev/null | wc -c) != "0" ]] && _messageFAIL && return 1
+	[[ $( cd "$safeTmp" 2>/dev/null ; ls -A *doNotMatch* 2>/dev/null | wc -c) != "0" ]] && _messageFAIL && return 1
 	
 	echo -e -n >> "$safeTmp"/empty
 	[[ ! -e "$safeTmp"/empty ]] && _messageFAIL && return 1
 	[[ $(cat "$safeTmp"/empty | wc -c) != '0' ]] && _messageFAIL && return 1
+	
+	[[ $( cd "$safeTmp" 2>/dev/null ; ls *empty* 2>/dev/null | wc -c) == "0" ]] && _messageFAIL && return 1
+	[[ $( cd "$safeTmp" 2>/dev/null ; ls -A *empty* 2>/dev/null | wc -c) == "0" ]] && _messageFAIL && return 1
+	
 	rm -f "$safeTmp"/empty > /dev/null 2>&1
+	
 	
 	! _test_moveconfirm_procedure && _messageFAIL && return 1
 	
@@ -19065,12 +19033,19 @@ _test_sanity() {
 	
 	
 	
+	_tryExec _test_parallelFifo_procedure
+	
+	
 	return 0
 }
 
 
 
 _test() {
+	_installation_nonet_default
+	
+	# ATTENTION: As part of sanity test, "$safeTmp" must not exist until '_start' is called from within '_test_sanity' .
+	#_start
 	_messageNormal "Sanity..."
 	_test_sanity && _messagePASS
 	
@@ -19092,18 +19067,49 @@ _test() {
 	#fi
 	_messagePASS
 	
-	echo -n -e '\E[1;32;46m Timing...		\E[0m'
-	echo
-	echo -e '\E[0;36m Timing: _test_selfTime \E[0m'
-	! _test_selfTime && echo '_test_selfTime broken' && _stop 1
-	echo -e '\E[0;36m Timing: _test_bashTime \E[0m'
-	! _test_bashTime && echo '_test_selfTime broken' && _stop 1
-	echo -e '\E[0;36m Timing: _test_filemtime \E[0m'
-	! _test_filemtime && echo '_test_selfTime broken' && _stop 1
-	echo -e '\E[0;36m Timing: _test_timeoutRead \E[0m'
-	! _test_timeoutRead && echo '_test_timeoutRead broken' && _stop 1
-	echo -e '\E[0;36m Timing: _timetest \E[0m'
-	! _timetest && echo '_timetest broken' && _stop 1
+	if type _timetest > /dev/null 2>&1
+	then
+		echo -n -e '\E[1;32;46m Timing...		\E[0m'
+		echo
+		
+		# DANGER: Even under MSW/Cygwin, should ONLY fail IF extremely slow storage is attached.
+		if type _test_selfTime > /dev/null 2>&1
+		then
+			echo -e '\E[0;36m Timing: _test_selfTime \E[0m'
+			if ! _test_selfTime
+			then
+				if _if_cygwin
+				then
+					echo 'warn: accepted: cygwin: _test_selfTime broken'
+				else
+					echo '_test_selfTime broken'
+					_stop 1
+				fi
+			fi
+		fi
+		
+		if type _test_bashTime > /dev/null 2>&1
+		then
+			echo -e '\E[0;36m Timing: _test_bashTime \E[0m'
+			! _test_bashTime && echo '_test_selfTime broken' && _stop 1
+		fi
+		
+		if type _test_filemtime > /dev/null 2>&1
+		then
+			echo -e '\E[0;36m Timing: _test_filemtime \E[0m'
+			! _test_filemtime && echo '_test_selfTime broken' && _stop 1
+		fi
+		
+		if type _test_timeoutRead > /dev/null 2>&1
+		then
+			echo -e '\E[0;36m Timing: _test_timeoutRead \E[0m'
+			! _test_timeoutRead && echo '_test_timeoutRead broken' && _stop 1
+		fi
+		
+		echo -e '\E[0;36m Timing: _timetest \E[0m'
+		! _timetest && echo '_timetest broken' && _stop 1
+	fi
+	
 	
 	_messageNormal "Dependency checking..."
 	
@@ -19186,6 +19192,9 @@ _test() {
 	_getDep diff
 	
 	_getDep uuidgen
+	
+	_getDep bc
+	_getDep xxd
 	
 	_test_readlink_f
 	
@@ -19296,15 +19305,42 @@ _test() {
 	
 	_messagePASS
 	
-	_messageNormal "Queue..."
-	
-	echo -e '\E[0;36m Queue: _test_broadcastPipe_page \E[0m'
-	! _test_broadcastPipe_page && echo '_test_broadcastPipe_page broken' && _stop 1
-	
-	echo -e '\E[0;36m Queue: _test_broadcastPipe_aggregatorStatic \E[0m'
-	! _test_broadcastPipe_aggregatorStatic && echo '_test_broadcastPipe_aggregatorStatic broken' && _stop 1
-	
-	_messagePASS
+	if type _test_queue > /dev/null 2>&1
+	then
+		_messageNormal "Queue..."
+		
+		_tryExec '_test_queue'
+		
+		# DANGER: Even under MSW/Cygwin, should ONLY fail IF extremely slow storage is attached.
+		echo -e '\E[0;36m Queue: _test_broadcastPipe_page \E[0m'
+		if ! _test_broadcastPipe_page
+		then
+			if _if_cygwin
+			then
+				echo 'warn: accepted: cygwin: _test_broadcastPipe_page broken'
+			else
+				echo '_test_broadcastPipe_page broken'
+				_stop 1
+			fi
+		fi
+		
+		# DANGER: Even under MSW/Cygwin, should ONLY fail IF extremely slow storage is attached.
+		echo -e '\E[0;36m Queue: _test_broadcastPipe_aggregatorStatic \E[0m'
+		if ! _test_broadcastPipe_aggregatorStatic
+		then
+			if _if_cygwin
+			then
+				#echo 'warn: accepted: cygwin: _test_broadcastPipe_aggregatorStatic broken'
+				echo '_test_broadcastPipe_aggregatorStatic broken'
+				_stop 1
+			else
+				echo '_test_broadcastPipe_aggregatorStatic broken'
+				_stop 1
+			fi
+		fi
+		
+		_messagePASS
+	fi
 	
 	_messageNormal 'Vector...'
 	_vector
@@ -19418,6 +19454,8 @@ _setup_anchor() {
 }
 
 _setup() {
+	_installation_nonet_default
+	
 	_start
 	
 	"$scriptAbsoluteLocation" _test || _stop 1
@@ -19459,6 +19497,8 @@ _setup_local() {
 _test_package() {
 	_getDep tar
 	_getDep gzip
+	
+	_getDep xz
 }
 
 _package_prog() {
@@ -19466,39 +19506,60 @@ _package_prog() {
 }
 
 
+_package_ubcp_copy_copy() {
+	#cp -a "$1" "$2"
+	if [[ "$ubPackage_enable_ubcp" != 'true' ]]
+	then
+		rsync -av --progress --exclude "/ubcp/conemu" --exclude "/ubcp/cygwin" --exclude "/ubcp/package_ubcp-cygwinOnly.tar.gz" --exclude "/ubcp/package_ubcp-cygwinOnly.tar.xz" "$1" "$2"
+	else
+		rsync -av --progress --exclude "/ubcp/package_ubcp-cygwinOnly.tar.gz" --exclude "/ubcp/package_ubcp-cygwinOnly.tar.xz" "$1" "$2"
+	fi
+	
+	
+	rm -f "$safeTmp"/package/_local/package_ubcp-cygwinOnly.tar.gz
+	rm -f "$safeTmp"/package/_local/ubcp/package_ubcp-cygwinOnly.tar.gz
+	
+	return 0
+}
+
 _package_ubcp_copy() {
 	mkdir -p "$safeTmp"/package/_local
 	
 	if [[ -e "$scriptLocal"/ubcp ]]
 	then
-		cp -a "$scriptLocal"/ubcp "$safeTmp"/package/_local/
+		_package_ubcp_copy_copy "$scriptLocal"/ubcp "$safeTmp"/package/_local/
 		return 0
 	fi
 	if [[ -e "$scriptLib"/ubcp ]]
 	then
-		cp -a "$scriptLib"/ubcp "$safeTmp"/package/_local/
+		_package_ubcp_copy_copy "$scriptLib"/ubcp "$safeTmp"/package/_local/
+		rm -f "$safeTmp"/package/_local/ubcp/package_ubcp-cygwinOnly.tar.gz
 		return 0
 	fi
 	if [[ -e "$scriptAbsoluteFolder"/ubcp ]]
 	then
-		cp -a "$scriptAbsoluteFolder"/ubcp "$safeTmp"/package/_local/
+		_package_ubcp_copy_copy "$scriptAbsoluteFolder"/ubcp "$safeTmp"/package/_local/
+		rm -f "$safeTmp"/package/_local/ubcp/package_ubcp-cygwinOnly.tar.gz
 		return 0
 	fi
 	
 	
 	if [[ -e "$scriptLib"/ubiquitous_bash/_local/ubcp ]]
 	then
-		cp -a "$scriptLib"/ubiquitous_bash/_local/ubcp "$safeTmp"/package/_local/
+		_package_ubcp_copy_copy "$scriptLib"/ubiquitous_bash/_local/ubcp "$safeTmp"/package/_local/
+		rm -f "$safeTmp"/package/_local/ubcp/package_ubcp-cygwinOnly.tar.gz
 		return 0
 	fi
 	if [[ -e "$scriptLib"/ubiquitous_bash/_lib/ubcp ]]
 	then
-		cp -a "$scriptLib"/ubiquitous_bash/_lib/ubcp "$safeTmp"/package/_local/
+		_package_ubcp_copy_copy "$scriptLib"/ubiquitous_bash/_lib/ubcp "$safeTmp"/package/_local/
+		rm -f "$safeTmp"/package/_local/ubcp/package_ubcp-cygwinOnly.tar.gz
 		return 0
 	fi
 	if [[ -e "$scriptLib"/ubiquitous_bash/ubcp ]]
 	then
-		cp -a "$scriptLib"/ubiquitous_bash/ubcp "$safeTmp"/package/_local/
+		_package_ubcp_copy_copy "$scriptLib"/ubiquitous_bash/ubcp "$safeTmp"/package/_local/
+		rm -f "$safeTmp"/package/_local/ubcp/package_ubcp-cygwinOnly.tar.gz
 		return 0
 	fi
 	
@@ -19531,6 +19592,7 @@ _package_procedure() {
 	_tryExec "_package_cautossh"
 	
 	#cp -a "$scriptAbsoluteFolder"/.git "$safeTmp"/package/ > /dev/null 2>&1
+	cp "$scriptAbsoluteFolder"/.gitignore "$safeTmp"/package/ > /dev/null 2>&1
 	cp "$scriptAbsoluteFolder"/.gitmodules "$safeTmp"/package/ > /dev/null 2>&1
 	
 	cp "$scriptAbsoluteFolder"/COPYING "$safeTmp"/package/ > /dev/null 2>&1
@@ -19555,6 +19617,7 @@ _package_procedure() {
 	
 	cp "$scriptAbsoluteFolder"/_* "$safeTmp"/package/
 	cp "$scriptAbsoluteFolder"/*.sh "$safeTmp"/package/
+	cp "$scriptAbsoluteFolder"/*.py "$safeTmp"/package/
 	
 	cp -a "$scriptLocal"/ops "$safeTmp"/package/
 	cp -a "$scriptLocal"/ops.sh "$safeTmp"/package/
@@ -19568,16 +19631,41 @@ _package_procedure() {
 	cp -a "$scriptAbsoluteFolder"/README.md "$safeTmp"/package/
 	cp -a "$scriptAbsoluteFolder"/USAGE.html "$safeTmp"/package/
 	
-	if [[ "$ubPackage_enable_ubcp" == 'true' ]]
+	
+	cp -a "$scriptAbsoluteFolder"/_config "$safeTmp"/package/
+	
+	
+	cp -a "$scriptAbsoluteFolder"/_bin "$safeTmp"/package/
+	
+	
+	cp "$scriptAbsoluteFolder"/fork "$safeTmp"/package/
+	
+	
+	rm -f "$safeTmp"/package/devtask* > /dev/null 2>&1
+	rm -f "$safeTmp"/package/__d_* > /dev/null 2>&1
+	rm -f "$safeTmp"/package/_d_* > /dev/null 2>&1
+	
+	
+	#if [[ "$ubPackage_enable_ubcp" == 'true' ]]
+	#then
+		#_package_ubcp_copy "$@"
+	#fi
+	
+	_package_ubcp_copy "$@"
+	if [[ "$ubPackage_enable_ubcp" != 'true' ]]
 	then
-		_package_ubcp_copy "$@"
+		_safeRMR "$safeTmp"/package/_local/ubcp/conemu
+		_safeRMR "$safeTmp"/package/_local/ubcp/cygwin
 	fi
 	
 	cd "$safeTmp"/package/
 	_package_subdir
 	
-	! [[ "$ubPackage_enable_ubcp" == 'true' ]] && tar -czvf "$scriptAbsoluteFolder"/package.tar.gz .
-	[[ "$ubPackage_enable_ubcp" == 'true' ]] && tar -czvf "$scriptAbsoluteFolder"/package_ubcp.tar.gz .
+	#! [[ "$ubPackage_enable_ubcp" == 'true' ]] && env GZIP=-9 tar -czvf "$scriptAbsoluteFolder"/package.tar.gz .
+	! [[ "$ubPackage_enable_ubcp" == 'true' ]] && env XZ_OPT=-e9 tar -cJvf "$scriptAbsoluteFolder"/package.tar.xz .
+	#[[ "$ubPackage_enable_ubcp" == 'true' ]] && env GZIP=-9 tar -czvf "$scriptAbsoluteFolder"/package_ubcp.tar.gz .
+	#[[ "$ubPackage_enable_ubcp" == 'true' ]] && env XZ_OPT=-e9 tar -cJvf "$scriptAbsoluteFolder"/package_ubcp.tar.xz .
+	[[ "$ubPackage_enable_ubcp" == 'true' ]] && env XZ_OPT=-5 tar -cJvf "$scriptAbsoluteFolder"/package_ubcp.tar.xz .
 	
 	if [[ "$ubPackage_enable_ubcp" == 'true' ]]
 	then
@@ -19630,32 +19718,6 @@ _main() {
 	
 	_stop
 }
-
-_findUbiquitous() {
-	export ubiquitiousLibDir="$scriptAbsoluteFolder"
-	
-	local scriptBasename=$(basename "$scriptAbsoluteFolder")
-	if [[ "$scriptBasename" == "ubiquitous_bash" ]]
-	then
-		return 0
-	fi
-	
-	if [[ -e "$ubiquitiousLibDir"/_lib/ubiquitous_bash ]]
-	then
-		export ubiquitiousLibDir="$ubiquitiousLibDir"/_lib/ubiquitous_bash
-		return 0
-	fi
-	
-	local ubiquitiousLibDirDiscovery=$(find ./_lib -maxdepth 3 -type d -name 'ubiquitous_bash' | head -n 1)
-	if [[ "$ubiquitiousLibDirDiscovery" != "" ]] && [[ -e "$ubiquitiousLibDirDiscovery" ]]
-	then
-		export ubiquitiousLibDir="$ubiquitiousLibDirDiscovery"
-		return 0
-	fi
-	
-	return 1
-}
-
 
 
 _generate_lean-lib-python_here() {
@@ -19954,14 +20016,17 @@ def _bin(currentArguments = [''], currentPrint = False, current_ubiquitous_bash 
 # ATTENTION: Only intended for indirect calls.
 # https://stackoverflow.com/questions/5067604/determine-function-name-from-within-that-function-without-using-traceback
 #	'there aren't enough important use cases given'
+# https://www.tutorialspoint.com/How-can-I-remove-the-ANSI-escape-sequences-from-a-string-in-python
+# https://docs.python.org/3/library/re.html
+#return _bin(currentCommand + currentArguments + currentString, currentPrint)[0]
+#return re.sub(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]', '', _bin(currentCommand + currentArguments + currentString, currentPrint)[0])
 def _bin_stringAfterArgs(currentString = [], currentArguments = [], currentPrint = False, currentCommand = ['_false']):
 	currentString = [currentString] if isinstance(currentString, str) else currentString
 	currentArguments = [currentArguments] if isinstance(currentArguments, str) else currentArguments
 	if currentPrint:
 		return _bin(currentCommand + currentArguments + currentString, currentPrint)
 	else:
-		return _bin(currentCommand + currentArguments + currentString, currentPrint)[0]
-
+		return re.sub(r'\n', '', re.sub(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]', '', _bin(currentCommand + currentArguments + currentString, currentPrint)[0]))
 
 #def _bash(currentArguments = [''], currentPrint = True, current_ubiquitous_bash = "ubiquitous_bash.sh"):
 #	_bin(['/bin/bash', '-i'])
@@ -20164,10 +20229,14 @@ CZXWXcRMTo8EmM8i4d
 
 
 
-
+_generate_lean-python_prog() {
+	[[ "$objectName" == "ubiquitous_bash" ]] && return 0
+	
+	return 1
+}
 
 _generate_lean-python() {
-	! [[ "$objectName" == "ubiquitous_bash" ]] && return 0
+	! _generate_lean-python_prog && return 0
 	
 	echo '#!/usr/bin/env python3' > "$scriptAbsoluteFolder"/lean.py
 	
@@ -20234,6 +20303,32 @@ _generate_lean-python() {
 
 
 
+
+
+_findUbiquitous() {
+	export ubiquitiousLibDir="$scriptAbsoluteFolder"
+	
+	local scriptBasename=$(basename "$scriptAbsoluteFolder")
+	if [[ "$scriptBasename" == "ubiquitous_bash" ]]
+	then
+		return 0
+	fi
+	
+	if [[ -e "$ubiquitiousLibDir"/_lib/ubiquitous_bash ]]
+	then
+		export ubiquitiousLibDir="$ubiquitiousLibDir"/_lib/ubiquitous_bash
+		return 0
+	fi
+	
+	local ubiquitiousLibDirDiscovery=$(find ./_lib -maxdepth 3 -type d -name 'ubiquitous_bash' | head -n 1)
+	if [[ "$ubiquitiousLibDirDiscovery" != "" ]] && [[ -e "$ubiquitiousLibDirDiscovery" ]]
+	then
+		export ubiquitiousLibDir="$ubiquitiousLibDirDiscovery"
+		return 0
+	fi
+	
+	return 1
+}
 
 
 #####Overrides
@@ -20348,12 +20443,46 @@ _bin() {
 }
 #Mostly intended to launch bash prompt for MSW/Cygwin users.
 _bash() {
-	if [[ "$1" == '-i' ]]
+	local currentIsCygwin
+	currentIsCygwin='false'
+	[[ -e '/cygdrive' ]] && uname -a | grep -i cygwin > /dev/null 2>&1 && _if_cygwin && currentIsCygwin='true'
+	
+	# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+	[[ "$currentIsCygwin" == 'true' ]] && echo -n '.'
+	
+	
+	_visualPrompt
+	[[ "$ub_scope_name" != "" ]] && _scopePrompt
+	
+	
+	[[ "$1" == '-i' ]] && shift
+	
+	
+	
+	if [[ "$currentIsCygwin" == 'true' ]] && grep ubcore "$HOME"/.bashrc > /dev/null 2>&1 && [[ "$scriptAbsoluteLocation" == *"lean.sh" ]]
 	then
-		bash "$@"
+		export sessionid=""
+		export scriptAbsoluteFolder=""
+		export scriptAbsoluteLocation=""
+		bash -i "$@"
+		return
+	elif  [[ "$currentIsCygwin" == 'true' ]] && grep ubcore "$HOME"/.bashrc > /dev/null 2>&1 && [[ "$scriptAbsoluteLocation" != *"lean.sh" ]]
+	then
+		bash -i "$@"
+		return
+	elif [[ "$currentIsCygwin" == 'true' ]] && ! grep ubcore "$HOME"/.bashrc > /dev/null 2>&1
+	then
+		bash --norc -i "$@"
+		return
+	else
+		bash -i "$@"
 		return
 	fi
+	
 	bash -i "$@"
+	return
+	
+	return 1
 }
 
 #Mostly if not entirely intended for end user convenience.
