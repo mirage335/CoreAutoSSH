@@ -32,7 +32,7 @@ _ub_cksum_special_derivativeScripts_contents() {
 #export ub_setScriptChecksum_disable='true'
 ( [[ -e "$0".nck ]] || [[ "${BASH_SOURCE[0]}" != "${0}" ]] || [[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]] || [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] ) && export ub_setScriptChecksum_disable='true'
 export ub_setScriptChecksum_header='1891409836'
-export ub_setScriptChecksum_contents='4103474431'
+export ub_setScriptChecksum_contents='2007872020'
 
 # CAUTION: Symlinks may cause problems. Disable this test for such cases if necessary.
 # WARNING: Performance may be crucial here.
@@ -149,11 +149,22 @@ _messagePlain_bad() {
 #"--profile"
 #"--parent", "--embed", "--return", "--devenv"
 #"--call", "--script" "--bypass"
-
+#if [[ "$ub_import" != "" ]]
+#then
+	#[[ "$ub_import" != "" ]] && export ub_import="" && unset ub_import
+	
+	#[[ "$importScriptLocation" != "" ]] && export importScriptLocation= && unset importScriptLocation
+	#[[ "$importScriptFolder" != "" ]] && export importScriptFolder= && unset importScriptFolder
+#fi
+#[[ "$ub_import" != "" ]] && export ub_import="" && unset ub_import
+#[[ "$ub_import_param" != "" ]] && export ub_import_param="" && unset ub_import_param
+#[[ "$ub_import_script" != "" ]] && export ub_import_script="" && unset ub_import_script
+#[[ "$ub_loginshell" != "" ]] && export ub_loginshell="" && unset ub_loginshell
 ub_import=
 ub_import_param=
 ub_import_script=
 ub_loginshell=
+
 
 # ATTENTION: Apparently (Portable) Cygwin Bash interprets correctly.
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && ub_import="true"
@@ -349,8 +360,8 @@ _____special_live_hibernate() {
 	fi
 	
 	_messagePlain_nominal 'attempt: HIBERNATE'
-	sudo journalctl --rotate
-	sudo journalctl --vacuum-time=1s
+	sudo -n journalctl --rotate
+	sudo -n journalctl --vacuum-time=1s
 	sudo -n systemctl hibernate
 	
 	
@@ -689,7 +700,11 @@ then
 fi
 
 
+# CAUTION: Fragile, at best.
+# DANGER: MSW apparently does not necessarily allow 'Administrator' access to all network 'drives'. Workaround copying of obvious files is limited.
+# WARNING: Most likely, after significant delay, will 'prompt' the user with a very much obstructive, and not securing very much, dialog box.
 # https://stackoverflow.com/questions/4090301/root-user-sudo-equivalent-in-cygwin
+# https://superuser.com/questions/812018/run-a-command-in-another-cygwin-window-and-not-exit
 _sudo_cygwin_sequence() {
 	_start
 	
@@ -707,12 +722,36 @@ _sudo_cygwin_sequence() {
 	echo "export PATH=\"$PATH\"" >> "$safeTmp"/cygwin_sudo_temp.sh
 	
 	
-	_safeEcho_newline "$@" >> "$safeTmp"/cygwin_sudo_temp.sh
+	_safeEcho_newline "$safeTmp"/_bin.bat "$@" >> "$safeTmp"/cygwin_sudo_temp.sh
+	echo 'echo > "'"$safeTmp"'"/sequenceDone_'"$ubiquitousBashID" >> "$safeTmp"/cygwin_sudo_temp.sh
+	echo 'sleep 3' >> "$safeTmp"/cygwin_sudo_temp.sh
+	chmod u+x "$safeTmp"/cygwin_sudo_temp.sh
+	
+	
+	
+	cp "$scriptAbsoluteLocation" "$safeTmp"/
+	chmod u+x "$safeTmp"/$(basename "$scriptAbsoluteLocation")
+	
+	cp "$scriptAbsoluteFolder"/_bin.bat "$safeTmp"/_bin.bat
+	chmod u+x "$safeTmp"/_bin.bat
 	
 
 	# 'Do it as Administrator.'
 	#cygstart --action=runas "$scriptAbsoluteFolder"/_bin.bat bash
-	cygstart --action=runas "$scriptAbsoluteFolder"/_bin.bat "$safeTmp"/cygwin_sudo_temp.sh
+	
+	if [[ "$scriptAbsoluteFolder" == "/cygdrive/c"* ]]
+	then
+		# WARNING: May be untested, or (especially under interactive shell) may call obsolete code.
+		cygstart --action=runas "$scriptAbsoluteFolder"/_bin.bat "$safeTmp"/cygwin_sudo_temp.sh
+	else
+		cygstart --action=runas "$safeTmp"/_bin.bat "$safeTmp"/cygwin_sudo_temp.sh
+	fi
+	
+	
+	while ! [[ -e "$safeTmp"/sequenceDone_"$ubiquitousBashID" ]]
+	do
+		sleep 3
+	done
 	
 	_stop "$?"
 }
@@ -875,7 +914,7 @@ then
 		# WARNING: CAUTION: DANGER: UNIX EOL *MANDATORY* !
 		[[ -e "$scriptAbsoluteFolder"/ops-cygwin.sh ]] && . "$scriptAbsoluteFolder"/ops-cygwin.sh
 		
-		# export ubiquitiousBashID=uk4uPhB663kVcygT0q
+		# export ubiquitousBashID=uk4uPhB663kVcygT0q
 		unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
 		export currentDriveLetter_cygwin_uk4uPhB663kVcygT0q=$(cygpath -S | sed 's/\/Windows\/System32//g' | sed 's/^\/cygdrive\///')
 		[[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q ]] && [[ -e /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh ]] && . /cygdrive/$currentDriveLetter_cygwin_uk4uPhB663kVcygT0q/ops-cygwin.sh
@@ -1237,7 +1276,7 @@ _mitigate-ubcp_rewrite() {
 	! _safePath "$1" && _stop 1
 	cd "$1"
 	
-	find "$2" -type l -exec "$scriptAbsoluteLocation" _mitigate-ubcp_rewrite_procedure {} \;
+	find "$2" -type l -exec "$scriptAbsoluteLocation" _mitigate-ubcp_rewrite_procedure '{}' \;
 	
 	return 0
 }
@@ -1749,7 +1788,7 @@ _getScriptAbsoluteLocation() {
 	
 	local currentScriptLocation
 	currentScriptLocation="$0"
-	uname -a | grep -i cygwin > /dev/null 2>&1 && currentScriptLocation=$(_cygwin_translation_rootFileParameter)
+	uname -a | grep -i cygwin > /dev/null 2>&1 && type _cygwin_translation_rootFileParameter > /dev/null 2>&1 && currentScriptLocation=$(_cygwin_translation_rootFileParameter)
 	
 	
 	local absoluteLocation
@@ -2324,28 +2363,29 @@ _condition_lines_zero() {
 	return 1
 }
 
-#Generates random alphanumeric characters, default length 18.
+#Generates semi-random alphanumeric characters, default length 18.
 _uid() {
 	local curentLengthUID
 	local currentIteration
 	currentIteration=0
-
+	
 	currentLengthUID="18"
 	! [[ -z "$uidLengthPrefix" ]] && ! [[ "$uidLengthPrefix" -lt "18" ]] && currentLengthUID="$uidLengthPrefix"
 	! [[ -z "$1" ]] && currentLengthUID="$1"
-
+	
 	if [[ -z "$uidLengthPrefix" ]] && [[ -z "$1" ]]
 	then
 		# https://stackoverflow.com/questions/32484504/using-random-to-generate-a-random-string-in-bash
 		# https://www.cyberciti.biz/faq/unix-linux-iterate-over-a-variable-range-of-numbers-in-bash/
-		chars=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
+		#chars=abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ
+		chars=bgjktwxyz23679BGJKTVWXYZ
 		#for currentIteration in {1..$currentLengthUID} ; do
 		for (( currentIteration=1; currentIteration<="$currentLengthUID"; currentIteration++ )) ; do
 		echo -n "${chars:RANDOM%${#chars}:1}"
 		done
 		echo
 	else
-		cat /dev/urandom 2> /dev/null | base64 2> /dev/null | tr -dc 'a-zA-Z0-9' 2> /dev/null | head -c "$currentLengthUID" 2> /dev/null
+		cat /dev/urandom 2> /dev/null | base64 2> /dev/null | tr -dc 'a-zA-Z0-9' 2> /dev/null | tr -d 'acdefhilmnopqrsuvACDEFHILMNOPQRSU14580' | head -c "$currentLengthUID" 2> /dev/null
 	fi
 	return 0
 }
@@ -2717,6 +2757,36 @@ _safeEcho_newline() {
 	printf '\n'
 }
 
+_safeEcho_quoteAddSingle() {
+	# https://tldp.org/LDP/Bash-Beginners-Guide/html/sect_09_07.html
+	while (( "$#" )); do
+		_safeEcho ' '"'""$1""'"
+		shift
+	done
+}
+_safeEcho_quoteAddSingle_newline() {
+	_safeEcho_quoteAddSingle "$@"
+	printf '\n'
+}
+
+_safeEcho_quoteAddDouble() {
+	#https://stackoverflow.com/questions/1668649/how-to-keep-quotes-in-bash-arguments
+	
+	local currentCommandStringPunctuated
+	local currentCommandStringParameter
+	for currentCommandStringParameter in "$@"; do
+		currentCommandStringParameter="${currentCommandStringParameter//\\/\\\\}"
+		currentCommandStringPunctuated="$currentCommandStringPunctuated \"${currentCommandStringParameter//\"/\\\"}\""
+	done
+	
+	_safeEcho "$currentCommandStringPunctuated"
+}
+_safeEcho_quoteAddDouble_newline() {
+	_safeEcho_quoteAddDouble "$@"
+	printf '\n'
+}
+
+
 #Universal debugging filesystem.
 #End user function.
 _user_log() {
@@ -2899,11 +2969,96 @@ _messageColors() {
 }
 
 
+_color_demo() {
+	_messagePlain_request _color_demo
+	_messagePlain_nominal _color_demo
+	_messagePlain_probe _color_demo
+	_messagePlain_probe_expr _color_demo
+	_messagePlain_probe_var ubiquitousBashIDshort
+	_messagePlain_good _color_demo
+	_messagePlain_warn _color_demo
+	_messagePlain_bad _color_demo
+	_messagePlain_probe_cmd echo _color_demo
+	_messagePlain_probe_quoteAddDouble echo _color_demo
+	_messagePlain_probe_quoteAddSingle echo _color_demo
+	_messageNormal _color_demo
+	_messageError _color_demo
+	_messageDELAYipc _color_demo
+	_messageProcess _color_demo
+}
+_color_end() {
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '</span>'
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n ' \E[0m'
+}
+
+_color_begin_request() {
+	#b218b2
+	#848484
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#b218b2;background-color:#848484;"> '
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[0;35m '
+}
+_color_begin_nominal() {
+	#18b2b2
+	#848484
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#18b2b2;background-color:#848484;"> '
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[0;36m '
+}
+_color_begin_probe() {
+	#1818b2
+	#848484
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#1818b2;background-color:#848484;"> '
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[0;34m '
+}
+_color_begin_probe_noindent() {
+	#1818b2
+	#848484
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#1818b2;background-color:#848484;">'
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[0;34m'
+}
+_color_begin_good() {
+	#17ae17
+	#848484
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#17ae17;background-color:#848484;"> '
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[0;32m '
+}
+_color_begin_warn() {
+	#ffff54
+	#848484
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#ffff54;background-color:#848484;"> '
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[1;33m '
+}
+_color_begin_bad() {
+	#b21818
+	#848484
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#b21818;background-color:#848484;"> '
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[0;31m '
+}
+_color_begin_Normal() {
+	#54ff54
+	#18b2b2
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#54ff54;background-color:#18b2b2;"> '
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[1;32;46m '
+}
+_color_begin_Error() {
+	#ffff54
+	#b21818
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#ffff54;background-color:#b21818;"> '
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[1;33;41m '
+}
+_color_begin_DELAYipc() {
+	#ffff54
+	#b2b2b2
+	( [[ "$current_scriptedIllustrator_markup" == "html" ]] || [[ "$current_scriptedIllustrator_markup" == "mediawiki" ]] ) && echo -e -n '<span style="color:#ffff54;background-color:#b2b2b2;"> '
+	[[ "$current_scriptedIllustrator_markup" == "" ]] && echo -e -n '\E[1;33;47m '
+}
+
+
+
 #Purple. User must do something manually to proceed. NOT to be used for dependency installation requests - use probe, bad, and fail statements for that.
 _messagePlain_request() {
-	echo -e -n '\E[0;35m '
+	_color_begin_request
 	echo -n "$@"
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	return 0
 }
@@ -2911,9 +3066,9 @@ _messagePlain_request() {
 #Cyan. Harmless status messages.
 #"generic/ubiquitousheader.sh"
 _messagePlain_nominal() {
-	echo -e -n '\E[0;36m '
+	_color_begin_nominal
 	echo -n "$@"
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	return 0
 }
@@ -2921,9 +3076,18 @@ _messagePlain_nominal() {
 #Blue. Diagnostic instrumentation.
 #"generic/ubiquitousheader.sh"
 _messagePlain_probe() {
-	echo -e -n '\E[0;34m '
+	_color_begin_probe
+	#_color_begin_probe_noindent
 	echo -n "$@"
-	echo -e -n ' \E[0m'
+	_color_end
+	echo
+	return 0
+}
+_messagePlain_probe_noindent() {
+	#_color_begin_probe
+	_color_begin_probe_noindent
+	echo -n "$@"
+	_color_end
 	echo
 	return 0
 }
@@ -2931,9 +3095,9 @@ _messagePlain_probe() {
 #Blue. Diagnostic instrumentation.
 #"generic/ubiquitousheader.sh"
 _messagePlain_probe_expr() {
-	echo -e -n '\E[0;34m '
+	_color_begin_probe
 	echo -e -n "$@"
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	return 0
 }
@@ -2941,13 +3105,13 @@ _messagePlain_probe_expr() {
 #Blue. Diagnostic instrumentation.
 #"generic/ubiquitousheader.sh"
 _messagePlain_probe_var() {
-	echo -e -n '\E[0;34m '
+	_color_begin_probe
 	
 	echo -n "$1"'= '
 	
 	eval echo -e -n \$"$1"
 	
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	return 0
 }
@@ -2958,9 +3122,9 @@ _messageVar() {
 #Green. Working as expected.
 #"generic/ubiquitousheader.sh"
 _messagePlain_good() {
-	echo -e -n '\E[0;32m '
+	_color_begin_good
 	echo -n "$@"
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	return 0
 }
@@ -2968,18 +3132,18 @@ _messagePlain_good() {
 #Yellow. May or may not be a problem.
 #"generic/ubiquitousheader.sh"
 _messagePlain_warn() {
-	echo -e -n '\E[1;33m '
+	_color_begin_warn
 	echo -n "$@"
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	return 0
 }
 
 #Red. Will result in missing functionality, reduced performance, etc, but not necessarily program failure overall.
 _messagePlain_bad() {
-	echo -e -n '\E[0;31m '
+	_color_begin_bad
 	echo -n "$@"
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	return 0
 }
@@ -2988,11 +3152,11 @@ _messagePlain_bad() {
 #Prints "$@" and runs "$@".
 # WARNING: Use with care.
 _messagePlain_probe_cmd() {
-	echo -e -n '\E[0;34m '
+	_color_begin_probe
 	
 	_safeEcho "$@"
 	
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	
 	"$@"
@@ -3005,23 +3169,28 @@ _messageCMD() {
 
 #Blue. Diagnostic instrumentation.
 #Prints "$@" with quotes around every parameter.
+_messagePlain_probe_quoteAddDouble() {
+	_color_begin_probe
+	
+	_safeEcho_quoteAddDouble "$@"
+	
+	_color_end
+	echo
+	
+	return
+}
 _messagePlain_probe_quoteAdd() {
+	_messagePlain_probe_quoteAddDouble "$@"
+}
+
+#Blue. Diagnostic instrumentation.
+#Prints "$@" with single quotes around every parameter.
+_messagePlain_probe_quoteAddSingle() {
+	_color_begin_probe
 	
-	#https://stackoverflow.com/questions/1668649/how-to-keep-quotes-in-bash-arguments
+	_safeEcho_quoteAddSingle "$@"
 	
-	local currentCommandStringPunctuated
-	local currentCommandStringParameter
-	for currentCommandStringParameter in "$@"; do 
-		currentCommandStringParameter="${currentCommandStringParameter//\\/\\\\}"
-		currentCommandStringPunctuated="$currentCommandStringPunctuated \"${currentCommandStringParameter//\"/\\\"}\""
-	done
-	#_messagePlain_probe "$currentCommandStringPunctuated"
-	
-	echo -e -n '\E[0;34m '
-	
-	_safeEcho "$currentCommandStringPunctuated"
-	
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	
 	return
@@ -3044,18 +3213,18 @@ _messageCMD_quoteAdd() {
 
 #Demarcate major steps.
 _messageNormal() {
-	echo -e -n '\E[1;32;46m '
+	_color_begin_Normal
 	echo -n "$@"
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	return 0
 }
 
 #Demarcate major failures.
 _messageError() {
-	echo -e -n '\E[1;33;41m '
+	_color_begin_Error
 	echo -n "$@"
-	echo -e -n ' \E[0m'
+	_color_end
 	echo
 	return 0
 }
@@ -3104,7 +3273,10 @@ _messageWARN() {
 
 # Demarcate *any* delay performed to allow 'InterProcess-Communication' connections (perhaps including at least some network or serial port servers).
 _messageDELAYipc() {
-	echo -e '\E[1;33;47m ''delay: InterProcess-Communication'' \E[0m'
+	_color_begin_DELAYipc
+	echo -e -n 'delay: InterProcess-Communication'
+	_color_end
+	echo
 }
 
 
@@ -3123,11 +3295,11 @@ _messageProcess() {
 	
 	[[ "$processStringLength" -gt "38" ]] && _messageNormal "$processString" && return 0
 	
-	echo -e -n '\E[1;32;46m '
+	_color_begin_Normal
 	
 	echo -n "$processString"
 	
-	echo -e -n '\E[0m'
+	_color_end
 	
 	while [[ "$currentIteration" -lt "$padLength" ]]
 	do
@@ -3174,14 +3346,14 @@ _includeScript() {
 	
 	_includeFile "$progDir"/"$includeScriptFilename" && return 0
 	
-	_includeFile "$ubiquitiousLibDir"/"$includeScriptSubdirectory"/"$includeScriptFilename" && return 0
+	_includeFile "$ubiquitousLibDir"/"$includeScriptSubdirectory"/"$includeScriptFilename" && return 0
 	
-	_includeFile "$ubiquitiousLibDir"/"$includeScriptFilename" && return 0
+	_includeFile "$ubiquitousLibDir"/"$includeScriptFilename" && return 0
 	
 	#[[ "$configBaseDir" == "" ]] && configBaseDir="_config"
 	[[ "$configBaseDir" == "" ]] && configBaseDir=$(basename "$configDir")
 	
-	_includeFile "$ubiquitiousLibDir"/"$configBaseDir"/"$includeScriptFilename" && return 0
+	_includeFile "$ubiquitousLibDir"/"$configBaseDir"/"$includeScriptFilename" && return 0
 	
 	return 1
 }
@@ -3666,7 +3838,7 @@ _findPort() {
 	lower_port="$1"
 	upper_port="$2"
 	
-	#Non public ports are between 49152-65535 (2^15 + 2^14 to 2^16 − 1).
+	#Non public ports are between 49152-65535 (2^15 + 2^14 to 2^16 - 1).
 	#Convention is to assign ports 55000-65499 and 50025-53999 to specialized servers.
 	#read lower_port upper_port < /proc/sys/net/ipv4/ip_local_port_range
 	[[ "$lower_port" == "" ]] && lower_port=54000
@@ -4129,10 +4301,13 @@ export tmpSelf=""
 #export descriptiveSelf=""
 
 #####Global variables.
-#Fixed unique identifier for ubiquitious bash created global resources, such as bootdisc images to be automaticaly mounted by guests. Should NEVER be changed.
+#Fixed unique identifier for ubiquitous bash created global resources, such as bootdisc images to be automaticaly mounted by guests. Should NEVER be changed.
 export ubiquitiousBashIDnano=uk4u
 export ubiquitiousBashIDshort="$ubiquitiousBashIDnano"PhB6
 export ubiquitiousBashID="$ubiquitiousBashIDshort"63kVcygT0q
+export ubiquitousBashIDnano=uk4u
+export ubiquitousBashIDshort="$ubiquitousBashIDnano"PhB6
+export ubiquitousBashID="$ubiquitousBashIDshort"63kVcygT0q
 
 ##Parameters
 #"--shell", ""
@@ -4293,9 +4468,9 @@ export bootTmp="$scriptLocal"
 # DANGER: Mandatory strict directory 8.3 compliance for this variable! Long subdirectory/filenames permitted thereafter.
 # DANGER: Permitting multi-user access to this directory may cause unexpected behavior, including inconsitent file ownership.
 #Consistent absolute path abstraction.
-export abstractfs_root=/tmp/"$ubiquitiousBashIDnano"
-( [[ "$bootTmp" == '/dev/shm' ]] || [[ "$bootTmp" == '/tmp' ]] || [[ "$tmpMSW" != "" ]] ) && export abstractfs_root="$bootTmp"/"$ubiquitiousBashIDnano"
-export abstractfs_lock="$bootTmp"/"$ubiquitiousBashID"/afslock
+export abstractfs_root=/tmp/"$ubiquitousBashIDnano"
+( [[ "$bootTmp" == '/dev/shm' ]] || [[ "$bootTmp" == '/tmp' ]] || [[ "$tmpMSW" != "" ]] ) && export abstractfs_root="$bootTmp"/"$ubiquitousBashIDnano"
+export abstractfs_lock="$bootTmp"/"$ubiquitousBashID"/afslock
 
 # Unusually, safeTmpSSH must not be interpreted by client, and therefore is single quoted.
 # TODO Test safeTmpSSH variants including spaces in path.
@@ -5128,7 +5303,8 @@ _generate_lean-python() {
 
 
 _findUbiquitous() {
-	export ubiquitiousLibDir="$scriptAbsoluteFolder"
+	export ubiquitousLibDir="$scriptAbsoluteFolder"
+	export ubiquitiousLibDir="$ubiquitousLibDir"
 	
 	local scriptBasename=$(basename "$scriptAbsoluteFolder")
 	if [[ "$scriptBasename" == "ubiquitous_bash" ]]
@@ -5136,16 +5312,18 @@ _findUbiquitous() {
 		return 0
 	fi
 	
-	if [[ -e "$ubiquitiousLibDir"/_lib/ubiquitous_bash ]]
+	if [[ -e "$ubiquitousLibDir"/_lib/ubiquitous_bash ]]
 	then
-		export ubiquitiousLibDir="$ubiquitiousLibDir"/_lib/ubiquitous_bash
+		export ubiquitousLibDir="$ubiquitousLibDir"/_lib/ubiquitous_bash
+		export ubiquitiousLibDir="$ubiquitousLibDir"
 		return 0
 	fi
 	
-	local ubiquitiousLibDirDiscovery=$(find ./_lib -maxdepth 3 -type d -name 'ubiquitous_bash' | head -n 1)
-	if [[ "$ubiquitiousLibDirDiscovery" != "" ]] && [[ -e "$ubiquitiousLibDirDiscovery" ]]
+	local ubiquitousLibDirDiscovery=$(find ./_lib -maxdepth 3 -type d -name 'ubiquitous_bash' | head -n 1)
+	if [[ "$ubiquitousLibDirDiscovery" != "" ]] && [[ -e "$ubiquitousLibDirDiscovery" ]]
 	then
-		export ubiquitiousLibDir="$ubiquitiousLibDirDiscovery"
+		export ubiquitousLibDir="$ubiquitousLibDirDiscovery"
+		export ubiquitiousLibDir="$ubiquitousLibDir"
 		return 0
 	fi
 	
@@ -5156,18 +5334,35 @@ _findUbiquitous() {
 _init_deps() {
 	export enUb_set="true"
 	
+	export enUb_dev=""
+	export enUb_dev_heavy=""
+	
+	export enUb_cloud_heavy=""
+	
+	export enUb_mount=""
+	
 	export enUb_machineinfo=""
 	export enUb_git=""
 	export enUb_bup=""
+	export enUb_repo=""
+	export enUb_cloud=""
+	export enUb_cloud_self=""
+	export enUb_cloud_build=""
 	export enUb_notLean=""
+	export enUb_distro=""
 	export enUb_build=""
+	export enUb_buildBash=""
 	export enUb_os_x11=""
 	export enUb_proxy=""
 	export enUb_proxy_special=""
+	export enUb_clog=""
 	export enUb_x11=""
 	export enUb_blockchain=""
+	export enUb_java=""
 	export enUb_image=""
 	export enUb_virt=""
+	export enUb_virt_thick=""
+	export enUb_virt_translation=""
 	export enUb_ChRoot=""
 	export enUb_QEMU=""
 	export enUb_vbox=""
@@ -5185,12 +5380,19 @@ _init_deps() {
 	
 	export enUb_hardware=""
 	export enUb_enUb_x220t=""
+	export enUb_enUb_peripherial=""
 	
 	export enUb_user=""
+	
+	export enUb_channel=""
 	
 	export enUb_metaengine=""
 	
 	export enUb_stopwatch=""
+	
+	export enUb_linux=""
+	
+	export enUb_calculators=""
 }
 
 _deps_dev() {
@@ -5200,6 +5402,11 @@ _deps_dev() {
 _deps_dev_heavy() {
 	_deps_notLean
 	export enUb_dev_heavy="true"
+}
+
+_deps_cloud_heavy() {
+	_deps_notLean
+	export enUb_cloud_heavy="true"
 }
 
 _deps_mount() {
@@ -5311,6 +5518,10 @@ _deps_image() {
 	# _deps_vbox
 	# _deps_qemu
 	export enUb_image="true"
+}
+
+_deps_disc() {
+	export enUb_disc="true"
 }
 
 _deps_virt_thick() {
@@ -5425,6 +5636,12 @@ _deps_x220t() {
 	export enUb_x220t="true"
 }
 
+_deps_peripherial() {
+	_deps_notLean
+	_deps_hardware
+	export enUb_peripherial="true"
+}
+
 _deps_user() {
 	_deps_notLean
 	export enUb_user="true"
@@ -5534,9 +5751,20 @@ _generate_compile_bash() {
 	"$scriptAbsoluteFolder"/compile.sh _compile_bash
 	
 	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash lean lean.sh
+	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash core core_monolithic.sh
 	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash ubcore ubcore.sh
 	
 	[[ "$1" != "" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash "$@"
+	
+	[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure lean
+	[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure ubcore
+	[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure core_monolithic
+	rm -f "$scriptAbsoluteFolder"/core_monolithic.sh
+	#mv "$scriptAbsoluteFolder"/core_monolithic_compressed.sh "$scriptAbsoluteFolder"/core_compressed.sh
+	
+	
+	[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure ubiquitous_bash
+	
 	
 	_generate_compile_bash_prog
 	
@@ -5546,11 +5774,206 @@ _generate_compile_bash() {
 
 # #No production use. Unmaintained, obsolete. Never used literally. Preserved as an example command set to build the otherwise self-hosted generate/compile script manually (ie. bootstrapping).
 # _bootstrap_bash_basic() {
-# 	cat "generic"/minimalheader.sh "labels"/utilitiesLabel.sh "generic/filesystem"/absolutepaths.sh "generic/filesystem"/safedelete.sh "generic/process"/timeout.sh "generic"/uid.sh "generic/filesystem/permissions"/checkpermissions.sh "build/bash"/include.sh "structure"/globalvars.sh "build/bash/ubiquitous"/discoverubiquitious.sh "build/bash/ubiquitous"/depsubiquitous.sh "build/bash"/generate.sh "build/bash"/compile.sh "structure"/overrides.sh > ./compile.sh
+# 	cat "generic"/minimalheader.sh "labels"/utilitiesLabel.sh "generic/filesystem"/absolutepaths.sh "generic/filesystem"/safedelete.sh "generic/process"/timeout.sh "generic"/uid.sh "generic/filesystem/permissions"/checkpermissions.sh "build/bash"/include.sh "structure"/globalvars.sh "build/bash/ubiquitous"/discoverubiquitous.sh "build/bash/ubiquitous"/depsubiquitous.sh "build/bash"/generate.sh "build/bash"/compile.sh "structure"/overrides.sh > ./compile.sh
 # 	echo >> ./compile.sh
 # 	echo _generate_compile_bash >> ./compile.sh
 # 	chmod u+x ./compile.sh
 # }
+
+
+
+
+
+
+_generate_compile_bash-compressed_procedure() {
+	# If a "base85"/"ascii85" implementation were widely available at all possibly relevant 'environments', then compressed scripts could possibly be ~5% smaller.
+	# WARNING: Do NOT attempt 'yEnc', apparently NOT 'utf8' text editor compatible.
+	# https://en.wikipedia.org/wiki/Ascii85
+	# https://en.wikipedia.org/wiki/Binary-to-text_encoding
+	# https://sites.google.com/site/dannychouinard/Home/unix-linux-trinkets/little-utilities/base64-and-base85-encoding-awk-scripts
+	#  'if you plan on running these on Solaris, use the /usr/xpg4/bin versions of awk'
+	#  https://sites.google.com/site/dannychouinard/Home
+	#   'Everything is open source, either public domain or GPL V2.'
+	#  Experiments may have found input character corruption apparently with few but significant binary symbols.
+	# https://metacpan.org/pod/Math::Base85
+	# https://stackoverflow.com/questions/51821351/how-do-i-use-m-flag-to-load-a-perl-module-using-its-relative-path-from-command
+	#uudeview
+	#local current_textBinaryEncoder
+	#current_textBinaryEncoder=""
+	#current_textBinaryEncoder="$2"
+	#sed -i 'N;s/\n//'
+	
+	echo "#!/usr/bin/env bash" > "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	_compressed_criticalDep() {
+		! _getAbsolute_criticalDep && exit 1
+		
+		! type -p sed > /dev/null 2>&1 && exit 1
+		! type -p head > /dev/null 2>&1 && exit 1
+		! type -p awk > /dev/null 2>&1 && exit 1
+		! type -p grep > /dev/null 2>&1 && exit 1
+		! type -p ls > /dev/null 2>&1 && exit 1
+		! type -p base64 > /dev/null 2>&1 && exit 1
+		
+		! type -p xz > /dev/null 2>&1 && exit 1
+		
+		! type -p fold > /dev/null 2>&1 && exit 1
+		
+		#! type -p cksum > /dev/null 2>&1 && exit 1
+		#! type -p env > /dev/null 2>&1 && exit 1
+		
+		return 0
+	}
+	
+	_compress_declare_headerFunctions() {
+	declare -f _realpath_L
+	declare -f _realpath_L_s
+	declare -f _cygwin_translation_rootFileParameter
+	declare -f _getAbsolute_criticalDep
+	declare -f _getScriptAbsoluteLocation
+	declare -f _getScriptAbsoluteFolder
+	declare -f _getAbsoluteLocation
+	
+	declare -f _compressed_criticalDep
+	}
+	
+	
+	#local current_internal_compressedScript_headerFunctions
+	current_internal_compressedScript_headerFunctions=$(_compress_declare_headerFunctions | xz -z -e9 -C crc64 --threads=1 | base64 -w 156 | fold -w 156 -s)
+	
+	
+	
+	# Comment filter seems to greatly improve compressibility, possibly due to comments being much less compressible than code.
+	# WARNING: Comment filter may incorrectly remove comments within here documents, as with '#!/bin/dash' from '_here_header_bash_or_dash()' . Interleaved code using different comment characters (eg. 'batch' files interpretable as 'bash', 'scriptedIllustrator', etc) will fail. Diagnostic/debugging/etc comments may also be removed.
+	# https://unix.stackexchange.com/questions/157328/how-can-i-remove-all-comments-from-a-file
+	#grep -o '^[^#]*'
+	#sed '/^[[:blank:]]*#/d;s/#.*//''
+	#shfmt -mn foo.sh
+	# https://stackoverflow.com/questions/3349156/general-utility-to-remove-strip-all-comments-from-source-code-in-various-languag
+	#cloc --strip-comments=small
+	#--use-sloccount
+	#grep -v '^'"[[:space:]]"'#'
+	#grep -v '^#' | grep -v '^'"[[:space:]]"'#'
+	#grep -v '^#[^!]' | grep -v '^'"[[:space:]]"'#[^!]'
+	
+	local current_internal_CompressedScript
+	#current_internal_CompressedScript=$(cat "$scriptAbsoluteFolder"/"$1".sh | grep -v '^_main "$@"$' | sed 's/^_main "$@"$//' | xz -z -e9 -C crc64 --threads=1 | base64 -w 156 | fold -w 156 -s)
+	
+	current_internal_CompressedScript=$(cat "$scriptAbsoluteFolder"/"$1".sh | grep -v '^_main "$@"$' | sed 's/^_main "$@"$//' | grep -v '^#[^!]' | grep -v '^'"[[:space:]]"'#[^!]' | xz -z -e9 -C crc64 --threads=1 | base64 -w 156 | fold -w 156 -s)
+	
+	#local current_internal_CompressedScript_cksum
+	current_internal_CompressedScript_cksum=$(echo "$current_internal_CompressedScript" | env CMD_ENV=xpg4 cksum | cut -f1 -d\  | tr -dc '0-9')
+	#local current_internal_CompressedScript_bytes
+	current_internal_CompressedScript_bytes=$(echo "$current_internal_CompressedScript" | wc -c | tr -dc '0-9')
+	
+	echo '#_compressedScript_uk4uPhB663kVcygT0q_compressedScript_uk4uPhB663kVcygT0q_compressedScript_uk4uPhB663kVcygT0q_compressedScript' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo 'export ub_setScriptChecksum_disable="true"' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	echo 'current_internal_CompressedScript_bytes='\'"$current_internal_CompressedScript_bytes"\' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo 'current_internal_CompressedScript_cksum='\'"$current_internal_CompressedScript_cksum"\' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo 'current_internal_CompressedScript='\' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo "$current_internal_CompressedScript"\' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo 'current_internal_compressedScript_headerFunctions='\' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo "$current_internal_compressedScript_headerFunctions"\' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo '! echo "$current_internal_compressedScript_headerFunctions" | base64 -d | xz -d > /dev/null && exit 1' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo 'source <(echo "$current_internal_compressedScript_headerFunctions" | base64 -d | xz -d)' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+export importScriptLocation=$(_getScriptAbsoluteLocation)
+export importScriptFolder=$(_getScriptAbsoluteFolder)
+! type readlink > /dev/null 2>&1 && exit 1;
+! type dirname > /dev/null 2>&1 && exit 1;
+! type basename > /dev/null 2>&1 && exit 1;
+! readlink -f . > /dev/null 2>&1 && exit 1;
+[[ "$importScriptLocation" == "" ]] && exit 1
+[[ "$importScriptFolder" == "" ]] && exit 1
+! _getAbsolute_criticalDep && exit 1
+CZXWXcRMTo8EmM8i4d
+	
+	echo '! _compressed_criticalDep && exit 1' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	echo '! echo "$current_internal_CompressedScript" | base64 -d | xz -d > /dev/null && exit 1' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	#echo 'source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --call' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	#echo 'source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --bypass "$@"' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+if [[ "$1" == "--embed" ]]
+then
+	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) "$@"
+	exit "$?"
+elif [[ "$1" == "--profile" ]] || [[ "$1" == "--parent" ]]
+then
+	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) "$@"
+else
+	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --bypass "$@"
+fi
+CZXWXcRMTo8EmM8i4d
+	
+	echo 'unset current_internal_CompressedScript ; unset current_internal_CompressedScript_cksum ; unset current_internal_CompressedScript_bytes' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo 'export ub_setScriptChecksum_disable=' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo 'unset ub_setScriptChecksum_disable' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	echo 'true' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	echo '# https://github.com/mirage335/ubiquitous_bash' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo '#_compressedScript_uk4uPhB663kVcygT0q_compressedScript_uk4uPhB663kVcygT0q_compressedScript_uk4uPhB663kVcygT0q_compressedScript' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	unset current_internal_CompressedScript ; unset current_internal_CompressedScript_cksum ; unset current_internal_CompressedScript_bytes
+	
+	
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo '#####Entry' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo '# ###' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	echo '[[ "$1" == '"'"_"'"'* ]] && type "$1" > /dev/null 2>&1 && "$@"' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	chmod u+x "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 _generate_compile_bash_prog() {
 	rm "$scriptAbsoluteFolder"/ubiquitous_bash.sh
@@ -5604,6 +6027,8 @@ _compile_bash_deps() {
 		
 		#_deps_queue
 		
+		_deps_disc
+		
 		# _compile_bash_deps 'core'
 		return 0
 	fi
@@ -5622,9 +6047,12 @@ _compile_bash_deps() {
 		_deps_bup
 		
 		_deps_repo
-		_deps_cloud
-		_deps_cloud_self
-		_deps_cloud_build
+		
+		# WARNING: Although 'cloud' may be relevant to 'cautossh', not included for now, to avoid remotely pulling client software.
+		# ATTENTION: Override with 'ops.sh', 'core.sh', or similar.
+		#_deps_cloud
+		#_deps_cloud_self
+		#_deps_cloud_build
 		
 		_deps_command
 		_deps_synergy
@@ -5692,6 +6120,10 @@ _compile_bash_deps() {
 		_deps_dev_heavy
 		_deps_dev
 		
+		#_deps_cloud_heavy
+		
+		
+		
 		_deps_mount
 		
 		_deps_notLean
@@ -5727,9 +6159,9 @@ _compile_bash_deps() {
 		_deps_bup
 		_deps_repo
 		
-		_deps_cloud
-		_deps_cloud_self
-		_deps_cloud_build
+		#_deps_cloud
+		#_deps_cloud_self
+		#_deps_cloud_build
 		
 		_deps_distro
 		
@@ -5740,6 +6172,7 @@ _compile_bash_deps() {
 		
 		#_deps_hardware
 		#_deps_x220t
+		#_deps_peripherial
 		
 		#_deps_user
 		
@@ -5753,6 +6186,8 @@ _compile_bash_deps() {
 		
 		_deps_stopwatch
 		
+		_deps_disc
+		
 		_deps_build
 		
 		_deps_build_bash
@@ -5765,6 +6200,10 @@ _compile_bash_deps() {
 	then
 		_deps_dev_heavy
 		_deps_dev
+		
+		_deps_cloud_heavy
+		
+		
 		
 		_deps_mount
 		
@@ -5814,6 +6253,7 @@ _compile_bash_deps() {
 		
 		_deps_hardware
 		_deps_x220t
+		_deps_peripherial
 		
 		_deps_user
 		
@@ -5825,6 +6265,8 @@ _compile_bash_deps() {
 		_deps_stopwatch
 		
 		_deps_linux
+		
+		_deps_disc
 		
 		_deps_build
 		
@@ -6083,46 +6525,47 @@ _compile_bash_shortcuts() {
 	
 	
 	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_repo" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/repo/mktorrent"/mktorrent.sh )
+	( [[ "$enUb_notLean" == "true" ]] || [[ "$enUb_dev" == "true" ]] || [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_image" == "true" ]] || [[ "$enUb_repo" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/repo/disk"/dd.sh )
 	
 	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/screenScraper"/screenScraper-nix.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/screenScraper"/screenScraper-msw.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/screenScraper"/screenScraper-nix.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/screenScraper"/screenScraper-msw.sh )
 	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/ubVirt"/ubVirt_self.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/phpvirtualbox_self.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/virtualbox_self.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/libvirt_self.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/ubVirt"/ubVirt_self.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/phpvirtualbox_self.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/virtualbox_self.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self"/libvirt_self.sh )
 	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/aws/aws.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/gcloud/gcloud.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/ibm/ibm.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/oracle/oracle.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/azure/azure.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/aws/aws.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/gcloud/gcloud.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/ibm/ibm.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/oracle/oracle.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service"/azure/azure.sh )
 	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service/vps"/digitalocean/digitalocean.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service/vps"/linode/linode.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service/vps"/digitalocean/digitalocean.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/service/vps"/linode/linode.sh )
 	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/storage"/aws/aws_s3_compatible.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/storage"/blackblaze/blackblaze.sh )
-	
-	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/apacheLibcloud/apacheLibcloud.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/nubo/nubo.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/rclone/rclone.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/paramiko/paramiko.sh )
-	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/terraform/terraform.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/storage"/aws/aws_s3_compatible.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/storage"/blackblaze/blackblaze.sh )
 	
 	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud"/cloud.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud"/cloud_abstraction.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/apacheLibcloud/apacheLibcloud.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/nubo/nubo.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/rclone/rclone.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/paramiko/paramiko.sh )
 	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_build" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/docker/docker_build.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_build" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/cloudNativeBuildpack/cloudNativeBuildpack_build.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/vagrant/vagrant_build.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/bridge"/terraform/terraform.sh )
 	
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_build" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/_custom/debian/debian_build.sh )
-	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_build" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/_custom/gentoo/gentoo_build.sh )
+	
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud"/cloud.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud"/cloud_abstraction.sh )
+	
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud_build" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/docker/docker_build.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud_build" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/cloudNativeBuildpack/cloudNativeBuildpack_build.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/vagrant/vagrant_build.sh )
+	
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud_build" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/_custom/debian/debian_build.sh )
+	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud_build" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud-build"/_custom/gentoo/gentoo_build.sh )
 	
 	
 	[[ "$enUb_image" == "true" ]] && includeScriptList+=( "shortcuts/mkboot"/here_mkboot.sh )
@@ -6153,6 +6596,9 @@ _compile_bash_shortcuts() {
 	[[ "$enUb_docker" == "true" ]] && includeScriptList+=( "shortcuts/docker"/dockercontainer.sh )
 	
 	[[ "$enUb_image" == "true" ]] && includeScriptList+=( "shortcuts/image"/gparted.sh )
+	( [[ "$enUb_image" == "true" ]] || [[ "$enUb_disc" == "true" ]] ) && includeScriptList+=( "shortcuts/image"/packetDrive.sh )
+	
+	( [[ "$enUb_image" == "true" ]] || [[ "$enUb_disc" == "true" ]] ) && includeScriptList+=( "shortcuts/image/disc"/pattern_recovery.sh )
 	
 	
 	[[ "$enUb_linux" == "true" ]] && includeScriptList+=( "shortcuts/linux"/kernelConfig_here.sh )
@@ -6176,6 +6622,7 @@ _compile_bash_shortcuts_os() {
 	export includeScriptList
 	
 	includeScriptList+=( "shortcuts/os/unix/nice"/renice.sh )
+	includeScriptList+=( "shortcuts/os/unix/systemd"/systemd_cleanup.sh )
 }
 
 _compile_bash_bundled() {
@@ -6202,6 +6649,8 @@ _compile_bash_user() {
 
 _compile_bash_hardware() {
 	[[ "$enUb_hardware" == "true" ]] && [[ "$enUb_x220t" == "true" ]] && includeScriptList+=( "hardware/x220t"/x220_display.sh )
+	
+	[[ "$enUb_hardware" == "true" ]] && [[ "$enUb_peripherial" == "true" ]] && includeScriptList+=( "hardware/peripherial/h1060p"/h1060p.sh )
 }
 
 _compile_bash_vars_basic() {
@@ -6311,15 +6760,15 @@ _compile_bash_selfHost() {
 	
 	
 	#####Generate/Compile
-	if ( [[ "$enUb_buildBashUbiquitous" == "true" ]] || [[ "$enUb_notLean" == "true" ]] || [[ "$enUb_dev" == "true" ]] || [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_metaengine" == "true" ]] || [[ "$enUb_calculators" == "true" ]] )
+	if ( [[ "$enUb_buildBashUbiquitous" == "true" ]] || [[ "$enUb_notLean" == "true" ]] || [[ "$enUb_dev" == "true" ]] || [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] || [[ "$enUb_cloud_self" == "true" ]] || [[ "$enUb_cloud_build" == "true" ]] || [[ "$enUb_metaengine" == "true" ]] || [[ "$enUb_calculators" == "true" ]] )
 	then
 		includeScriptList+=( "build/python"/python_lean_here.sh )
 		includeScriptList+=( "build/python"/python_lean_here_prog.sh )
 	fi
 	
 	
-	includeScriptList+=( "build/bash/ubiquitous"/discoverubiquitious.sh )
-	#[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash/ubiquitous"/discoverubiquitious.sh )
+	includeScriptList+=( "build/bash/ubiquitous"/discoverubiquitous.sh )
+	#[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash/ubiquitous"/discoverubiquitous.sh )
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash/ubiquitous"/depsubiquitous.sh )
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( deps.sh )
 	[[ "$enUb_buildBashUbiquitous" == "true" ]] && includeScriptList+=( "build/bash"/generate_bash.sh )
@@ -6840,9 +7289,19 @@ _bash() {
 
 #Mostly if not entirely intended for end user convenience.
 _python() {
+	if [[ -e "$safeTmp"/lean.py ]]
+	then
+		"$safeTmp"/lean.py '_python()'
+		return
+	fi
 	if [[ -e "$scriptAbsoluteFolder"/lean.py ]]
 	then
 		"$scriptAbsoluteFolder"/lean.py '_python()'
+		return
+	fi
+	if type -p 'lean.py' > /dev/null 2>&1
+	then
+		lean.py '_python()'
 		return
 	fi
 	return 1
@@ -6906,7 +7365,7 @@ then
 	# NOTICE Launch internal functions as commands.
 	#if [[ "$1" != "" ]] && [[ "$1" != "-"* ]] && [[ ! -e "$1" ]]
 	#if [[ "$1" == '_'* ]] || [[ "$1" == "true" ]] || [[ "$1" == "false" ]]
-	if [[ "$1" == '_'* ]]
+	if [[ "$1" == '_'* ]] && type "$1" > /dev/null 2>&1
 	then
 		"$@"
 		internalFunctionExitStatus="$?"
