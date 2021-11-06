@@ -30,9 +30,9 @@ _ub_cksum_special_derivativeScripts_contents() {
 ##### CHECKSUM BOUNDARY - 30 lines
 
 #export ub_setScriptChecksum_disable='true'
-( [[ -e "$0".nck ]] || [[ "${BASH_SOURCE[0]}" != "${0}" ]] || [[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]] || [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] ) && export ub_setScriptChecksum_disable='true'
+( [[ -e "$0".nck ]] || [[ "${BASH_SOURCE[0]}" != "${0}" ]] || [[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]] || [[ "$1" == '--compressed' ]] || [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] ) && export ub_setScriptChecksum_disable='true'
 export ub_setScriptChecksum_header='1891409836'
-export ub_setScriptChecksum_contents='2007872020'
+export ub_setScriptChecksum_contents='4240759784'
 
 # CAUTION: Symlinks may cause problems. Disable this test for such cases if necessary.
 # WARNING: Performance may be crucial here.
@@ -169,8 +169,8 @@ ub_loginshell=
 # ATTENTION: Apparently (Portable) Cygwin Bash interprets correctly.
 [[ "${BASH_SOURCE[0]}" != "${0}" ]] && ub_import="true"
 
-([[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]]) && ub_import_param="$1" && shift
-([[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]]) && ub_loginshell="true"	#Importing ubiquitous bash into a login shell with "~/.bashrc" is the only known cause for "_getScriptAbsoluteLocation" to return a result such as "/bin/bash".
+( [[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]] || [[ "$1" == '--compressed' ]] ) && ub_import_param="$1" && shift
+( [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] ) && ub_loginshell="true"	#Importing ubiquitous bash into a login shell with "~/.bashrc" is the only known cause for "_getScriptAbsoluteLocation" to return a result such as "/bin/bash".
 [[ "$ub_import" == "true" ]] && ! [[ "$ub_loginshell" == "true" ]] && ub_import_script="true"
 
 _messagePlain_probe_expr '$0= '"$0"'\n ''$1= '"$1"'\n ''ub_import= '"$ub_import"'\n ''ub_import_param= '"$ub_import_param"'\n ''ub_import_script= '"$ub_import_script"'\n ''ub_loginshell= '"$ub_loginshell" | _user_log-ub
@@ -179,21 +179,21 @@ _messagePlain_probe_expr '$0= '"$0"'\n ''$1= '"$1"'\n ''ub_import= '"$ub_import"
 # WARNING Import from shell can be detected. Import from script cannot. Asserting that script has been imported is possible. Asserting that script has not been imported is not possible. Users may be protected from interactive mistakes. Script developers are NOT protected.
 if [[ "$ub_import_param" == "--profile" ]]
 then
-	if ([[ "$profileScriptLocation" == "" ]] ||  [[ "$profileScriptFolder" == "" ]]) && _messagePlain_bad 'import: profile: missing: profileScriptLocation, missing: profileScriptFolder' | _user_log-ub
+	if ( [[ "$profileScriptLocation" == "" ]] ||  [[ "$profileScriptFolder" == "" ]] ) && _messagePlain_bad 'import: profile: missing: profileScriptLocation, missing: profileScriptFolder' | _user_log-ub
 	then
 		return 1 >/dev/null 2>&1
 		exit 1
 	fi
-elif ([[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--embed" ]] || [[ "$ub_import_param" == "--return" ]] || [[ "$ub_import_param" == "--devenv" ]])
+elif ( [[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--embed" ]] || [[ "$ub_import_param" == "--return" ]] || [[ "$ub_import_param" == "--devenv" ]] )
 then
-	if ([[ "$scriptAbsoluteLocation" == "" ]] || [[ "$scriptAbsoluteFolder" == "" ]] || [[ "$sessionid" == "" ]]) && _messagePlain_bad 'import: parent: missing: scriptAbsoluteLocation, missing: scriptAbsoluteFolder, missing: sessionid' | _user_log-ub
+	if ( [[ "$scriptAbsoluteLocation" == "" ]] || [[ "$scriptAbsoluteFolder" == "" ]] || [[ "$sessionid" == "" ]] ) && _messagePlain_bad 'import: parent: missing: scriptAbsoluteLocation, missing: scriptAbsoluteFolder, missing: sessionid' | _user_log-ub
 	then
 		return 1 >/dev/null 2>&1
 		exit 1
 	fi
-elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || ([[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]])
+elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || [[ "$ub_import_param" == "--compressed" ]] || ( [[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]] )
 then
-	if ([[ "$importScriptLocation" == "" ]] ||  [[ "$importScriptFolder" == "" ]]) && _messagePlain_bad 'import: call: missing: importScriptLocation, missing: importScriptFolder' | _user_log-ub
+	if ( [[ "$importScriptLocation" == "" ]] || [[ "$importScriptFolder" == "" ]] ) && _messagePlain_bad 'import: call: missing: importScriptLocation, missing: importScriptFolder' | _user_log-ub
 	then
 		return 1 >/dev/null 2>&1
 		exit 1
@@ -1435,7 +1435,7 @@ _package-cygwin() {
 #####Utilities
 
 _test_getAbsoluteLocation_sequence() {
-	_start
+	_start scriptLocal_mkdir_disable
 	
 	local testScriptLocation_actual
 	local testScriptLocation
@@ -1524,7 +1524,7 @@ _test_getAbsoluteLocation() {
 
 #https://unix.stackexchange.com/questions/293892/realpath-l-vs-p
 _test_realpath_L_s_sequence() {
-	_start
+	_start scriptLocal_mkdir_disable
 	local functionEntryPWD
 	functionEntryPWD="$PWD"
 	
@@ -1604,7 +1604,7 @@ _test_realpath() {
 }
 
 _test_readlink_f_sequence() {
-	_start
+	_start scriptLocal_mkdir_disable
 	
 	echo > "$safeTmp"/realFile
 	ln -s "$safeTmp"/realFile "$safeTmp"/linkA
@@ -2388,6 +2388,17 @@ _uid() {
 		cat /dev/urandom 2> /dev/null | base64 2> /dev/null | tr -dc 'a-zA-Z0-9' 2> /dev/null | tr -d 'acdefhilmnopqrsuvACDEFHILMNOPQRSU14580' | head -c "$currentLengthUID" 2> /dev/null
 	fi
 	return 0
+}
+
+# WARNING: Reduces uniqueness, irreversible. Multiple input characters result in same output character.
+_filter_random() {
+	tr 'a-z' 'bgjktwxyz''bgjktwxyz''bgjktwxyz' | tr 'A-Z' 'BGJKTVWXYZ''BGJKTVWXYZ''BGJKTVWXYZ' | tr '0-9' '23679''23679''23679' | tr -dc 'bgjktwxyz23679BGJKTVWXYZ'
+}
+
+# WARNING: Reduces uniqueness, irreversible. Multiple input characters result in same output character.
+# WARNING: Not recommended for short strings (ie. not recommended for '8.3' compatibility ).
+_filter_hex() {
+	tr 'a-z' 'bcdf''bcdf''bcdf''bcdf''bcdf''bcdf''bcdf''bcdf' | tr 'A-Z' 'BCDF''BCDF''BCDF''BCDF''BCDF''BCDF''BCDF''BCDF' | tr '0-9' '23679''23679''23679' | tr -dc 'bcdf23679BCDF'
 }
 
 _compat_stat_c_run() {
@@ -4326,7 +4337,7 @@ then
 	ub_import=true
 	true #Do not override.
 	_messagePlain_probe_expr 'parent: scriptAbsoluteLocation= '"$scriptAbsoluteLocation"'\n ''parent: scriptAbsoluteFolder= '"$scriptAbsoluteFolder"'\n ''parent: sessionid= '"$sessionid" | _user_log-ub
-elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || ( [[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]] )
+elif [[ "$ub_import_param" == "--call" ]] || [[ "$ub_import_param" == "--script" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--shell" ]] || [[ "$ub_import_param" == "--compressed" ]] || ( [[ "$ub_import" == "true" ]] && [[ "$ub_import_param" == "" ]] )
 then
 	ub_import=true
 	export scriptAbsoluteLocation="$importScriptLocation"
@@ -5345,6 +5356,7 @@ _init_deps() {
 	export enUb_git=""
 	export enUb_bup=""
 	export enUb_repo=""
+	export enUb_search=""
 	export enUb_cloud=""
 	export enUb_cloud_self=""
 	export enUb_cloud_build=""
@@ -5360,6 +5372,7 @@ _init_deps() {
 	export enUb_blockchain=""
 	export enUb_java=""
 	export enUb_image=""
+	export enUb_disc=""
 	export enUb_virt=""
 	export enUb_virt_thick=""
 	export enUb_virt_translation=""
@@ -5428,6 +5441,17 @@ _deps_bup() {
 
 _deps_repo() {
 	export enUb_repo="true"
+}
+
+_deps_search() {
+	_deps_abstractfs
+	
+	_deps_git
+	_deps_bup
+	
+	_deps_x11
+	
+	export enUb_search="true"
 }
 
 _deps_cloud() {
@@ -5559,14 +5583,20 @@ _deps_chroot() {
 _deps_qemu() {
 	_deps_notLean
 	_deps_virt
-	_deps_virt_thick
+	#_deps_virt_thick
+		_deps_distro
+		_deps_build
+		_deps_image
 	export enUb_QEMU="true"
 }
 
 _deps_vbox() {
 	_deps_notLean
 	_deps_virt
-	_deps_virt_thick
+	#_deps_virt_thick
+		_deps_distro
+		_deps_build
+		_deps_image
 	export enUb_vbox="true"
 }
 
@@ -5592,7 +5622,10 @@ _deps_dosbox() {
 _deps_msw() {
 	_deps_notLean
 	_deps_virt
-	_deps_virt_thick
+	#_deps_virt_thick
+		_deps_distro
+		_deps_build
+		_deps_image
 	_deps_qemu
 	_deps_vbox
 	_deps_wine
@@ -5751,16 +5784,20 @@ _generate_compile_bash() {
 	"$scriptAbsoluteFolder"/compile.sh _compile_bash
 	
 	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash lean lean.sh
-	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash core core_monolithic.sh
+	#[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash core core_monolithic.sh
+	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash monolithic monolithic.sh
 	[[ "$objectName" == "ubiquitous_bash" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash ubcore ubcore.sh
 	
 	[[ "$1" != "" ]] && "$scriptAbsoluteFolder"/compile.sh _compile_bash "$@"
 	
 	[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure lean
 	[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure ubcore
-	[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure core_monolithic
-	rm -f "$scriptAbsoluteFolder"/core_monolithic.sh
-	#mv "$scriptAbsoluteFolder"/core_monolithic_compressed.sh "$scriptAbsoluteFolder"/core_compressed.sh
+	#[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure core_monolithic
+	#rm -f "$scriptAbsoluteFolder"/core_monolithic.sh
+	##mv "$scriptAbsoluteFolder"/core_monolithic_compressed.sh "$scriptAbsoluteFolder"/core_compressed.sh
+	[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure monolithic
+	rm -f "$scriptAbsoluteFolder"/monolithic.sh
+	#mv "$scriptAbsoluteFolder"/monolithic_compressed.sh "$scriptAbsoluteFolder"/compressed.sh
 	
 	
 	[[ "$objectName" == "ubiquitous_bash" ]] && _generate_compile_bash-compressed_procedure ubiquitous_bash
@@ -5892,18 +5929,31 @@ CZXWXcRMTo8EmM8i4d
 	echo '! _compressed_criticalDep && exit 1' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	
 	echo '! echo "$current_internal_CompressedScript" | base64 -d | xz -d > /dev/null && exit 1' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	#echo 'source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --compressed "$@"' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	#echo 'source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --script' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	#echo 'source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --call' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	#echo 'source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --bypass "$@"' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 if [[ "$1" == "--embed" ]]
 then
 	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) "$@"
-	exit "$?"
+	internalFunctionExitStatus="$?"
+	return "$internalFunctionExitStatus" > /dev/null 2>&1
+	exit "$internalFunctionExitStatus"
 elif [[ "$1" == "--profile" ]] || [[ "$1" == "--parent" ]]
 then
 	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) "$@"
 else
-	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --bypass "$@"
+	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --compressed "$@"
+	ub_import=
+	ub_import_param=
+	ub_import_script=
+	ub_loginshell=
+fi
+if [[ "$ub_import" == "true" ]] && ! ( [[ "$ub_import_param" == "--bypass" ]] ) || [[ "$ub_import_param" == "--compressed" ]] || [[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--profile" ]]
+then
+	return 0 > /dev/null 2>&1
+	exit 0
 fi
 CZXWXcRMTo8EmM8i4d
 	
@@ -5952,7 +6002,48 @@ CZXWXcRMTo8EmM8i4d
 	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	
-	echo '[[ "$1" == '"'"_"'"'* ]] && type "$1" > /dev/null 2>&1 && "$@"' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	# TODO: ' ./ubiquitous_bash_compressed.sh _bin bash -i ' fails if '_main' is enabled
+	# TODO: Maybe "$ub_import_param" is not set in this context?
+	#echo '[[ "$1" == '"'"_"'"'* ]] && type "$1" > /dev/null 2>&1 && "$@"' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	# Disable dependency for 'gosu' binaries only if definitely necessary and if function is otherwise defined.
+	#_test_Gosu() {
+		#true
+	#}
+	cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+_test_prog() {
+	true
+}
+_main() {
+	#_start
+	_start scriptLocal_mkdir_disable
+	
+	_collect
+	
+	_enter "$@"
+	
+	_stop
+}
+if [[ "$1" == '_test' ]]
+then
+	current_deleteScriptLocal="false"
+	[[ ! -e "$scriptLocal" ]] && current_deleteScriptLocal="true"
+	_stop_prog() {
+		[[ "$current_deleteScriptLocal" == "true" ]] && rmdir "$scriptLocal" > /dev/null 2>&1
+	}
+fi
+if [[ "$1" == '_'* ]] && type "$1" > /dev/null 2>&1
+then
+	"$@"
+	internalFunctionExitStatus="$?"
+	return "$internalFunctionExitStatus" > /dev/null 2>&1
+	exit "$internalFunctionExitStatus"
+fi
+if [[ "$1" != '_'* ]]
+then
+	_main "$@"
+fi
+CZXWXcRMTo8EmM8i4d
 	echo >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	
 	chmod u+x "$scriptAbsoluteFolder"/"$1"_compressed.sh
@@ -6007,6 +6098,8 @@ _compile_bash_deps() {
 		_deps_bup
 		
 		_deps_repo
+		
+		_deps_search
 		
 		# WARNING: Only known production use in this context is '_cloud_reset' , '_cloud_unhook' , and similar.
 		_deps_cloud
@@ -6115,6 +6208,89 @@ _compile_bash_deps() {
 		return 0
 	fi
 	
+	if [[ "$1" == "monolithic" ]]
+	then
+		_deps_dev_heavy
+		_deps_dev
+		
+		#_deps_cloud_heavy
+		
+		
+		
+		_deps_mount
+		
+		_deps_notLean
+		_deps_os_x11
+		
+		_deps_java
+		
+		
+		_deps_x11
+		_deps_image
+		
+		_deps_virt
+		#_deps_virt_thick
+		
+		#_deps_chroot
+		_deps_qemu
+		_deps_vbox
+		#_deps_docker
+		_deps_wine
+		_deps_dosbox
+		_deps_msw
+		_deps_fakehome
+		_deps_abstractfs
+		
+		_deps_calculators
+		
+		_deps_channel
+		
+		#_deps_queue
+		_deps_metaengine
+		
+		_deps_git
+		_deps_bup
+		_deps_repo
+		
+		_deps_search
+		
+		#_deps_cloud
+		#_deps_cloud_self
+		#_deps_cloud_build
+		
+		_deps_distro
+		
+		#_deps_blockchain
+		
+		#_deps_command
+		#_deps_synergy
+		
+		#_deps_hardware
+		#_deps_x220t
+		#_deps_peripherial
+		
+		#_deps_user
+		
+		#_deps_proxy
+		#_deps_proxy_special
+		
+		# WARNING: Linux *kernel* admin assistance *only*. NOT any other UNIX like features.
+		# WARNING: Beware Linux shortcut specific dependency programs must not be required, or will break other operating systems!
+		# ie. _test_linux must not require Linux-only binaries
+		_deps_linux
+		
+		_deps_stopwatch
+		
+		_deps_disc
+		
+		_deps_build
+		
+		#_deps_build_bash
+		#_deps_build_bash_ubiquitous
+		
+		return 0
+	fi
+	
 	if [[ "$1" == "core" ]]
 	then
 		_deps_dev_heavy
@@ -6158,6 +6334,8 @@ _compile_bash_deps() {
 		_deps_git
 		_deps_bup
 		_deps_repo
+		
+		_deps_search
 		
 		#_deps_cloud
 		#_deps_cloud_self
@@ -6239,6 +6417,8 @@ _compile_bash_deps() {
 		_deps_git
 		_deps_bup
 		_deps_repo
+		
+		_deps_search
 		
 		_deps_cloud
 		_deps_cloud_self
@@ -6526,6 +6706,10 @@ _compile_bash_shortcuts() {
 	
 	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_repo" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/repo/mktorrent"/mktorrent.sh )
 	( [[ "$enUb_notLean" == "true" ]] || [[ "$enUb_dev" == "true" ]] || [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_image" == "true" ]] || [[ "$enUb_repo" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/repo/disk"/dd.sh )
+	
+	
+	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_search" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/search"/search.sh )
+	( [[ "$enUb_dev_heavy" == "true" ]] || [[ "$enUb_search" == "true" ]] ) && includeScriptList+=( "shortcuts/dev/app/search/recoll"/recoll.sh )
 	
 	
 	( [[ "$enUb_cloud_heavy" == "true" ]] || [[ "$enUb_cloud" == "true" ]] ) && includeScriptList+=( "shortcuts/cloud/self/screenScraper"/screenScraper-nix.sh )
@@ -7351,7 +7535,7 @@ then
 			internalFunctionExitStatus="$?"
 			
 			#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
-			if [[ "$ub_import" != "true" ]] || [[ "$ub_import_param" == "--bypass" ]]
+			if [[ "$ub_import" != "true" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--compressed" ]]
 			then
 				#export noEmergency=true
 				exit "$internalFunctionExitStatus"
@@ -7365,13 +7549,14 @@ then
 	# NOTICE Launch internal functions as commands.
 	#if [[ "$1" != "" ]] && [[ "$1" != "-"* ]] && [[ ! -e "$1" ]]
 	#if [[ "$1" == '_'* ]] || [[ "$1" == "true" ]] || [[ "$1" == "false" ]]
-	if [[ "$1" == '_'* ]] && type "$1" > /dev/null 2>&1
+	# && [[ "$1" != "_test" ]] && [[ "$1" != "_setup" ]] && [[ "$1" != "_build" ]] && [[ "$1" != "_vector" ]] && [[ "$1" != "_setupCommand" ]] && [[ "$1" != "_setupCommand_meta" ]] && [[ "$1" != "_setupCommands" ]] && [[ "$1" != "_find_setupCommands" ]] && [[ "$1" != "_setup_anchor" ]] && [[ "$1" != "_anchor" ]] && [[ "$1" != "_package" ]] && [[ "$1" != *"_prog" ]] && [[ "$1" != "_main" ]] && [[ "$1" != "_collect" ]] && [[ "$1" != "_enter" ]] && [[ "$1" != "_launch" ]] && [[ "$1" != "_default" ]] && [[ "$1" != "_experiment" ]]
+	if [[ "$1" == '_'* ]] && type "$1" > /dev/null 2>&1 && [[ "$1" != "_test" ]] && [[ "$1" != "_setup" ]] && [[ "$1" != "_build" ]] && [[ "$1" != "_vector" ]] && [[ "$1" != "_setupCommand" ]] && [[ "$1" != "_setupCommand_meta" ]] && [[ "$1" != "_setupCommands" ]] && [[ "$1" != "_find_setupCommands" ]] && [[ "$1" != "_setup_anchor" ]] && [[ "$1" != "_anchor" ]] && [[ "$1" != "_package" ]] && [[ "$1" != *"_prog" ]] && [[ "$1" != "_main" ]] && [[ "$1" != "_collect" ]] && [[ "$1" != "_enter" ]] && [[ "$1" != "_launch" ]] && [[ "$1" != "_default" ]] && [[ "$1" != "_experiment" ]]
 	then
 		"$@"
 		internalFunctionExitStatus="$?"
 		
 		#Exit if not imported into existing shell, or bypass requested, else fall through to subsequent return.
-		if [[ "$ub_import" != "true" ]] || [[ "$ub_import_param" == "--bypass" ]]
+		if [[ "$ub_import" != "true" ]] || [[ "$ub_import_param" == "--bypass" ]] || [[ "$ub_import_param" == "--compressed" ]]
 		then
 			#export noEmergency=true
 			exit "$internalFunctionExitStatus"
@@ -7391,11 +7576,13 @@ fi
 _failExec || exit 1
 
 #Return if script is under import mode, and bypass is not requested.
-if [[ "$ub_import" == "true" ]] && [[ "$ub_import_param" != "--bypass" ]]
+# || [[ "$current_internal_CompressedScript" != "" ]] || [[ "$current_internal_CompressedScript_cksum" != "" ]] || [[ "$current_internal_CompressedScript_bytes" != "" ]]
+if [[ "$ub_import" == "true" ]] && ! ( [[ "$ub_import_param" == "--bypass" ]] ) || [[ "$ub_import_param" == "--compressed" ]] || [[ "$ub_import_param" == "--parent" ]] || [[ "$ub_import_param" == "--profile" ]]
 then
 	return 0 > /dev/null 2>&1
 	exit 0
 fi
+
 
 
 _generate_lean-python "$@"
