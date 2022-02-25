@@ -28,8 +28,6 @@ git submodule update --depth 1 --init ./_lib/ubiquitous_bash
 cd ./_lib/ubiquitous_bash ; git fetch --shallow-exclude=v3.0 ; git reset --hard
 cd "$workingDir"/"$netName"
 
-git config -f .gitmodules submodule._lib/ubiquitous_bash.shallow true
-
 #git submodule update --init --recursive
 
 cp ./_lib/coreautossh/cautossh ./
