@@ -32,7 +32,7 @@ _ub_cksum_special_derivativeScripts_contents() {
 #export ub_setScriptChecksum_disable='true'
 ( [[ -e "$0".nck ]] || [[ "${BASH_SOURCE[0]}" != "${0}" ]] || [[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]] || [[ "$1" == '--compressed' ]] || [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] ) && export ub_setScriptChecksum_disable='true'
 export ub_setScriptChecksum_header='1891409836'
-export ub_setScriptChecksum_contents='3517024316'
+export ub_setScriptChecksum_contents='128970954'
 
 # CAUTION: Symlinks may cause problems. Disable this test for such cases if necessary.
 # WARNING: Performance may be crucial here.
@@ -622,6 +622,15 @@ _____special_live_dent_restore() {
 
 #Override, cygwin.
 
+# WARNING: Multiple reasons to instead consider direct detection by other commands -  ' uname -a | grep -i cygwin > /dev/null 2>&1 ' , ' [[ -e '/cygdrive' ]] ' , etc .
+_if_cygwin() {
+	if uname -a | grep -i cygwin > /dev/null 2>&1
+	then
+		return 0
+	fi
+	return 1
+}
+
 
 # WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
 #/usr/local/bin:/usr/bin:/cygdrive/c/WINDOWS/system32:/cygdrive/c/WINDOWS:/usr/bin:/usr/lib/lapack:/cygdrive/x:/cygdrive/x/_bin:/cygdrive/x/_bundle:/opt/ansible/bin:/opt/nodejs/current:/opt/testssl:/home/root/bin
@@ -639,15 +648,18 @@ then
 fi
 
 
-
-# WARNING: Multiple reasons to instead consider direct detection by other commands -  ' uname -a | grep -i cygwin > /dev/null 2>&1 ' , ' [[ -e '/cygdrive' ]] ' , etc .
-_if_cygwin() {
-	if uname -a | grep -i cygwin > /dev/null 2>&1
+# ATTENTION: Workaround - Cygwin Portable - append MSW PATH if reasonable.
+# NOTICE: Also see '_test-shell-cygwin' .
+if [[ "$MSWEXTPATH" != "" ]] && ( [[ "$PATH" == *"/cygdrive"* ]] || [[ "$PATH" == "/cygdrive"* ]] ) && [[ "$convertedMSWEXTPATH" == "" ]] && _if_cygwin
+then
+	if [[ $(echo "$MSWEXTPATH" | grep -o ';\|:' | wc -l | tr -dc '0-9') -le 32 ]] && [[ $(echo "$PATH" | grep -o ':' | wc -l | tr -dc '0-9') -le 32 ]]
 	then
-		return 0
+		export convertedMSWEXTPATH=$(cygpath -p "$MSWEXTPATH")
+		export PATH="$PATH":"$convertedMSWEXTPATH"
 	fi
-	return 1
-}
+fi
+
+
 
 # ATTENTION: Workaround - Cygwin Portable - change directory to current directory as detected by 'ubcp.cmd' .
 if [[ "$CWD" != "" ]] && [[ "$cygwin_CWD_onceOnly_done" != 'true' ]] && uname -a | grep -i cygwin > /dev/null 2>&1
@@ -655,6 +667,27 @@ then
 	! cd "$CWD" && exit 1
 	export cygwin_CWD_onceOnly_done='true'
 fi
+
+
+
+# ATTENTION: Workaround - Cygwin Portable - symlink home directory if nonexistent .
+# https://stackoverflow.com/questions/39551802/how-to-fix-cygwin-using-wrong-ssh-directory-no-matter-what-i-do
+#  'OpenSSH never honors $HOME.'
+# https://sourceware.org/legacy-ml/cygwin/2016-06/msg00404.html
+#  'OpenSSH never honors $HOME.'
+# https://cygwin.com/cygwin-ug-net/ntsec.html
+if [[ "$HOME" == "/home/root" ]] && [[ ! -e /home/"$USER" ]] && _if_cygwin
+then
+	ln -s --no-target-directory "/home/root" /home/"$USER" > /dev/null 2>&1
+fi
+
+
+
+# Forces Cygwin symlinks to best compatibility. Should be set by default elsewhere. Use sparingly only if necessary (eg. _setup_ubcp) .
+_force_cygwin_symlinks() {
+	! _if_cygwin && return 0
+	[[ "$CYGWIN" != *"winsymlinks:lnk"* ]] && export CYGWIN="winsymlinks:lnk ""$CYGWIN"
+}
 
 
 # ATTENTION: User must launch "tmux" (no parameters) in a graphical Cygwin terminal.
@@ -792,6 +825,39 @@ fi
 
 
 
+# Calls MSW native programs from Cygwin/MSW with file parameter translation.
+#_userMSW kate /etc/fstab
+_userMSW() {
+	if ! _if_cygwin || ! type cygpath > /dev/null 2>&1
+	then
+		"$@"
+		return
+	fi
+	
+	
+	local currentArg
+	local currentResult
+	processedArgs=()
+	for currentArg in "$@"
+	do
+		if [[ -e "$currentArg" ]] || [[ "$currentArg" == "/cygdrive/"* ]] || [[ "$currentArg" == "/home/"* ]] || [[ "$currentArg" == "/root/"* ]]
+		then
+			currentResult=$(cygpath -w "$currentArg")
+		else
+			currentResult="$currentArg"
+		fi
+		
+		processedArgs+=("$currentResult")
+	done
+	
+	
+	"${processedArgs[@]}"
+}
+
+
+
+
+
 _discoverResource-cygwinNative-ProgramFiles-declaration-ProgramFiles() {
 	local currentBinary
 	currentBinary="$1"
@@ -871,19 +937,125 @@ _discoverResource-cygwinNative-ProgramFiles() {
 	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
 	export currentDriveLetter_cygwin_uk4uPhB663kVcygT0q="$currentCygdriveC_equivalent"
 	_discoverResource-cygwinNative-ProgramFiles-declaration-ProgramFiles "$@"
-	
+	[[ "$3" != "true" ]] && type "$currentBinary_functionName" > /dev/null 2>&1 && return 0
 	
 	# ATTENTION: Configure: 'c..w' (aka. 'w..c') .
+	# WARNING: Program Files at drive letters other than 'c' may not be supported now or ever. Especially other than 'c,d,e'.
 	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
-	for currentDriveLetter_cygwin_uk4uPhB663kVcygT0q in {c..w}
+	#for currentDriveLetter_cygwin_uk4uPhB663kVcygT0q in {c..w}
+	for currentDriveLetter_cygwin_uk4uPhB663kVcygT0q in {c..f}
 	do
 		_discoverResource-cygwinNative-ProgramFiles-declaration-ProgramFiles "$@"
+		[[ "$3" != "true" ]] && type "$currentBinary_functionName" > /dev/null 2>&1 && return 0
 	done
 	
 	_discoverResource-cygwinNative-ProgramFiles-declaration-core "$@"
 	
 	type "$currentBinary_functionName" > /dev/null 2>&1 && export -f "$currentBinary_functionName" > /dev/null 2>&1 && return 0
 	return 1
+}
+
+
+_set_at_userMSW_discoverResource-cygwinNative-ProgramFiles() {
+	export functionEntry_USERPROFILE="$USERPROFILE"
+	export functionEntry_HOMEDRIVE="$HOMEDRIVE"
+	export functionEntry_HOMEPATH="$HOMEPATH"
+	
+	# https://docs.oracle.com/en/virtualization/virtualbox/6.0/admin/vboxconfigdata.html
+	#  'Windows: $HOME/.VirtualBox.'
+	# https://en.wikipedia.org/wiki/Home_directory
+	# %USERPROFILE%
+	# %HOMEDRIVE%%HOMEPATH%
+	# echo $USERPROFILE
+	# export USERPROFILE="$USERPROFILE"'\Downloads'
+	# cmd
+	# echo %USERPROFILE%
+	
+	if [[ "$HOME" != "/root" ]] && [[ "$HOME" != "/home/root" ]] && [[ "$HOME" != "/home/""$USER" ]]
+	then
+		export USERPROFILE=$(cygpath -w "$HOME")
+		export HOMEDRIVE=$(echo "$USERPROFILE" | head -c 2)
+		export HOMEPATH=$(echo "$USERPROFILE" | tail -c +3)
+	fi
+	
+	# WARNING: Cygwin/MSW HOME directory redirection may be disabled for future versions of 'ubiquitous bash'.
+	if [[ "$USERPROFILE" == "$functionEntry_USERPROFILE" ]] && [[ "$VBOX_USER_HOME_short" != "" ]]
+	then
+		export USERPROFILE=$(cygpath -w "$VBOX_USER_HOME_short")
+		export HOMEDRIVE=$(echo "$VBOX_USER_HOME_short" | head -c 2)
+		export HOMEPATH=$(echo "$VBOX_USER_HOME_short" | tail -c +3)
+	fi
+	
+	export functionEntry_VBOXID="$VBOXID"
+	export functionEntry_vBox_vdi="$vBox_vdi"
+	export functionEntry_vBoxInstanceDir="$vBoxInstanceDir"
+	export functionEntry_VBOX_ID_FILE="$VBOX_ID_FILE"
+	export functionEntry_VBOX_USER_HOME="$VBOX_USER_HOME"
+	export functionEntry_VBOX_USER_HOME_local="$VBOX_USER_HOME_local"
+	export functionEntry_VBOX_USER_HOME_short="$VBOX_USER_HOME_short"
+	export functionEntry_VBOX_IPC_SOCKETID="$VBOX_IPC_SOCKETID"
+	export functionEntry_VBoxXPCOMIPCD_PIDfile="$VBoxXPCOMIPCD_PIDfile"
+	
+	[[ -e "$VBOXID" ]] && export VBOXID=$(cygpath -w "$VBOXID")
+	[[ -e "$vBox_vdi" ]] && export vBox_vdi=$(cygpath -w "$vBox_vdi")
+	[[ -e "$vBoxInstanceDir" ]] && export vBoxInstanceDir=$(cygpath -w "$vBoxInstanceDir")
+	[[ -e "$VBOX_ID_FILE" ]] && export VBOX_ID_FILE=$(cygpath -w "$VBOX_ID_FILE")
+	[[ -e "$VBOX_USER_HOME" ]] && export VBOX_USER_HOME=$(cygpath -w "$VBOX_USER_HOME")
+	[[ -e "$VBOX_USER_HOME_local" ]] && export VBOX_USER_HOME_local=$(cygpath -w "$VBOX_USER_HOME_local")
+	[[ -e "$VBOX_USER_HOME_short" ]] && export VBOX_USER_HOME_short=$(cygpath -w "$VBOX_USER_HOME_short")
+	[[ -e "$VBOX_IPC_SOCKETID" ]] && export VBOX_IPC_SOCKETID=$(cygpath -w "$VBOX_IPC_SOCKETID")
+	[[ -e "$VBoxXPCOMIPCD_PIDfile" ]] && export VBoxXPCOMIPCD_PIDfile=$(cygpath -w "$VBoxXPCOMIPCD_PIDfile")
+}
+
+_setFunctionEntry_at_userMSW_discoverResource-cygwinNative-ProgramFiles() {
+	export USERPROFILE="$functionEntry_USERPROFILE"
+	export HOMEDRIVE="$functionEntry_HOMEDRIVE"
+	export HOMEPATH="$functionEntry_HOMEPATH"
+	
+	export VBOXID="$functionEntry_VBOXID"
+	export vBox_vdi="$functionEntry_vBox_vdi"
+	export vBoxInstanceDir="$functionEntry_vBoxInstanceDir"
+	export VBOX_ID_FILE="$functionEntry_VBOX_ID_FILE"
+	export VBOX_USER_HOME="$functionEntry_VBOX_USER_HOME"
+	export VBOX_USER_HOME_local="$functionEntry_VBOX_USER_HOME_local"
+	export VBOX_USER_HOME_short="$functionEntry_VBOX_USER_HOME_short"
+	export VBOX_IPC_SOCKETID="$functionEntry_VBOX_IPC_SOCKETID"
+	export VBoxXPCOMIPCD_PIDfile="$functionEntry_VBoxXPCOMIPCD_PIDfile"
+}
+
+_prepare_at_userMSW_discoverResource-cygwinNative-ProgramFiles() {
+	mkdir -p "$HOME"
+	
+	_set_at_userMSW_discoverResource-cygwinNative-ProgramFiles "$@"
+}
+
+
+#_at_userMSW_discoverResource-cygwinNative-ProgramFiles VBoxManage Oracle/VirtualBox false
+_at_userMSW_discoverResource-cygwinNative-ProgramFiles() {
+	_at_userMSW_probeCmd_discoverResource-cygwinNative-ProgramFiles "$@"
+}
+
+# WARNING: Output of 'probe' messages may interfere if program (eg. VBoxManage) output is expected not to include such messages.
+#_at_userMSW_probeCmd_discoverResource-cygwinNative-ProgramFiles 'kate' 'Kate/bin' false
+#_at_userMSW_probeCmd_discoverResource-cygwinNative-ProgramFiles VBoxManage Oracle/VirtualBox false
+_at_userMSW_probeCmd_discoverResource-cygwinNative-ProgramFiles() {
+	if declare -f orig_"$1" > /dev/null 2>&1
+	then
+		_messagePlain_probe 'exists: override: '"$1"
+		return 0
+	fi
+	
+	unset "$1"
+	_discoverResource-cygwinNative-ProgramFiles "$1" "$2" "$3"
+	
+	! type "$1" > /dev/null 2>&1 && return 1
+	
+	
+	# https://stackoverflow.com/questions/1203583/how-do-i-rename-a-bash-function
+	eval orig_"$(declare -f ""$1"")"
+	
+	unset "$1"
+	eval "$1"'() { _prepare_at_userMSW_discoverResource-cygwinNative-ProgramFiles ; _userMSW _messagePlain_probe_cmd orig_'"$1"' "$@" ; _setFunctionEntry_at_userMSW_discoverResource-cygwinNative-ProgramFiles ; }'
 }
 
 
@@ -900,6 +1072,8 @@ _ops_cygwinOverride_allDisks() {
 	unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
 }
 
+# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+[[ "$profileScriptLocation_new" == 'true' ]] && echo -n '.'
 
 if [[ -e /cygdrive ]] && _if_cygwin
 then
@@ -915,9 +1089,6 @@ then
 		
 		_discoverResource-cygwinNative-ProgramFiles 'nmap' 'Nmap' false
 		
-		# WARNING: Native 'vncviewer.exe' is a GUI app, and cannot be launched directly from Cygwin SSH server.
-		_discoverResource-cygwinNative-ProgramFiles 'vncviewer' 'TigerVNC' false '_workaround_cygwin_tmux '
-		
 		_discoverResource-cygwinNative-ProgramFiles 'qalc' 'Qalculate' false
 		
 		
@@ -932,10 +1103,29 @@ then
 		#_ops_cygwinOverride_allDisks "$@"
 		
 		unset currentDriveLetter_cygwin_uk4uPhB663kVcygT0q
+		
+		
+		
+		# CAUTION: Performance - such '_discoverResource' functions are time consuming . If reasonable, instead call only from functions as necessary (eg. as part of '_userVBox') .
+		# ATTENTION: Expect 0.500s for any program which is not found at 'C:\Program Files' or similar, and 0.200s for any program which is found quickly.
+		# Other inefficiencies of Cygwin are usually more substantial if only a few entries are here.
+		
+		
+		# WARNING: Native 'vncviewer.exe' is a GUI app, and cannot be launched directly from Cygwin SSH server.
+		_discoverResource-cygwinNative-ProgramFiles 'vncviewer' 'TigerVNC' false '_workaround_cygwin_tmux '
+		
+		#_discoverResource-cygwinNative-ProgramFiles 'kate' 'Kate/bin' false
+		
+		
+		
+		
+		
+		_at_userMSW_probeCmd_discoverResource-cygwinNative-ProgramFiles 'kate' 'Kate/bin' false > /dev/null 2>&1
 	fi
 fi
 
-
+# WARNING: What is otherwise considered bad practice may be accepted to reduce substantial MSW/Cygwin inconvenience .
+[[ "$profileScriptLocation_new" == 'true' ]] && echo -n '.'
 
 
 
@@ -975,7 +1165,9 @@ _setup_ubiquitousBash_cygwin_procedure() {
 	_messagePlain_nominal 'init: _setup_ubiquitousBash_cygwin'
 	
 	local currentCygdriveC_equivalent
-	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g')
+	currentCygdriveC_equivalent="$1"
+	[[ "$currentCygdriveC_equivalent" == "" ]] && currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g')
+	[[ "$1" == "/" ]] && currentCygdriveC_equivalent=$(echo "$PWD" | sed 's/\(\/cygdrive\/[a-zA-Z]*\).*/\1/')
 	
 	mkdir -p "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
 	cd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash
@@ -1005,6 +1197,10 @@ _setup_ubiquitousBash_cygwin_procedure() {
 	cp "$scriptAbsoluteFolder"/_anchor.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
 	cp "$scriptAbsoluteFolder"/_setup_ubcp.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
 	
+	cp "$scriptAbsoluteFolder"/_setupUbiquitous.bat "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
+	cp "$scriptAbsoluteFolder"/fork "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
+	
 	
 	cp "$scriptAbsoluteFolder"/package.tar.xz "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/
 	
@@ -1030,6 +1226,8 @@ _setup_ubiquitousBash_cygwin_procedure() {
 	
 	cp "$scriptLocal"/ubcp/ubcp.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
 	cp "$scriptLocal"/ubcp/ubcp_rename-to-enable.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
+	
+	cp "$scriptLocal"/ubcp/cygwin-portable-installer-config.cmd  "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
 	cp "$scriptLocal"/ubcp/ubcp-cygwin-portable-installer.cmd "$currentCygdriveC_equivalent"/core/infrastructure/ubiquitous_bash/_local/ubcp/
 	
 	
@@ -1071,6 +1269,11 @@ _setup_ubiquitousBash_cygwin_procedure() {
 	#sudo -n "$scriptAbsoluteLocation" _setup_ubiquitousBash_cygwin_procedure_root "$@"
 	
 	
+	# ATTENTION: NOTICE: Any installer for developers which relies on unpacking directories to '/core/infrastructure' must also add this to '/' .
+	# Having '_bash.bat' at '/' normally allows developers to get a bash prompt from both 'CMD' and 'PowerShell' terminal windows by '/_bash' command.
+	cp "$scriptAbsoluteFolder"/_bash.bat "$currentCygdriveC_equivalent"/
+	
+	
 	_messagePlain_good 'done: _setup_ubiquitousBash_cygwin: lean'
 	sleep 1
 }
@@ -1091,7 +1294,9 @@ _setup_ubcp_procedure() {
 	tskill ssh-pageant > /dev/null 2>&1
 	
 	local currentCygdriveC_equivalent
-	currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g')
+	currentCygdriveC_equivalent="$1"
+	[[ "$currentCygdriveC_equivalent" == "" ]] && currentCygdriveC_equivalent=$(cygpath -S | sed 's/\/Windows\/System32//g')
+	[[ "$1" == "/" ]] && currentCygdriveC_equivalent=$(echo "$PWD" | sed 's/\(\/cygdrive\/[a-zA-Z]*\).*/\1/')
 	
 	export safeToDeleteGit="true"
 	if [[ -e "$currentCygdriveC_equivalent"/core/infrastructure/ubcp ]]
@@ -1127,19 +1332,21 @@ _setup_ubcp_procedure() {
 
 
 # CAUTION: Do NOT hook to '_setup' .
-# No production use. Developer feature.
+# WARNING: ATTENTION: NOTICE: No production use. Developer feature.
 # Highly irregular accommodation for usage of 'ubiquitous_bash' through 'ubcp' (cygwin portable) compatibility layer through MSW network drive (especially '_userVBox' MSW guest network drive) .
 # WARNING: May require 'administrator' privileges under MSW. However, it may be better for this directory to be 'owned' by the 'primary' 'user' account. Particularly considering the VR/gaming/CAD software that remains 'exclusive' to MSW is 'legacy' software which for both licensing and technical reasons may be inherently incompatible with 'multi-user' access.
 # WARNING: MSW 'administrator' 'privileges' may break 'ubcp' .
 _setup_ubcp() {
+	_force_cygwin_symlinks
+	
 	# WARNING: May break if 'mitigation' has not been applied!
 	if ! [[ -e "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.gz ]] && ! [[ -e "$scriptLocal"/ubcp/package_ubcp-cygwinOnly.tar.xz ]] && [[ -e "$scriptLocal"/ubcp/cygwin ]]
 	then
-		"$scriptAbsoluteLocation" _package_procedure-cygwinOnly "$@"
+		"$scriptAbsoluteLocation" _package_procedure-cygwinOnly
 	fi
 	
-	"$scriptAbsoluteLocation" _setup_ubcp_procedure "$@"
-	"$scriptAbsoluteLocation" _setup_ubiquitousBash_cygwin_procedure "$@"
+	"$scriptAbsoluteLocation" _setup_ubcp_procedure "$1"
+	"$scriptAbsoluteLocation" _setup_ubiquitousBash_cygwin_procedure "$1"
 }
 
 
@@ -1149,6 +1356,7 @@ _setup_ubcp() {
 
 _mitigate-ubcp_rewrite_procedure() {
 	_messagePlain_nominal 'init: _mitigate-ubcp_rewrite_procedure'
+	[[ "$currentPWD" != "" ]] && cd "$currentPWD"
 	
 	local currentRoot=$(_getAbsoluteLocation "$PWD")
 	
@@ -1281,14 +1489,78 @@ _mitigate-ubcp_rewrite_procedure() {
 	return 0
 }
 
-_mitigate-ubcp_rewrite() {
+# WARNING: May be untested.
+_mitigate-ubcp_rewrite_parallel() {
+	local currentArg
+	for currentArg in "$@"
+	do
+		true
+		
+		_mitigate-ubcp_rewrite_procedure "$currentArg"
+		
+		# WARNING: May be untested.
+		#_mitigate-ubcp_rewrite_procedure "$currentArg" &
+		
+		#/bin/echo "$currentArg" > /dev/tty
+	done
+}
+
+_mitigate-ubcp_rewrite_sequence() {
 	export safeToDeleteGit="true"
 	! _safePath "$1" && _stop 1
 	cd "$1"
 	
-	find "$2" -type l -exec "$scriptAbsoluteLocation" _mitigate-ubcp_rewrite_procedure '{}' \;
+	
+	# WARNING: May be slow (multiple hours).
+	unset currentPWD
+	#find "$2" -type l -exec "$scriptAbsoluteLocation" _mitigate-ubcp_rewrite_procedure '{}' \;
+	
+	
+	# WARNING: May be untested.
+	# https://stackoverflow.com/questions/4321456/find-exec-a-shell-function-in-linux
+	# Since only the shell knows how to run shell functions, you have to run a shell to run a function.
+	# export -f dosomething
+	# find . -exec bash -c 'dosomething "$0"' {} \;
+	unset currentPWD
+	export currentPWD="$PWD"
+	#export currentPWD="$1"
+	unset currentFile
+	export -f "_mitigate-ubcp_rewrite_procedure"
+	export -f "_messagePlain_nominal"
+	export -f "_color_begin_nominal"
+	export -f "_color_end"
+	export -f "_getAbsoluteLocation"
+	export -f "_realpath_L_s"
+	export -f "_realpath_L"
+	export -f "_compat_realpath_run"
+	export -f "_compat_realpath"
+	export -f "_messagePlain_probe_var"
+	export -f "_color_begin_probe"
+	export -f "_messagePlain_probe"
+	#find "$2" -print0 | while IFS= read -r -d '' currentFile; do _mitigate-ubcp_rewrite_procedure "$currentFile"; done
+	
+	
+	
+	# WARNING: May be untested.
+	##find "$2" -type l -exec bash -c '_mitigate-ubcp_rewrite_procedure "$1"' _ {} \;
+	
+	
+	
+	# WARNING: Diagnostic output will be corrupted by parallelism.
+	# ATTENTION: Expect as much as 4x as many CPU threads may be saturated due to MSW (MSW, NOT Cygwin) inefficiencies.
+	# Or only 2x if CPU has leading single-thread (ie. per-thread) performance and MSW inefficiencies have been reduced.
+	# Expect done in as little as 15 minutes.
+	# https://serverfault.com/questions/193319/a-better-unix-find-with-parallel-processing
+	# https://stackoverflow.com/questions/11003418/calling-shell-functions-with-xargs
+	export -f "_mitigate-ubcp_rewrite_parallel"
+	#find "$2" -type l -print0 | xargs -0 -n 1 -P 4 -I {} bash -c '_mitigate-ubcp_rewrite_parallel "$@"' _ {}
+	find "$2" -type l -print0 | xargs -0 -n 1 -P 4 -I {} bash -c '_mitigate-ubcp_rewrite_procedure "$@"' _ {}
 	
 	return 0
+}
+
+_mitigate-ubcp_rewrite() {
+	"$scriptAbsoluteLocation" _mitigate-ubcp_rewrite_sequence "$@"
 }
 
 
@@ -5473,6 +5745,10 @@ _deps_distro() {
 	export enUb_distro="true"
 }
 
+_deps_getMinimal() {
+	export enUb_getMinimal="true"
+}
+
 _deps_build() {
 	export enUb_build="true"
 }
@@ -5826,7 +6102,10 @@ _generate_compile_bash() {
 
 
 
-
+# ATTENTION: WARNING: CAUTION: Do NOT oversimplify! Keep in mind this seemingly 'spaghetti code' logic has in fact been thoroughly tested for safety, and is complex due to an extraordinary combination of preventive inheritance checks, workarounds, and compressed code. Compressed scripts are already a workaround for purely arbitrary limitations (eg. cloud init script size limits). This stuff goes as far as ensuring the compressed scripts can be included through '.bashrc' without any possibility of interfering with other 'ubiquitous bash' scripts.
+# WARNING: Unfortunately, this really is necessarily as complicated as it looks. A text editor which highlights a currently selected text fragment elsewhere, may help 'browse' the code, such as double-clicking the 'source' word and comparing other occurrences. Removing code which specifically optimizes what does not appear in the especially small 'rotten' script may also help make the code a bit easier to understand.
+# WARNING: Keep in mind some logical conditions here may yet have no production use, but are thoroughly expected to have a production use in the future. Other logic may have an existing use which only becomes obvious if some of the software using 'ubiquitous bash' is tested. Particularly, '_scope', 'arduinoUbiquitous', '_setupUbiquitous', etc. MSW also causes significant issues. Building automatic tests for such issues may require a network of Virtual Machines, and testing strictly interactive (ie. '_bash', 'bash -i', etc) shells, all of which may also require software development of the relevant toolchain first.
+# _request_visualPrompt
 _generate_compile_bash-compressed_procedure() {
 	# If a "base85"/"ascii85" implementation were widely available at all possibly relevant 'environments', then compressed scripts could possibly be ~5% smaller.
 	# WARNING: Do NOT attempt 'yEnc', apparently NOT 'utf8' text editor compatible.
@@ -5925,7 +6204,23 @@ _generate_compile_bash-compressed_procedure() {
 	echo 'current_internal_compressedScript_headerFunctions='\' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	echo "$current_internal_compressedScript_headerFunctions"\' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	echo '! echo "$current_internal_compressedScript_headerFunctions" | base64 -d | xz -d > /dev/null && exit 1' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
-	echo 'source <(echo "$current_internal_compressedScript_headerFunctions" | base64 -d | xz -d)' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	#echo 'source <(echo "$current_internal_compressedScript_headerFunctions" | base64 -d | xz -d)' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	
+	[[ "$1" != "rotten" ]] && cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+if [[ -e /cygdrive ]] && uname -a | grep -i cygwin > /dev/null 2>&1
+then
+	export tmpMSW_compressed=$( cd "$LOCALAPPDATA" 2>/dev/null ; pwd )"/Temp"/uk4u_"$RANDOM""$RANDOM""$RANDOM".sh
+	echo "$current_internal_compressedScript_headerFunctions" | base64 -d | xz -d > "$tmpMSW_compressed"
+	source "$tmpMSW_compressed"
+	rm -f "$tmpMSW_compressed"
+else
+	source <(echo "$current_internal_compressedScript_headerFunctions" | base64 -d | xz -d)
+fi
+CZXWXcRMTo8EmM8i4d
+	[[ "$1" == "rotten" ]] && cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	source <(echo "$current_internal_compressedScript_headerFunctions" | base64 -d | xz -d)
+CZXWXcRMTo8EmM8i4d
+	
 	cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 export importScriptLocation=$(_getScriptAbsoluteLocation)
 export importScriptFolder=$(_getScriptAbsoluteFolder)
@@ -5951,15 +6246,65 @@ CZXWXcRMTo8EmM8i4d
 cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 if [[ "$1" == "--embed" ]]
 then
+CZXWXcRMTo8EmM8i4d
+
+	[[ "$1" == "rotten" ]] && cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) "$@"
 	internalFunctionExitStatus="$?"
+CZXWXcRMTo8EmM8i4d
+	[[ "$1" != "rotten" ]] && cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	if [[ -e /cygdrive ]] && uname -a | grep -i cygwin > /dev/null 2>&1
+	then
+		echo "$current_internal_CompressedScript" | base64 -d | xz -d > "$tmpMSW_compressed"
+		source "$tmpMSW_compressed" "$@"
+		internalFunctionExitStatus="$?"
+		rm -f "$tmpMSW_compressed"
+	else
+		source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) "$@"
+		internalFunctionExitStatus="$?"
+	fi
+CZXWXcRMTo8EmM8i4d
+	
+	cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	return "$internalFunctionExitStatus" > /dev/null 2>&1
 	exit "$internalFunctionExitStatus"
 elif [[ "$1" == "--profile" ]] || [[ "$1" == "--parent" ]]
 then
+CZXWXcRMTo8EmM8i4d
+	
+	[[ "$1" == "rotten" ]] && cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) "$@"
+CZXWXcRMTo8EmM8i4d
+	[[ "$1" != "rotten" ]] && cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	if [[ -e /cygdrive ]] && uname -a | grep -i cygwin > /dev/null 2>&1
+	then
+		echo "$current_internal_CompressedScript" | base64 -d | xz -d > "$tmpMSW_compressed"
+		source "$tmpMSW_compressed" "$@"
+		rm -f "$tmpMSW_compressed"
+	else
+		source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) "$@"
+	fi
+CZXWXcRMTo8EmM8i4d
+
+	cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 else
+CZXWXcRMTo8EmM8i4d
+	
+	[[ "$1" == "rotten" ]] && cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --compressed "$@"
+CZXWXcRMTo8EmM8i4d
+	[[ "$1" != "rotten" ]] && cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
+	if [[ -e /cygdrive ]] && uname -a | grep -i cygwin > /dev/null 2>&1
+	then
+		echo "$current_internal_CompressedScript" | base64 -d | xz -d > "$tmpMSW_compressed"
+		source "$tmpMSW_compressed" --compressed "$@"
+		rm -f "$tmpMSW_compressed"
+	else
+		source <(echo "$current_internal_CompressedScript" | base64 -d | xz -d) --compressed "$@"
+	fi
+CZXWXcRMTo8EmM8i4d
+	
+	cat << 'CZXWXcRMTo8EmM8i4d' >> "$scriptAbsoluteFolder"/"$1"_compressed.sh
 	ub_import=
 	ub_import_param=
 	ub_import_script=
@@ -6105,7 +6450,7 @@ _compile_bash_deps() {
 		
 		#_deps_virt_translation
 		
-		#_deps_stopwatch
+		_deps_stopwatch
 		
 		_deps_queue
 		
@@ -6137,6 +6482,7 @@ _compile_bash_deps() {
 		
 		
 		_deps_distro
+		_deps_getMinimal
 		_deps_linux
 		
 		_deps_python
@@ -6200,6 +6546,8 @@ _compile_bash_deps() {
 		_deps_queue
 		_deps_metaengine
 		
+		_deps_stopwatch
+		
 		return 0
 	fi
 	
@@ -6218,6 +6566,8 @@ _compile_bash_deps() {
 		_deps_metaengine
 		
 		_deps_abstractfs
+		
+		_deps_stopwatch
 		
 		return 0
 	fi
@@ -6239,6 +6589,8 @@ _compile_bash_deps() {
 		
 		_deps_fakehome
 		_deps_abstractfs
+		
+		_deps_stopwatch
 		
 		return 0
 	fi
@@ -6297,6 +6649,7 @@ _compile_bash_deps() {
 		#_deps_cloud_build
 		
 		_deps_distro
+		_deps_getMinimal
 		
 		#_deps_blockchain
 		
@@ -6383,6 +6736,7 @@ _compile_bash_deps() {
 		#_deps_cloud_build
 		
 		_deps_distro
+		_deps_getMinimal
 		
 		#_deps_blockchain
 		
@@ -6469,6 +6823,7 @@ _compile_bash_deps() {
 		_deps_cloud_build
 		
 		_deps_distro
+		_deps_getMinimal
 		
 		_deps_blockchain
 		
@@ -6628,6 +6983,8 @@ _compile_bash_utilities() {
 	[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "os/distro/ubuntu"/getDep_ubuntu.sh )
 	
 	[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "os/distro"/getMost.sh )
+	
+	[[ "$enUb_getMinimal" == "true" ]] && includeScriptList+=( "os/distro"/getMinimal.sh )
 	
 	
 	[[ "$enUb_notLean" == "true" ]] && includeScriptList+=( "os/unix/systemd"/here_systemd.sh )
