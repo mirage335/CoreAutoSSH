@@ -15,6 +15,17 @@ _package_ubcp_copy_prog() {
 	_stop 1
 }
 
+_package_prog() {
+	rm -f "$safeTmp"/package/USAGE.html
+	rm -f "$safeTmp"/package/TiddlySaver.jar
+	
+	rm -f "$safeTmp"/package/_config/_config/netvars.sh.png
+}
+
+_package() {
+	export ubPackage_enable_ubcp='false'
+	"$scriptAbsoluteLocation" _package_procedure "$@"
+}
 
 
 
