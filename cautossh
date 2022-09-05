@@ -36,7 +36,7 @@ _ub_cksum_special_derivativeScripts_contents() {
 #export ub_setScriptChecksum_disable='true'
 ( [[ -e "$0".nck ]] || [[ "${BASH_SOURCE[0]}" != "${0}" ]] || [[ "$1" == '--profile' ]] || [[ "$1" == '--script' ]] || [[ "$1" == '--call' ]] || [[ "$1" == '--return' ]] || [[ "$1" == '--devenv' ]] || [[ "$1" == '--shell' ]] || [[ "$1" == '--bypass' ]] || [[ "$1" == '--parent' ]] || [[ "$1" == '--embed' ]] || [[ "$1" == '--compressed' ]] || [[ "$0" == "/bin/bash" ]] || [[ "$0" == "-bash" ]] || [[ "$0" == "/usr/bin/bash" ]] || [[ "$0" == "bash" ]] ) && export ub_setScriptChecksum_disable='true'
 export ub_setScriptChecksum_header='2591634041'
-export ub_setScriptChecksum_contents='3323135504'
+export ub_setScriptChecksum_contents='313531519'
 
 # CAUTION: Symlinks may cause problems. Disable this test for such cases if necessary.
 # WARNING: Performance may be crucial here.
@@ -659,7 +659,7 @@ then
 	if [[ $(echo "$MSWEXTPATH" | grep -o ';\|:' | wc -l | tr -dc '0-9') -le 32 ]] && [[ $(echo "$PATH" | grep -o ':' | wc -l | tr -dc '0-9') -le 32 ]]
 	then
 		export convertedMSWEXTPATH=$(cygpath -p "$MSWEXTPATH")
-		export PATH="$PATH":"$convertedMSWEXTPATH"
+		export PATH=/usr/bin:"$convertedMSWEXTPATH":"$PATH"
 	fi
 fi
 
@@ -10020,6 +10020,13 @@ fi
 # Near-realtime priority may be acceptable, due to reliability of relevant Ubiquitous Bash functions.
 # WARNING: Do NOT prioritize highly enough to interfere with embedded hard realtime processes.
 
+# Not known or expected to cause significant issues. Not known to affect 'ubiquitous_bash' bash scripts, may affect the separate python 'lean.py' script.
+if [[ "\$USER" == "" ]]
+then
+	[[ "\$UID" == "0" ]] && export USER="root"
+	[[ "\$USER" == "" ]] && export USER=\$(id -u -n 2>/dev/null)
+fi
+
 CZXWXcRMTo8EmM8i4d
 
 
@@ -10760,27 +10767,27 @@ _unix_renice_critical() {
 	local processListFile
 	processListFile="$tmpSelf"/.pidlist_$(_uid)
 	
-	_priority_enumerate_pattern "^ksysguard$" >> "$processListFile"
-	_priority_enumerate_pattern "^ksysguardd$" >> "$processListFile"
-	_priority_enumerate_pattern "^top$" >> "$processListFile"
-	_priority_enumerate_pattern "^iotop$" >> "$processListFile"
-	_priority_enumerate_pattern "^latencytop$" >> "$processListFile"
+	_priority_enumerate_pattern ^ksysguard$ >> "$processListFile"
+	_priority_enumerate_pattern ^ksysguardd$ >> "$processListFile"
+	_priority_enumerate_pattern ^top$ >> "$processListFile"
+	_priority_enumerate_pattern ^iotop$ >> "$processListFile"
+	_priority_enumerate_pattern ^latencytop$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^Xorg$" >> "$processListFile"
-	_priority_enumerate_pattern "^modeset$" >> "$processListFile"
+	_priority_enumerate_pattern ^Xorg$ >> "$processListFile"
+	_priority_enumerate_pattern ^modeset$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^smbd$" >> "$processListFile"
-	_priority_enumerate_pattern "^nmbd$" >> "$processListFile"
+	_priority_enumerate_pattern ^smbd$ >> "$processListFile"
+	_priority_enumerate_pattern ^nmbd$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^ssh$" >> "$processListFile"
-	_priority_enumerate_pattern "^sshd$" >> "$processListFile"
-	_priority_enumerate_pattern "^ssh-agent$" >> "$processListFile"
+	_priority_enumerate_pattern ^ssh$ >> "$processListFile"
+	_priority_enumerate_pattern ^sshd$ >> "$processListFile"
+	_priority_enumerate_pattern ^ssh-agent$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^sshfs$" >> "$processListFile"
+	_priority_enumerate_pattern ^sshfs$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^socat$" >> "$processListFile"
+	_priority_enumerate_pattern ^socat$ >> "$processListFile"
 	
-	#_priority_enumerate_pattern "^cron$" >> "$processListFile"
+	#_priority_enumerate_pattern ^cron$ >> "$processListFile"
 	
 	local currentPID
 	
@@ -10796,17 +10803,17 @@ _unix_renice_interactive() {
 	local processListFile
 	processListFile="$tmpSelf"/.pidlist_$(_uid)
 	
-	_priority_enumerate_pattern "^kwin$" >> "$processListFile"
-	_priority_enumerate_pattern "^pager$" >> "$processListFile"
+	_priority_enumerate_pattern ^kwin$ >> "$processListFile"
+	_priority_enumerate_pattern ^pager$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^pulseaudio$" >> "$processListFile"
+	_priority_enumerate_pattern ^pulseaudio$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^synergy$" >> "$processListFile"
-	_priority_enumerate_pattern "^synergys$" >> "$processListFile"
+	_priority_enumerate_pattern ^synergy$ >> "$processListFile"
+	_priority_enumerate_pattern ^synergys$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^kactivitymanagerd$" >> "$processListFile"
+	_priority_enumerate_pattern ^kactivitymanagerd$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^dbus" >> "$processListFile"
+	_priority_enumerate_pattern ^dbus >> "$processListFile"
 	
 	local currentPID
 	
@@ -10822,28 +10829,28 @@ _unix_renice_app() {
 	local processListFile
 	processListFile="$tmpSelf"/.pidlist_$(_uid)
 	
-	_priority_enumerate_pattern "^plasmashell$" >> "$processListFile"
+	_priority_enumerate_pattern ^plasmashell$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^audacious$" >> "$processListFile"
-	_priority_enumerate_pattern "^vlc$" >> "$processListFile"
+	_priority_enumerate_pattern ^audacious$ >> "$processListFile"
+	_priority_enumerate_pattern ^vlc$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^firefox$" >> "$processListFile"
+	_priority_enumerate_pattern ^firefox$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^dolphin$" >> "$processListFile"
+	_priority_enumerate_pattern ^dolphin$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^kwrite$" >> "$processListFile"
+	_priority_enumerate_pattern ^kwrite$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^konsole$" >> "$processListFile"
-	
-	
-	_priority_enumerate_pattern "^okular$" >> "$processListFile"
-	
-	_priority_enumerate_pattern "^xournal$" >> "$processListFile"
-	
-	_priority_enumerate_pattern "^soffice.bin$" >> "$processListFile"
+	_priority_enumerate_pattern ^konsole$ >> "$processListFile"
 	
 	
-	_priority_enumerate_pattern "^pavucontrol$" >> "$processListFile"
+	_priority_enumerate_pattern ^okular$ >> "$processListFile"
+	
+	_priority_enumerate_pattern ^xournal$ >> "$processListFile"
+	
+	_priority_enumerate_pattern ^soffice.bin$ >> "$processListFile"
+	
+	
+	_priority_enumerate_pattern ^pavucontrol$ >> "$processListFile"
 	
 	local currentPID
 	
@@ -10859,40 +10866,44 @@ _unix_renice_idle() {
 	local processListFile
 	processListFile="$tmpSelf"/.pidlist_$(_uid)
 	
-	_priority_enumerate_pattern "^packagekitd$" >> "$processListFile"
+	_priority_enumerate_pattern ^packagekitd$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^apt-config$" >> "$processListFile"
+	_priority_enumerate_pattern ^apt-config$ >> "$processListFile"
 	
-	#_priority_enumerate_pattern "^ModemManager$" >> "$processListFile"
+	#_priority_enumerate_pattern ^ModemManager$ >> "$processListFile"
 	
-	#_priority_enumerate_pattern "^sddm$" >> "$processListFile"
+	#_priority_enumerate_pattern ^sddm$ >> "$processListFile"
 	
-	#_priority_enumerate_pattern "^lpqd$" >> "$processListFile"
-	#_priority_enumerate_pattern "^cupsd$" >> "$processListFile"
-	#_priority_enumerate_pattern "^cups-browsed$" >> "$processListFile"
+	#_priority_enumerate_pattern ^lpqd$ >> "$processListFile"
+	#_priority_enumerate_pattern ^cupsd$ >> "$processListFile"
+	#_priority_enumerate_pattern ^cups-browsed$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^akonadi" >> "$processListFile"
-	_priority_enumerate_pattern "^akonadi_indexing_agent$" >> "$processListFile"
+	_priority_enumerate_pattern ^akonadi >> "$processListFile"
+	_priority_enumerate_pattern ^akonadi_indexing_agent$ >> "$processListFile"
 	
-	#_priority_enumerate_pattern "^kdeconnectd$" >> "$processListFile"
-	#_priority_enumerate_pattern "^kacceessibleapp$" >> "$processListFile"
-	#_priority_enumerate_pattern "^kglobalaccel5$" >> "$processListFile"
+	#_priority_enumerate_pattern ^kdeconnectd$ >> "$processListFile"
+	#_priority_enumerate_pattern ^kacceessibleapp$ >> "$processListFile"
+	#_priority_enumerate_pattern ^kglobalaccel5$ >> "$processListFile"
 	
-	#_priority_enumerate_pattern "^kded4$" >> "$processListFile"
-	#_priority_enumerate_pattern "^ksmserver$" >> "$processListFile"
+	#_priority_enumerate_pattern ^kded4$ >> "$processListFile"
+	#_priority_enumerate_pattern ^ksmserver$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^sleep$" >> "$processListFile"
+	_priority_enumerate_pattern ^sleep$ >> "$processListFile"
 	
-	_priority_enumerate_pattern "^exim4$" >> "$processListFile"
-	_priority_enumerate_pattern "^apache2$" >> "$processListFile"
-	_priority_enumerate_pattern "^mysqld$" >> "$processListFile"
-	_priority_enumerate_pattern "^ntpd$" >> "$processListFile"
-	#_priority_enumerate_pattern "^avahi-daemon$" >> "$processListFile"
+	_priority_enumerate_pattern ^exim4$ >> "$processListFile"
+	_priority_enumerate_pattern ^apache2$ >> "$processListFile"
+	_priority_enumerate_pattern ^mysqld$ >> "$processListFile"
+	_priority_enumerate_pattern ^ntpd$ >> "$processListFile"
+	#_priority_enumerate_pattern ^avahi-daemon$ >> "$processListFile"
 	
 	
 	# WARNING: Probably unnecessary and counterproductive. May risk halting important compile jobs.
-	#_priority_enumerate_pattern "^cc1$" >> "$processListFile"
-	#_priority_enumerate_pattern "^cc1plus$" >> "$processListFile"
+	#_priority_enumerate_pattern ^cc1$ >> "$processListFile"
+	#_priority_enumerate_pattern ^cc1plus$ >> "$processListFile"
+	
+	#_priority_enumerate_pattern ^tar$ >> "$processListFile"
+	#_priority_enumerate_pattern ^xz$ >> "$processListFile"
+	#_priority_enumerate_pattern ^kcompactd0$ >> "$processListFile"
 	
 	
 	local currentPID
@@ -11045,7 +11056,7 @@ _synergys_terminate() {
 		#kill -KILL $(cat "$synergyPIDfile")
 		rm "$synergyPIDfile"
 		
-		pgrep "^synergy$" && _messagePlain_warn 'found: synergy process'
+		pgrep ^synergy$ && _messagePlain_warn 'found: synergy process'
 		
 		return 0
 	fi
@@ -11070,7 +11081,7 @@ _synergyc_terminate() {
 		#kill -KILL $(cat "$synergyPIDfile")
 		rm "$synergyPIDfile"
 		
-		pgrep "^synergyc$" && _messagePlain_warn 'found: synergyc process'
+		pgrep ^synergyc$ && _messagePlain_warn 'found: synergyc process'
 		
 		return 0
 	fi
@@ -16361,12 +16372,12 @@ _test-shell-cygwin() {
 		echo 'fail: blank: currentScriptTime'
 		_messageFAIL
 	fi
-	if [[ "$currentScriptTime" -gt '9500' ]]
+	if ( [[ "$currentScriptTime" -gt '9500' ]] && [[ "$CI" == "" ]] ) || [[ "$currentScriptTime" -gt '20000' ]]
 	then
 		echo 'fail: slow: currentScriptTime: '"$currentScriptTime"
 		_messageFAIL
 	fi
-	if [[ "$currentScriptTime" -gt '3500' ]]
+	if [[ "$currentScriptTime" -gt '4500' ]]
 	then
 		echo 'warn: slow: currentScriptTime: '"$currentScriptTime"
 		_messagePlain_request 'request: obtain a CPU with better single-thread performance, disable HyperThreading, disable EfficiencyCores, and/or reduce MSW OS installed functionality'
@@ -17629,8 +17640,10 @@ import re
 #\033[0;35;47mpython-%d\033[0m
 #return "\033[92mIn [%d]:\033[0m " % (self.line)
 #return ">>> "
-#return "\033[1;94m|\033[91m#:\033[1;93m%s\033[1;92m@%s\033[1;94m)-%s(\033[1;95m\033[0;35;47mpython-%s\033[0m\033[1;94m)\033[1;96m|\n\033[1;94m|\033[1;97m[%s]\n\033[1;94m|\033[1;96m%d\033[1;94m) \033[1;96m>\033[0m " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
-#return "\033[1;94m|\033[91m#:\033[1;93m%s\033[1;92m@%s\033[1;94m)-%s(\033[1;95m\033[0;35;47mpython-%s\033[0m\033[1;94m)\033[1;96m|\n\033[1;94m|\033[1;97m[%s]\n\033[1;94m|%d\033[1;94m) \033[1;96m>\033[0m " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
+#return "\033[1;94m|\033[91m#:\033[1;93m%s\033[1;92m@%s\033[1;94m)-%s(\033[1;95m\033[0;35;47mpython-%s\033[0m\033[1;94m)\033[1;96m|\n\033[1;94m|\033[1;97m[%s]\n\033[1;94m|\033[1;96m%d\033[1;94m) \033[1;96m>\033[0m " % (os.getenv('USER','root'), socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
+#return "\033[1;94m|\033[91m#:\033[1;93m%s\033[1;92m@%s\033[1;94m)-%s(\033[1;95m\033[0;35;47mpython-%s\033[0m\033[1;94m)\033[1;96m|\n\033[1;94m|\033[1;97m[%s]\n\033[1;94m|%d\033[1;94m) \033[1;96m>\033[0m " % (os.getenv('USER','root'), socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
+#os.environ['USER']
+#os.getenv('USER','root')
 class ubPythonPS1(object):
 	def __init__(self):
 		self.line = 0
@@ -17638,9 +17651,9 @@ class ubPythonPS1(object):
 	def __str__(self):
 		self.line += 1
 		if self.line == 1:
-			return "\x01\033[1;94m\x02|\x01\033[91m\x02#:\x01\033[1;93m\x02%s\x01\033[1;92m\x02@%s\x01\033[1;94m\x02)-%s(\x01\033[1;95m\x02\x01\033[0;35;47m\x02python-%s\x01\033[0m\x02\x01\033[1;94m\x02)\x01\033[1;96m\x02|\n\x01\033[1;94m\x02|\x01\033[1;97m\x02[%s]\n\x01\033[1;94m\x02|\x01\033[1;96m\x02%d\x01\033[1;94m\x02) \x01\033[1;96m\x02>\x01\033[0m\x02 " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
+			return "\x01\033[1;94m\x02|\x01\033[91m\x02#:\x01\033[1;93m\x02%s\x01\033[1;92m\x02@%s\x01\033[1;94m\x02)-%s(\x01\033[1;95m\x02\x01\033[0;35;47m\x02python-%s\x01\033[0m\x02\x01\033[1;94m\x02)\x01\033[1;96m\x02|\n\x01\033[1;94m\x02|\x01\033[1;97m\x02[%s]\n\x01\033[1;94m\x02|\x01\033[1;96m\x02%d\x01\033[1;94m\x02) \x01\033[1;96m\x02>\x01\033[0m\x02 " % (os.getenv('USER','root'), socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
 		else:
-			return "\x01\033[1;94m\x02|\x01\033[91m\x02#:\x01\033[1;93m\x02%s\x01\033[1;92m\x02@%s\x01\033[1;94m\x02)-%s(\x01\033[1;95m\x02\x01\033[0;35;47m\x02python-%s\x01\033[0m\x02\x01\033[1;94m\x02)\x01\033[1;96m\x02|\n\x01\033[1;94m\x02|\x01\033[1;97m\x02[%s]\n\x01\033[1;94m\x02|%d\x01\033[1;94m\x02) \x01\033[1;96m\x02>\x01\033[0m\x02 " % (os.environ['USER'], socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
+			return "\x01\033[1;94m\x02|\x01\033[91m\x02#:\x01\033[1;93m\x02%s\x01\033[1;92m\x02@%s\x01\033[1;94m\x02)-%s(\x01\033[1;95m\x02\x01\033[0;35;47m\x02python-%s\x01\033[0m\x02\x01\033[1;94m\x02)\x01\033[1;96m\x02|\n\x01\033[1;94m\x02|\x01\033[1;97m\x02[%s]\n\x01\033[1;94m\x02|%d\x01\033[1;94m\x02) \x01\033[1;96m\x02>\x01\033[0m\x02 " % (os.getenv('USER','root'), socket.gethostname(), os.environ.get('prompt_cloudNetName', ''), hex(sys.hexversion), re.sub('^%s' % os.environ['HOME'], '~', os.path.expanduser(os.getcwd()) ), self.line)
 
 sys.ps1 = ubPythonPS1()
 sys.ps2 = "\x01\033[0;96m\x02|...\x01\033[0m\x02 "
